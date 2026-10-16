@@ -128,19 +128,29 @@ export function foldToAscii(value: string): string {
   return value
     .replace(SPECIAL_PATTERN, (letter) => SPECIAL_LETTERS[letter] ?? letter)
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 }
 
-/** Every word the prefix and suffix rules can remove, plus "and". */
-const LEGAL_WORDS: ReadonlySet<string> = new Set([...LEADING_PREFIXES.flat(), ...LEGAL_SUFFIXES.flat(), 'and']);
+/** Whole legal units that the prefix and suffix rules remove, plus "and". */
+const LEGAL_UNITS: readonly (readonly string[])[] = [...LEADING_PREFIXES, ...LEGAL_SUFFIXES, ['and']];
 
 /**
- * False when nothing distinctive is left: an empty name, or one made only of legal-form words
+ * False when nothing distinctive is left: an empty name, or one made only of whole legal-form units
  * (normalizeName keeps the last token, so "PT Tbk" becomes "tbk"). Such names must never auto-link.
+ * Words that only appear inside a longer legal phrase ("thanh" in "mot thanh vien") still count as name words.
  */
 export function isUsableName(nameNorm: string): boolean {
-  return nameNorm.split(' ').some((token) => token.length > 0 && !LEGAL_WORDS.has(token));
+  const tokens = nameNorm.split(' ').filter(Boolean);
+  // covered[i]: tokens[i..] splits completely into legal units.
+  const covered = new Array<boolean>(tokens.length + 1).fill(false);
+  covered[tokens.length] = true;
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    covered[i] = LEGAL_UNITS.some(
+      (unit) => i + unit.length <= tokens.length && unit.every((token, k) => tokens[i + k] === token) && covered[i + unit.length],
+    );
+  }
+  return tokens.length > 0 && !covered[0];
 }
 
 export function normalizeName(raw: string | null | undefined): NormalizedName {

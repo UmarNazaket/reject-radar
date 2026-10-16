@@ -75,6 +75,12 @@ describe('isUsableName (review focus 1)', () => {
     ['kamal foods', true],
     ['123 rice mills', true],
     ['al rahman rice mills', true],
+    ['thanh cong', true],
+    ['phan thanh', true],
+    ['s m', true],
+    ['cong ty', false],
+    ['mot thanh vien', false],
+    ['pvt ltd', false],
   ])('%p → %p', (nameNorm, expected) => {
     expect(isUsableName(nameNorm)).toBe(expected);
   });
