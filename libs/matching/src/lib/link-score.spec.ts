@@ -1,3 +1,4 @@
+import { MATCH_CONFIG } from './config';
 import { buildLinkEvidence, decideLink, type LinkEvidence, linkScore, type MatchRecord } from './link-score';
 import type { NormalizedAddress } from './normalize-address';
 
@@ -59,6 +60,9 @@ describe('decideLink thresholds', () => {
     [0.7499, 'new'],
   ] as const)('%p → %p', (score, expected) => {
     expect(decideLink(score)).toBe(expected);
+  });
+  it('accepts a tuned override whose numbers differ from the defaults', () => {
+    expect(decideLink(0.85, { ...MATCH_CONFIG.link, autoLink: 0.8 })).toBe('link');
   });
 });
 

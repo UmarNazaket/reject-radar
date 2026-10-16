@@ -1,3 +1,4 @@
+import { MATCH_CONFIG } from './config';
 import { labelQueryScore, queryScore } from './query-score';
 
 const base = { sim: 0, cityMatch: false, uniqueNearExact: false };
@@ -26,5 +27,8 @@ describe('queryScore (spec §8.3 examples)', () => {
     [0.4999, 'hidden'],
   ] as const)('labels %p as %p', (score, label) => {
     expect(labelQueryScore(score)).toBe(label);
+  });
+  it('accepts a tuned override whose numbers differ from the defaults', () => {
+    expect(labelQueryScore(0.85, { ...MATCH_CONFIG.query, strong: 0.8 })).toBe('strong');
   });
 });

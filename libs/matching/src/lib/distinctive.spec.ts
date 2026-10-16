@@ -15,4 +15,7 @@ describe('isDistinctiveName (spec §8.2; frequencies are counted within one coun
   it('is false for an empty name', () => {
     expect(isDistinctiveName('', freq({}))).toBe(false);
   });
+  it('is false for a name made only of legal words', () => {
+    expect(isDistinctiveName('ltd', freq({ ltd: 0 }))).toBe(false);
+  });
 });

@@ -1,4 +1,4 @@
-import { MATCH_CONFIG, round4 } from './config';
+import { type LinkConfig, MATCH_CONFIG, round4 } from './config';
 import { addressSimilarity, type NormalizedAddress } from './normalize-address';
 import { isUsableName } from './normalize-name';
 import { nameSimilarity } from './similarity';
@@ -27,7 +27,7 @@ export function buildLinkEvidence(
   record: MatchRecord,
   candidate: MatchRecord,
   opts: { isDistinctive: boolean },
-  cfg: typeof MATCH_CONFIG.link = MATCH_CONFIG.link,
+  cfg: LinkConfig = MATCH_CONFIG.link,
 ): LinkEvidence {
   const a = record.address;
   const b = candidate.address;
@@ -51,7 +51,7 @@ export function buildLinkEvidence(
   };
 }
 
-export function linkScore(e: LinkEvidence, cfg: typeof MATCH_CONFIG.link = MATCH_CONFIG.link): number {
+export function linkScore(e: LinkEvidence, cfg: LinkConfig = MATCH_CONFIG.link): number {
   if (!e.sameCountry) return 0;
   const locationBonus = Math.max(
     e.addressMatch ? cfg.address : 0,
@@ -65,7 +65,7 @@ export function linkScore(e: LinkEvidence, cfg: typeof MATCH_CONFIG.link = MATCH
   return Math.min(1, round4(score));
 }
 
-export function decideLink(score: number, cfg: typeof MATCH_CONFIG.link = MATCH_CONFIG.link): LinkDecision {
+export function decideLink(score: number, cfg: LinkConfig = MATCH_CONFIG.link): LinkDecision {
   if (score >= cfg.autoLink) return 'link';
   if (score >= cfg.review) return 'review';
   return 'new';
