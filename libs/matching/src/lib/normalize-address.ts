@@ -26,7 +26,7 @@ const COUNTRY_ALIASES: Readonly<Record<string, string>> = {
   'united kingdom of great britain and northern ireland': 'GB',
   usa: 'US', 'u s a': 'US', 'u s': 'US', 'united states of america': 'US',
   'viet nam': 'VN', turkey: 'TR', turkiye: 'TR',
-  korea: 'KR', 'south korea': 'KR', 'korea south': 'KR', 'korea republic of': 'KR', 'republic of korea': 'KR',
+  'south korea': 'KR', 'korea south': 'KR', 'korea republic of': 'KR', 'republic of korea': 'KR',
   'korea democratic people s republic of': 'KP', 'north korea': 'KP',
   'iran islamic republic of': 'IR', 'hong kong': 'HK', 'hong kong sar': 'HK', 'macao sar': 'MO', macau: 'MO',
   'taiwan province of china': 'TW', 'russian federation': 'RU',
@@ -38,16 +38,18 @@ const COUNTRY_ALIASES: Readonly<Record<string, string>> = {
   uae: 'AE', 'u a e': 'AE', ksa: 'SA', 'kingdom of saudi arabia': 'SA',
   palestine: 'PS', 'palestine state of': 'PS', swaziland: 'SZ', 'cape verde': 'CV', macedonia: 'MK', 'east timor': 'TL',
   'dr congo': 'CD', 'democratic republic of the congo': 'CD', 'congo democratic republic of the': 'CD', 'republic of the congo': 'CG',
+  myanmar: 'MM', 'cabo verde': 'CV', macao: 'MO', 'brunei darussalam': 'BN', 'islamic republic of iran': 'IR',
+  'u k': 'GB', 'republic of ireland': 'IE',
 };
 
-/** Region codes with English names that are not countries. */
-const NOT_COUNTRIES = new Set(['EU', 'EZ', 'UN', 'QO', 'ZZ', 'XA', 'XB']);
+/** Region codes with English names that are not countries: user-assigned, exceptionally reserved, or EU/UN bodies. */
+const NOT_COUNTRIES = new Set(['EU', 'EZ', 'UN', 'QO', 'ZZ', 'XA', 'XB', 'AC', 'CP', 'DG', 'EA', 'IC', 'TA', 'CQ']);
 
 const CITY_ALIASES: Readonly<Record<string, string>> = {
   bombay: 'mumbai', calcutta: 'kolkata', madras: 'chennai', bangalore: 'bengaluru', poona: 'pune', baroda: 'vadodara',
   cochin: 'kochi', trivandrum: 'thiruvananthapuram', saigon: 'ho chi minh city', hcmc: 'ho chi minh city',
   'ho chi minh': 'ho chi minh city', 'tp ho chi minh': 'ho chi minh city', 'tp hcm': 'ho chi minh city',
-  peking: 'beijing', canton: 'guangzhou', dacca: 'dhaka', chittagong: 'chattogram', lyallpur: 'faisalabad',
+  peking: 'beijing', dacca: 'dhaka', chittagong: 'chattogram', lyallpur: 'faisalabad',
 };
 
 const POSTCODE_PLACEHOLDERS = new Set(['NA', 'NONE', 'NULL', 'NIL', 'UNKNOWN']);
@@ -59,15 +61,23 @@ const ADDRESS_TOKENS: Readonly<Record<string, string>> = {
 };
 const ADDRESS_FILLER = new Set(['no', 'nos', 'number', 'near', 'opp', 'opposite']);
 
-let countryTables: { byName: Map<string, string>; codes: Set<string> } | null = null;
+interface CountryTables {
+  /** Country-name key to code, from the runtime's ICU English names. */
+  byName: Map<string, string>;
+  /** Hand-written long and old forms, keyed the same way as byName. */
+  aliases: Map<string, string>;
+  codes: Set<string>;
+}
+
+let countryTables: CountryTables | null = null;
 
 /** False for retired or reserved codes that ICU still names (UK, SU, FX, YU, ZR, TP…); they would shadow the real code. */
 function isCanonicalRegion(code: string): boolean {
   return Intl.getCanonicalLocales(`und-${code}`)[0] === `und-${code}`;
 }
 
-/** English region names from the runtime's ICU data, keyed by their folded form. Built once. */
-function getCountryTables(): { byName: Map<string, string>; codes: Set<string> } {
+/** Built once: ICU English region names and the alias table, both keyed by countryKey. */
+function getCountryTables(): CountryTables {
   if (countryTables) return countryTables;
   const names = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'code' });
   const byName = new Map<string, string>();
@@ -79,15 +89,26 @@ function getCountryTables(): { byName: Map<string, string>; codes: Set<string> }
       const name = names.of(code);
       if (!name || name === code) continue;
       codes.add(code);
-      byName.set(foldName(name), code);
+      byName.set(countryKey(name), code);
     }
   }
-  countryTables = { byName, codes };
+  const aliases = new Map<string, string>();
+  for (const [name, code] of Object.entries(COUNTRY_ALIASES)) aliases.set(countryKey(name), code);
+  countryTables = { byName, aliases, codes };
   return countryTables;
 }
 
 function foldName(value: string): string {
   return foldToAscii(value).replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** Comparison key for country names: folded, without "and"/"the", "saint" as "st". */
+function countryKey(value: string): string {
+  return foldName(value)
+    .split(' ')
+    .filter((token) => token !== 'and' && token !== 'the')
+    .map((token) => (token === 'saint' ? 'st' : token))
+    .join(' ');
 }
 
 function cleanText(value?: string | null): string | null {
@@ -97,14 +118,14 @@ function cleanText(value?: string | null): string | null {
 
 export function normalizeCountry(value?: string | null): string | null {
   if (!value) return null;
-  const folded = foldName(value);
-  if (!folded) return null;
-  const alias = COUNTRY_ALIASES[folded];
+  const key = countryKey(value);
+  if (!key) return null;
+  const { byName, aliases, codes } = getCountryTables();
+  const alias = aliases.get(key);
   if (alias) return alias;
-  const { byName, codes } = getCountryTables();
-  const upper = folded.toUpperCase();
+  const upper = foldName(value).toUpperCase();
   if (/^[A-Z]{2}$/.test(upper) && codes.has(upper)) return upper;
-  return byName.get(folded) ?? null;
+  return byName.get(key) ?? null;
 }
 
 export function normalizeCity(value?: string | null): string | null {
