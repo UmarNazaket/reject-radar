@@ -1,4 +1,4 @@
-import type { INestApplication } from '@nestjs/common';
+import { type INestApplication, Logger } from '@nestjs/common';
 import { apiEnvSchema, type ApiEnv, parseEnv } from '@rejectradar/contracts';
 import { prepareTestDatabase } from '@rejectradar/db';
 import request from 'supertest';
@@ -83,5 +83,18 @@ describe('health when the database is unreachable', () => {
   it('answers 503 DB_UNAVAILABLE on /v1/health/ready', async () => {
     const res = await request(app.getHttpServer()).get('/v1/health/ready').expect(503);
     expect(res.body.code).toBe('DB_UNAVAILABLE');
+  });
+
+  it('logs why the readiness check failed', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn');
+    try {
+      await request(app.getHttpServer()).get('/v1/health/ready').expect(503);
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.objectContaining({ code: 'ECONNREFUSED' }) }),
+        'Database readiness check failed',
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
