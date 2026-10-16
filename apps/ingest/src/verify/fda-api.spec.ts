@@ -38,6 +38,17 @@ describe('interpretFdaResponse (review focus 5)', () => {
 });
 
 describe('fetchRefusalsPage', () => {
+  const originalContact = process.env['INGEST_CONTACT_EMAIL'];
+
+  beforeAll(() => {
+    process.env['INGEST_CONTACT_EMAIL'] = 'test@example.com';
+  });
+
+  afterAll(() => {
+    if (originalContact === undefined) delete process.env['INGEST_CONTACT_EMAIL'];
+    else process.env['INGEST_CONTACT_EMAIL'] = originalContact;
+  });
+
   it('posts JSON with the FDA auth headers', async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     const fakeFetch = (async (url: string, init: RequestInit) => {

@@ -7,10 +7,11 @@ import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import unzipper from 'unzipper';
 
-/** Spec §6.3 rule 5: every request names RejectRadar and, when configured, a contact address. */
+/** Spec §6.3 rule 5: every request names RejectRadar and carries a contact address. */
 export function userAgent(): string {
   const contact = process.env['INGEST_CONTACT_EMAIL']?.trim();
-  return contact ? `RejectRadar data verification (${contact})` : 'RejectRadar data verification';
+  if (!contact) throw new Error('Set INGEST_CONTACT_EMAIL in .env: every request must carry a contact address (spec §6.3)');
+  return `RejectRadar data verification (${contact})`;
 }
 
 export async function downloadFile(url: string, dir: string): Promise<string> {

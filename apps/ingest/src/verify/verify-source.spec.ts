@@ -1,6 +1,49 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { formatReport, verifySource } from './verify-source';
 
+describe('verifySource with a JSON file', () => {
+  let dir: string;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), 'verify-source-'));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('reads JSON that starts with a byte-order mark', async () => {
+    const file = path.join(dir, 'bom.json');
+    const bom = String.fromCharCode(0xfeff);
+    await writeFile(file, bom + JSON.stringify({ items: [{ ref: 'A', hazard: 'aflatoxin' }, { ref: 'B', hazard: '' }] }), 'utf8');
+    const result = await verifySource({ source: 'rasff', file, jsonPath: 'items', fillRate: ['hazard'], unique: ['ref'] });
+    expect(result.rows).toBe(2);
+    expect(result.fields).toEqual(['ref', 'hazard']);
+    expect(result.fillRates).toEqual({ hazard: 0.5 });
+    expect(result.duplicates).toBe(0);
+  });
+
+  it('names the file when the JSON is invalid', async () => {
+    const file = path.join(dir, 'broken.json');
+    await writeFile(file, '<html>not json</html>', 'utf8');
+    await expect(verifySource({ source: 'rasff', file })).rejects.toThrow(`${file} is not valid JSON`);
+  });
+});
+
 describe('verifySource with the FDA API', () => {
+  const originalContact = process.env['INGEST_CONTACT_EMAIL'];
+
+  beforeAll(() => {
+    process.env['INGEST_CONTACT_EMAIL'] = 'test@example.com';
+  });
+
+  afterAll(() => {
+    if (originalContact === undefined) delete process.env['INGEST_CONTACT_EMAIL'];
+    else process.env['INGEST_CONTACT_EMAIL'] = originalContact;
+  });
+
   it('verifies refusals without touching the network', async () => {
     const fakeFetch = (async () =>
       new Response(

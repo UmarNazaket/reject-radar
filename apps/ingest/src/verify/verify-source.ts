@@ -105,7 +105,7 @@ async function loadFile(options: VerifyOptions, spec: SourceSpec, fillRate: read
   const sha256 = await sha256File(downloaded);
 
   if (spec.kind === 'json') {
-    const records = extractRecords(JSON.parse(await readFile(downloaded, 'utf8')) as unknown, options.jsonPath);
+    const records = extractRecords(parseJsonFile(await readFile(downloaded, 'utf8'), downloaded), options.jsonPath);
     const summary = summarizeRecords(records, fillRate);
     return { origin, sha256, fields: summary.fields, rows: summary.rows, total: null, fillRates: summary.fillRates, records };
   }
@@ -113,6 +113,14 @@ async function loadFile(options: VerifyOptions, spec: SourceSpec, fillRate: read
   const csvPath = await ensureCsv(downloaded, workDir);
   const summary = await readCsvSummary(createReadStream(csvPath), fillRate);
   return { origin, sha256, fields: summary.headers, rows: summary.rows, total: null, fillRates: summary.fillRates, records: null };
+}
+
+function parseJsonFile(text: string, file: string): unknown {
+  try {
+    return JSON.parse(text.replace(/^\uFEFF/, '')) as unknown;
+  } catch (error) {
+    throw new Error(`${file} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 export function formatReport(result: VerifyResult, at: Date = new Date()): string {

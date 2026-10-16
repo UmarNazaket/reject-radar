@@ -1,4 +1,4 @@
-import { Command, Option } from 'commander';
+import { Command, InvalidArgumentError, Option } from 'commander';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -10,6 +10,10 @@ if (existsSync('.env')) process.loadEnvFile('.env');
 
 const list = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
 const collect = (value: string, previous: string[]) => [...previous, value];
+const positiveInt = (value: string): number => {
+  if (!/^[1-9]\d*$/.test(value)) throw new InvalidArgumentError('Must be a positive integer.');
+  return Number.parseInt(value, 10);
+};
 
 const program = new Command().name('rejectradar-ingest').description('RejectRadar data ingestion CLI');
 
@@ -38,7 +42,7 @@ program
   .option('--file <path>', 'saved page instead of --url')
   .option('--count <regex>', 'pattern to count, case-insensitive (repeatable)', collect, [])
   .option('--sample <regex>', 'pattern whose first matches are shown')
-  .option('--sample-count <n>', 'how many samples to show', (value: string) => Number.parseInt(value, 10), 3)
+  .option('--sample-count <n>', 'how many samples to show', positiveInt, 3)
   .option('--report <path>', 'markdown file to append the result to')
   .action(async (options) => {
     const result = await probePage(options);
