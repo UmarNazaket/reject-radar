@@ -1,1 +1,1 @@
-export * from './lib/matching';
+export * from './lib/normalize-name';
