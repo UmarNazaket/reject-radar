@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: rejectradar
+          POSTGRES_PASSWORD: rejectradar
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rejectradar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_SERVER_URL: postgres://rejectradar:rejectradar@localhost:5432
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: nrwl/nx-set-shas@v4
+      - name: Lint, test and build what changed
+        run: npx nx affected -t lint test build --parallel=3
+      - name: Migrations match the schema
+        run: |
+          npx drizzle-kit generate --config=libs/db/drizzle.config.ts
+          test -z "$(git status --porcelain libs/db/migrations)" || (git status --porcelain libs/db/migrations && echo "Schema changed without a committed migration" && exit 1)
+      # Audit policy (spec §12, amended 2026-10-17): production deps fail on high, everything fails on critical,
+      # and high advisories in dev tooling are reported without failing the job.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Audit all dependencies for critical advisories
+        run: npm audit --audit-level=critical
+      - name: Report high advisories in dev tooling (non-blocking)
+        if: always()
+        continue-on-error: true
+        run: npm audit --audit-level=high
