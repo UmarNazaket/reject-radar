@@ -12,6 +12,11 @@ updates:
         patterns: ['nx', '@nx/*']
       nestjs:
         patterns: ['@nestjs/*']
+    ignore:
+      # @nx/webpack 23 accepts only webpack-dev-server ^5; npm 10 (Cloudflare Pages) refuses to install 6.
+      # Remove once @nx/webpack's peer range includes 6.
+      - dependency-name: webpack-dev-server
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
