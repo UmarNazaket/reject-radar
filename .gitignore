@@ -66,3 +66,20 @@ desktop.ini
 
 # ── Local Claude Code settings ──────────────────────────────────────────────
 .claude/settings.local.json
+
+# ── From the Nx generator ───────────────────────────────────────────────────
+.nx/migrate-runs
+.claude/worktrees
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+!.vscode/tasks.json
+!.vscode/launch.json
+/connect.lock
+/libpeerconnection.log
+yarn-error.log
+testem.log
+/typings
