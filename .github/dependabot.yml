@@ -10,6 +10,8 @@ updates:
         patterns: ['@angular/*', '@angular-devkit/*', '@schematics/angular', 'angular-eslint', '@angular-eslint/*']
       nx:
         patterns: ['nx', '@nx/*']
+      nestjs:
+        patterns: ['@nestjs/*']
   - package-ecosystem: github-actions
     directory: /
     schedule:
