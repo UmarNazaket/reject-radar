@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17
+    image: postgres:18 # same major version as Neon
     environment:
       POSTGRES_USER: rejectradar
       POSTGRES_PASSWORD: rejectradar
@@ -8,7 +8,7 @@ services:
     ports:
       - '127.0.0.1:5432:5432'
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata18:/var/lib/postgresql # Postgres 18 images keep data in a versioned folder under this path
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U rejectradar']
       interval: 5s
@@ -20,4 +20,4 @@ services:
       - '127.0.0.1:1025:1025' # SMTP
       - '127.0.0.1:8025:8025' # web UI + API
 volumes:
-  pgdata:
+  pgdata18:
