@@ -62,6 +62,15 @@ describe('health endpoints', () => {
     const res = await request(app.getHttpServer()).get('/v1/health');
     expect(res.headers['x-content-type-options']).toBe('nosniff');
   });
+
+  it('answers 413 PAYLOAD_TOO_LARGE for a JSON body over the size limit', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/v1/health')
+      .set('Content-Type', 'application/json')
+      .send(JSON.stringify({ filler: 'x'.repeat(150 * 1024) }))
+      .expect(413);
+    expect(res.body).toEqual({ code: 'PAYLOAD_TOO_LARGE', message: expect.any(String), requestId: res.headers['x-request-id'] });
+  });
 });
 
 describe('health when the database is unreachable', () => {

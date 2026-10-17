@@ -26,4 +26,18 @@ describe('toErrorBody (spec §13)', () => {
     expect(body.message).not.toContain('leaked');
     expect(body).not.toHaveProperty('details');
   });
+
+  it('keeps the 4xx status of an exposed body-parser error', () => {
+    const tooLarge = Object.assign(new Error('request entity too large'), { status: 413, statusCode: 413, expose: true, type: 'entity.too.large' });
+    const { status, body } = toErrorBody(tooLarge, 'req-5');
+    expect(status).toBe(413);
+    expect(body).toEqual({ code: 'PAYLOAD_TOO_LARGE', message: 'request entity too large', requestId: 'req-5' });
+  });
+
+  it('does not expose a non-exposed error even if it carries a status', () => {
+    const { status, body } = toErrorBody(Object.assign(new Error('secret detail'), { status: 500, expose: false }), 'req-6');
+    expect(status).toBe(500);
+    expect(body.code).toBe('INTERNAL');
+    expect(body.message).not.toContain('secret');
+  });
 });

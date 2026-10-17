@@ -1,19 +1,10 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 import type { ApiEnv } from '@rejectradar/contracts';
 import { LoggerModule } from 'nestjs-pino';
-import { randomUUID } from 'node:crypto';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { requestIdFor } from '../common/request-id';
 import { API_ENV } from '../config/env';
 import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
-
-/** Accept a client request id only if it is short and safe to log; otherwise mint one. */
-export function requestIdFor(req: IncomingMessage, res: ServerResponse): string {
-  const incoming = req.headers['x-request-id'];
-  const id = typeof incoming === 'string' && /^[\w-]{8,64}$/.test(incoming) ? incoming : randomUUID();
-  res.setHeader('x-request-id', id);
-  return id;
-}
 
 @Module({})
 export class AppModule {

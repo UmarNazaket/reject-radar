@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { requestIdFor } from './request-id';
 
 const CODE_BY_STATUS: Readonly<Record<number, string>> = {
   400: 'BAD_REQUEST',
@@ -32,6 +33,18 @@ export class AppError extends HttpException {
   }
 }
 
+/**
+ * Client errors raised outside Nest (e.g. the body parser's `PayloadTooLargeError`) follow the http-errors
+ * convention: a numeric 4xx `status`/`statusCode` and `expose: true` when the message is safe to show.
+ */
+function exposedClientStatus(exception: unknown): number | undefined {
+  if (typeof exception !== 'object' || exception === null) return undefined;
+  const candidate = exception as { expose?: unknown; status?: unknown; statusCode?: unknown; message?: unknown };
+  if (candidate.expose !== true || typeof candidate.message !== 'string') return undefined;
+  const status = typeof candidate.status === 'number' ? candidate.status : candidate.statusCode;
+  return typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 499 ? status : undefined;
+}
+
 export function toErrorBody(exception: unknown, requestId: string): { status: number; body: ErrorBody } {
   if (exception instanceof AppError) {
     return {
@@ -51,6 +64,13 @@ export function toErrorBody(exception: unknown, requestId: string): { status: nu
     const message = Array.isArray(raw) ? raw.join('; ') : typeof raw === 'string' ? raw : exception.message;
     return { status, body: { code: CODE_BY_STATUS[status] ?? 'HTTP_ERROR', message, requestId } };
   }
+  const clientStatus = exposedClientStatus(exception);
+  if (clientStatus !== undefined) {
+    return {
+      status: clientStatus,
+      body: { code: CODE_BY_STATUS[clientStatus] ?? 'HTTP_ERROR', message: (exception as { message: string }).message, requestId },
+    };
+  }
   return {
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     body: { code: 'INTERNAL', message: 'Something went wrong. Quote the request ID if you contact support.', requestId },
@@ -65,7 +85,9 @@ export class ErrorFilter implements ExceptionFilter {
     const http = host.switchToHttp();
     const request = http.getRequest<Request & { id?: string | number }>();
     const response = http.getResponse<Response>();
-    const { status, body } = toErrorBody(exception, String(request.id ?? ''));
+    // Errors thrown by the body parser happen before the logger middleware assigns an id, so mint one here.
+    const requestId = request.id === undefined ? requestIdFor(request, response) : String(request.id);
+    const { status, body } = toErrorBody(exception, requestId);
     if (status >= 500) this.logger.error({ err: exception, requestId: body.requestId }, 'Request failed');
     response.status(status).json(body);
   }
