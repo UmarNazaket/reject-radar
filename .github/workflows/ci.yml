@@ -41,7 +41,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - uses: nrwl/nx-set-shas@v4
+      - uses: nrwl/nx-set-shas@v5
       - name: Lint, test and build what changed
         run: npx nx affected -t lint test build --parallel=3
       - name: Migrations match the schema
