@@ -4,11 +4,21 @@ on:
   schedule:
     - cron: '30 3 1 * *' # EU MRL
   workflow_dispatch:
+    inputs:
+      job:
+        description: Job to run on a manual dispatch
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - eu-mrl
 
 permissions:
   contents: read
 
-# One writer at a time on the shared database.
+# One writer at a time on the shared database. GitHub keeps only one pending run per group,
+# so scheduled workflows are spaced far apart and chain their jobs with needs.
 concurrency:
   group: ingest-db
   cancel-in-progress: false
@@ -17,11 +27,10 @@ jobs:
   eu-mrl:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    if: ${{ github.event.schedule == '30 3 1 * *' || inputs.job == 'all' || inputs.job == 'eu-mrl' }}
     env:
       DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
       INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
-      FDA_API_USER: ${{ secrets.FDA_API_USER }}
-      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

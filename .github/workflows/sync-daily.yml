@@ -2,14 +2,24 @@ name: Sync daily
 
 on:
   schedule:
-    - cron: '0 4 * * *' # Import Alerts (FDA robots.txt visiting hours: 03:00-09:00 UTC)
-    - cron: '0 5 * * *' # RASFF
+    - cron: '0 4 * * *' # Import Alerts, then RASFF (FDA robots.txt visiting hours: 03:00-09:00 UTC)
   workflow_dispatch:
+    inputs:
+      job:
+        description: "Job to run on a manual dispatch (import-alerts must be dispatched inside 03:00-09:00 UTC)"
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - import-alerts
+          - rasff
 
 permissions:
   contents: read
 
-# One writer at a time on the shared database.
+# One writer at a time on the shared database. GitHub keeps only one pending run per group,
+# so scheduled workflows are spaced far apart and chain their jobs with needs.
 concurrency:
   group: ingest-db
   cancel-in-progress: false
@@ -18,12 +28,10 @@ jobs:
   import-alerts:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event.schedule == '0 4 * * *' || github.event_name == 'workflow_dispatch'
+    if: ${{ github.event.schedule == '0 4 * * *' || inputs.job == 'all' || inputs.job == 'import-alerts' }}
     env:
       DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
       INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
-      FDA_API_USER: ${{ secrets.FDA_API_USER }}
-      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -42,12 +50,11 @@ jobs:
   rasff:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: github.event.schedule == '0 5 * * *' || github.event_name == 'workflow_dispatch'
+    needs: import-alerts
+    if: ${{ !cancelled() && (github.event.schedule == '0 4 * * *' || inputs.job == 'all' || inputs.job == 'rasff') }}
     env:
       DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
       INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
-      FDA_API_USER: ${{ secrets.FDA_API_USER }}
-      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

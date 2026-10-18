@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: Source to load
+        description: "Source to load. import_alerts must run inside 03:00-09:00 UTC (FDA robots.txt visiting hours). A long backfill that spans a scheduled sync time can make a pending scheduled run be dropped, because GitHub keeps one pending run per concurrency group."
         type: choice
         required: true
         options:
