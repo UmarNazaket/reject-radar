@@ -40,6 +40,8 @@ const bytes = (source: string, name: string) => readFileSync(path.join(__dirname
 const text = (source: string, name: string) => bytes(source, name).toString('utf8');
 
 const TODAY = '2026-10-18';
+/** Inside FDA's robots.txt visiting hours (03:00-09:00 UTC), when an Import Alert crawl may start. */
+const VISITING_HOUR = () => new Date(`${TODAY}T05:00:00Z`);
 const AU_URLS = {
   'may-2026.csv': 'https://data.gov.au/data/dataset/e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5/resource/202d9e34-4e6d-4f6b-bacd-5731aa59e30d/download/may-2026-ifis-failing-food-report.csv',
   'june-2026.csv': 'https://data.gov.au/data/dataset/e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5/resource/b0950e17-c23b-4d8e-8122-4397459b4cec/download/failing-food-report-june-2026.csv',
@@ -135,7 +137,7 @@ describe('taxonomy remap', () => {
   const loadAll = async (events: boolean) => {
     await syncChargeCodes(deps);
     await syncFdaRefusals({ ...deps, creds: { user: 'u', key: 'k' } }, { from: '2026-09-01', to: '2026-09-30', events });
-    await syncImportAlerts({ ...deps, failureDir }, { events });
+    await syncImportAlerts({ ...deps, failureDir, now: VISITING_HOUR }, { events });
     await syncRasff(deps, { detailsLimit: 200, events });
     await syncUkBn(deps, { events });
     await syncAuIfis(deps, { events });
@@ -200,7 +202,7 @@ describe('taxonomy remap', () => {
   });
 
   it('re-applies a rule to Import Alert listings from their current products and their red notices', async () => {
-    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+    await syncImportAlerts({ ...deps, failureDir, now: VISITING_HOUR }, { events: false });
     const fenugreek = await handle.db.select().from(notice).where(ilike(notice.productText, '%fenugreek%'));
     expect(fenugreek.length).toBeGreaterThan(0);
     expect(fenugreek.every((n) => n.commodityId !== 1300)).toBe(true);
@@ -222,7 +224,7 @@ describe('taxonomy remap', () => {
         .from(importAlertListingProduct)
         .innerJoin(importAlertListing, eq(importAlertListing.id, importAlertListingProduct.listingId))
         .where(and(eq(importAlertListing.list, 'red'), sql`'SALMONELLA' = any(${importAlertListingProduct.problems})`));
-    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+    await syncImportAlerts({ ...deps, failureDir, now: VISITING_HOUR }, { events: false });
     const keys = [...new Set((await withSalmonella()).map((r) => r.key))];
     expect(keys.length).toBeGreaterThan(0);
 
@@ -254,7 +256,7 @@ describe('taxonomy remap', () => {
     const long = vegetables().replace('</p>', `<div>Notes: ${'x'.repeat(1100)}</div><div class="small">Problems: ${'y'.repeat(50)}; LISTERIA;</div></p>`);
     iaPages[PAGE_99_19] = withBlock(firstBlock().replace(vegetables(), long));
 
-    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+    await syncImportAlerts({ ...deps, failureDir, now: VISITING_HOUR }, { events: false });
     const [product] = await handle.db.select().from(importAlertListingProduct).where(sql`'LISTERIA' = any(${importAlertListingProduct.problems})`);
     expect(product.notes).toHaveLength(1000);
     expect(product.notes).not.toContain('LISTERIA');
@@ -277,11 +279,11 @@ describe('taxonomy remap', () => {
     await handle.db.insert(commodityRule).values({ source: 'import_alert', field: 'industry_code', matchType: 'exact', pattern: '24', commodityId: 1300, priority: 1 });
     deps = { ...deps, rules: await loadRuleSet(handle.db) };
 
-    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+    await syncImportAlerts({ ...deps, failureDir, now: VISITING_HOUR }, { events: false });
     iaPages[PAGE_99_19] = withBlock(without);
-    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+    await syncImportAlerts({ ...deps, failureDir, now: VISITING_HOUR }, { events: false });
     iaPages[PAGE_99_19] = withBlock(moved);
-    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+    await syncImportAlerts({ ...deps, failureDir, now: VISITING_HOUR }, { events: false });
 
     const [product] = await handle.db.select().from(importAlertListingProduct).where(eq(importAlertListingProduct.productCode, '24T--99'));
     expect(product.removedOn).toBeNull();

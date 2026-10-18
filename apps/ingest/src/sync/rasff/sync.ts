@@ -30,7 +30,19 @@ const ITEMS_PER_PAGE = 100;
 const BATCH_SIZE = 500;
 const KEY_CHUNK = 2000;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+/** The product types RASFF uses (compared in lower case); only food and feed are kept. */
+const KNOWN_PRODUCT_TYPES = new Set(['food', 'feed', 'food contact material']);
 const KEPT_PRODUCT_TYPES = new Set(['food', 'feed']);
+
+/** Whether a listed notification is kept; a product type outside the three known ones fails the run, naming it. */
+function isKeptProductType(item: Pick<RasffListItem, 'reference' | 'productType'>): boolean {
+  if (item.productType === null) throw new Error(`RASFF notification ${item.reference} has no productType; expected food, feed or food contact material`);
+  const type = item.productType.toLowerCase();
+  if (!KNOWN_PRODUCT_TYPES.has(type)) {
+    throw new Error(`RASFF notification ${item.reference} has an unknown productType "${item.productType}"; expected food, feed or food contact material`);
+  }
+  return KEPT_PRODUCT_TYPES.has(type);
+}
 
 function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
@@ -124,7 +136,7 @@ async function readList(deps: SyncDeps, cutoff: string): Promise<{ read: number;
     read += items.length;
     // A notification can move between pages while we read; keep the first copy.
     for (const item of items) {
-      if (!byReference.has(item.reference) && item.productType !== null && KEPT_PRODUCT_TYPES.has(item.productType)) byReference.set(item.reference, item);
+      if (isKeptProductType(item) && !byReference.has(item.reference)) byReference.set(item.reference, item);
     }
     if (items.length === 0 || page >= totalPages) break;
     if (items.reduce((oldest, item) => (item.notifiedOn < oldest ? item.notifiedOn : oldest), items[0].notifiedOn) < cutoff) break;

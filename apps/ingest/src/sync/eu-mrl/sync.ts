@@ -47,7 +47,8 @@ export async function syncEuMrl(deps: SyncDeps): Promise<SyncRunResult> {
     const known: ReadonlySet<string> = new Set(products.keys());
     const productRows = [...products].map(([code, name]) => ({ code, name, parentCode: parentCode(code, known) }));
 
-    await deps.db.transaction(async (tx) => {
+    // Counts are assigned after the commit, so a failed run never reports rows it did not write.
+    const deleted = await deps.db.transaction(async (tx) => {
       const [{ n }] = await tx.select({ n: count() }).from(euMrl);
       await tx.delete(euMrl);
       await tx.delete(euPesticideResidue);
@@ -55,8 +56,9 @@ export async function syncEuMrl(deps: SyncDeps): Promise<SyncRunResult> {
       for (const batch of chunks(productRows, BATCH_SIZE)) await tx.insert(euMrlProduct).values(batch);
       for (const batch of chunks([...residues.values()], BATCH_SIZE)) await tx.insert(euPesticideResidue).values(batch);
       for (const batch of chunks([...mrls.values()], BATCH_SIZE)) await tx.insert(euMrl).values(batch);
-      ctx.counts.rowsDeleted = Number(n);
-      ctx.counts.rowsInserted = mrls.size;
+      return Number(n);
     });
+    ctx.counts.rowsDeleted = deleted;
+    ctx.counts.rowsInserted = mrls.size;
   });
 }

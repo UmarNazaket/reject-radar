@@ -174,6 +174,23 @@ describe('EU MRL sync', () => {
     expect(await total(changeEvent)).toBe(0);
   });
 
+  it('records no inserted or deleted counts for a run whose transaction failed', async () => {
+    const transaction = handle.db.transaction.bind(handle.db);
+    const spy = jest.spyOn(handle.db, 'transaction').mockImplementation(((work: Parameters<typeof transaction>[0]) =>
+      transaction(async (tx) => {
+        await work(tx);
+        throw new Error('commit failed');
+      })) as typeof transaction);
+    try {
+      await expect(syncEuMrl(serving(() => SMALL))).rejects.toThrow('commit failed');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await total(euMrl)).toBe(0);
+    const [run] = await handle.db.select().from(sourceSyncRun).orderBy(desc(sourceSyncRun.id)).limit(1);
+    expect(run).toMatchObject({ status: 'failed', rowsInserted: 0, rowsDeleted: 0 });
+  });
+
   it('leaves the tables unchanged when a file is bad', async () => {
     await syncEuMrl(serving(() => SMALL));
     const bad = serving((i) => (i === 5 ? fixture('no-substances.xml') : SMALL));

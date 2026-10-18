@@ -15,6 +15,24 @@ import { PageStructureError, parseAlertPage, type ParsedAlert, type ParsedListin
 
 export const IMPORT_ALERT_INDEX_URL = 'https://www.accessdata.fda.gov/cms_ia/ialist.html';
 
+/** FDA robots.txt `Visiting-hours: 23:00-05:00 EDT`, as UTC hours: a full crawl starts at or after 03:00 and before 09:00. */
+export const VISITING_HOURS_UTC = { from: 3, to: 9 } as const;
+
+/**
+ * Refuses a full crawl (no `only`) outside the visiting hours unless `forceHours` is set. Scheduled, dispatched and
+ * backfill runs pass neither flag, so they are guarded too.
+ */
+export function assertVisitingHours(now: Date, options: { only?: string[]; forceHours?: boolean }): void {
+  if (options.only !== undefined || options.forceHours) return;
+  const hour = now.getUTCHours();
+  if (hour >= VISITING_HOURS_UTC.from && hour < VISITING_HOURS_UTC.to) return;
+  const time = now.toISOString().slice(11, 16);
+  throw new Error(
+    `sync:import-alerts crawls www.accessdata.fda.gov only inside its robots.txt visiting hours, 03:00-09:00 UTC; it is ${time} UTC now. ` +
+      'Pass --force-hours to run anyway, or --only <numbers> for a manual check of a few alerts.',
+  );
+}
+
 /** A listing that is missing from this many consecutive successful runs is delisted (spec §6.5). */
 export const MISSED_RUNS_TO_DELIST = 2;
 
@@ -254,12 +272,14 @@ function planProducts(stored: readonly StoredProduct[], parsed: readonly ParsedL
  *
  * `rowsRead` is the number of listings parsed; `rowsInserted` and `rowsUpdated` count listings (a listing counts as
  * updated when anything but `last_seen_on` changed, including a missed-run count); nothing is deleted.
- * `only` limits the crawl to those alert numbers (manual checks).
+ * `only` limits the crawl to those alert numbers (manual checks). Without it the run refuses to start outside the
+ * visiting hours unless `forceHours` is set (see {@link assertVisitingHours}); `now` is injectable for tests.
  */
 export async function syncImportAlerts(
-  deps: SyncDeps & { failureDir: string },
-  options: { events: boolean; only?: string[] },
+  deps: SyncDeps & { failureDir: string; now?: () => Date },
+  options: { events: boolean; only?: string[]; forceHours?: boolean },
 ): Promise<SyncRunResult> {
+  assertVisitingHours((deps.now ?? (() => new Date()))(), options);
   return runSync(deps.db, 'import_alerts', async (ctx) => {
     const emitEvents = await eventsForRun(deps.db, 'import_alerts', options.events);
     const crawled = await crawl(deps, options.only);

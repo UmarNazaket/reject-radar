@@ -119,8 +119,9 @@ program
   .command('sync:import-alerts')
   .description('Sync FDA Import Alerts (food alerts only): the Red and Green Lists, with the two-run delisting rule')
   .option('--no-events', 'write the rows but emit no change events (backfills; a first load suppresses them by itself)')
-  .option('--only <numbers>', 'comma-separated alert numbers to crawl, e.g. 99-19,16-131 (manual checks)', list)
-  .action(async (options: { events: boolean; only?: string[] }) => {
+  .option('--only <numbers>', 'comma-separated alert numbers to crawl, e.g. 99-19,16-131 (manual checks; allowed outside the visiting hours)', list)
+  .option('--force-hours', 'start a full crawl outside the FDA robots.txt visiting hours (03:00-09:00 UTC)')
+  .action(async (options: { events: boolean; only?: string[]; forceHours?: boolean }) => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncImportAlerts({ ...deps, failureDir: env.INGEST_FAILURE_DIR }, options));
     console.log(JSON.stringify(result, null, 2));

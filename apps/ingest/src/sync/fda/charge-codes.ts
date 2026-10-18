@@ -54,6 +54,9 @@ export async function syncChargeCodes(deps: SyncDeps): Promise<SyncRunResult> {
 
     const rows = codes.map((c) => ({ ...c, hazardId: chargeCodeHazard(deps.rules, c) }));
 
+    // Counted locally and assigned after the commit, so a failed run never reports rows it did not write.
+    let rowsInserted = 0;
+    let rowsUpdated = 0;
     await deps.db.transaction(async (tx) => {
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
         const returned = await tx
@@ -72,10 +75,12 @@ export async function syncChargeCodes(deps: SyncDeps): Promise<SyncRunResult> {
           })
           .returning({ inserted: sql<boolean>`(xmax = 0)` });
         for (const row of returned) {
-          if (row.inserted) ctx.counts.rowsInserted++;
-          else ctx.counts.rowsUpdated++;
+          if (row.inserted) rowsInserted++;
+          else rowsUpdated++;
         }
       }
     });
+    ctx.counts.rowsInserted = rowsInserted;
+    ctx.counts.rowsUpdated = rowsUpdated;
   });
 }

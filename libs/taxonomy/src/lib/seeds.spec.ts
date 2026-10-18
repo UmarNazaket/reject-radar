@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { ancestorIds, COMMODITIES, COMMODITY_RULES, HAZARD_RULES, HAZARDS, OTHER_FOOD_ID, UNCLASSIFIED_ID } from '../index';
 import { normalizeRuleText } from './match';
 import { taxonomySeedSql } from './seed-sql';
@@ -74,5 +76,17 @@ describe('taxonomySeedSql', () => {
 
   it('is idempotent for the fixed-id tables only', () => {
     expect(sql.match(/on conflict do nothing/g)).toHaveLength(2);
+  });
+
+  /**
+   * 0002_taxonomy_seed.sql is frozen once applied: a database that already ran it never runs it again, so editing it
+   * changes nothing there. If this test fails, a seed or rule in this library no longer matches what databases hold.
+   * Never edit or regenerate 0002. Either revert the change, or ship it as a NEW custom drizzle migration that turns the
+   * 0002 data into the new data (inserts, updates, deletes), run `taxonomy:remap` after deploying it, and then point
+   * this test at a frozen copy of the 0002 seed so it keeps guarding 0002 itself.
+   */
+  it('matches the applied seed migration 0002_taxonomy_seed.sql byte for byte', () => {
+    const applied = readFileSync(path.join(__dirname, '../../../db/migrations/0002_taxonomy_seed.sql'), 'utf8');
+    expect(sql).toBe(applied);
   });
 });

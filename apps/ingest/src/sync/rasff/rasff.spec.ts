@@ -207,6 +207,26 @@ describe('RASFF sync', () => {
     expect(updated.title).toBe('Salmonella in sesame seeds, updated');
   });
 
+  /** PAGE1 with its first three notifications given these product types and the rest dropped. */
+  const typedPage = (...types: (string | null)[]) => ({
+    ...oldPage,
+    totalPages: 1,
+    notifications: types.map((type, i) => ({ ...oldPage.notifications[i], productType: type === null ? null : { id: 1, description: type } })),
+  });
+
+  it('compares product types case-insensitively', async () => {
+    const result = await syncRasff(withBackend(backend([typedPage('Food', 'FEED', 'Food Contact Material')])), options);
+    expect(result).toMatchObject({ status: 'succeeded', rowsInserted: 2 });
+    expect(await total(rasffNotification)).toBe(2);
+  });
+
+  it('fails the run, naming it, on an unknown or missing product type', async () => {
+    await expect(syncRasff(withBackend(backend([typedPage('food', 'cosmetics')])), options)).rejects.toThrow(/"cosmetics"/);
+    expect(await total(rasffNotification)).toBe(0);
+    expect(await lastRun()).toMatchObject({ status: 'failed', error: expect.stringContaining('cosmetics') });
+    await expect(syncRasff(withBackend(backend([typedPage(null)])), options)).rejects.toThrow(/no productType/);
+  });
+
   it('suppresses events on a first load, then emits them', async () => {
     await handle.db.delete(sourceSyncRun);
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);

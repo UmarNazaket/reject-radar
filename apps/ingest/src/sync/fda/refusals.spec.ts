@@ -126,6 +126,22 @@ describe('FDA refusals sync', () => {
     expect(again).toMatchObject({ rowsInserted: 0, rowsUpdated: 0 });
   });
 
+  it('records no charge-code counts for a run whose transaction failed', async () => {
+    const transaction = handle.db.transaction.bind(handle.db);
+    const spy = jest.spyOn(handle.db, 'transaction').mockImplementation(((work: Parameters<typeof transaction>[0]) =>
+      transaction(async (tx) => {
+        await work(tx);
+        throw new Error('commit failed');
+      })) as typeof transaction);
+    try {
+      await expect(loadCharges()).rejects.toThrow('commit failed');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await total(fdaChargeCode)).toBe(0);
+    expect(await lastRun()).toMatchObject({ source: 'fda_charge_codes', status: 'failed', rowsRead: 287, rowsInserted: 0, rowsUpdated: 0 });
+  });
+
   it('writes refusals, notices and events', async () => {
     await loadCharges();
     const result = await syncFdaRefusals(withApi(api(() => PAGE1)), options);

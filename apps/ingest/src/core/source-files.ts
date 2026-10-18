@@ -37,23 +37,32 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 
 /**
  * The monthly CSV files of a CKAN `package_show` response, oldest month first. A resource counts when its format is CSV
- * (`CSV`, `csv` or `.csv`) and its name holds a month and a year, such as "Border Notifications - April 2026".
+ * (`CSV`, `csv` or `.csv`) and its name holds a month and a year, such as "Border Notifications - April 2026". A CSV
+ * resource without one is skipped with a warning naming it, then a count of them all, so a renamed file never vanishes
+ * silently.
  */
 export function listMonthlyCsvResources(packageJson: unknown): MonthlyResource[] {
   const resources = isRecord(packageJson) && isRecord(packageJson['result']) ? packageJson['result']['resources'] : undefined;
   if (!Array.isArray(resources)) throw new Error('CKAN package response has no result.resources list');
 
   const found: MonthlyResource[] = [];
+  let skipped = 0;
   for (const resource of resources) {
     if (!isRecord(resource)) continue;
     const format = typeof resource['format'] === 'string' ? resource['format'].trim().replace(/^\./, '').toLowerCase() : '';
+    if (format !== 'csv') continue;
     const name = typeof resource['name'] === 'string' ? resource['name'].trim() : '';
-    const match = MONTH_IN_NAME.exec(name);
-    if (format !== 'csv' || !match) continue;
     const url = typeof resource['url'] === 'string' ? resource['url'].trim() : '';
+    const match = MONTH_IN_NAME.exec(name);
+    if (!match) {
+      skipped++;
+      console.warn(`CKAN CSV resource skipped, no "Month YYYY" in its name: "${name}" (${url})`);
+      continue;
+    }
     if (url === '') throw new Error(`CKAN resource "${name}" has no url`);
     const month = MONTHS.findIndex((m) => m.toLowerCase() === match[1].toLowerCase()) + 1;
     found.push({ url, name, month: `${match[2]}-${String(month).padStart(2, '0')}` });
   }
+  if (skipped > 0) console.warn(`${skipped} CKAN CSV resource${skipped === 1 ? '' : 's'} skipped for want of a month and year in the name`);
   return found.sort((a, b) => a.month.localeCompare(b.month) || a.url.localeCompare(b.url));
 }

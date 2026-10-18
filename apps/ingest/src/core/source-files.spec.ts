@@ -6,6 +6,14 @@ const resource = (name: string, url: string, format = 'CSV') => ({ name, url, fo
 const pkg = (resources: unknown[]) => ({ success: true, result: { resources } });
 
 describe('listMonthlyCsvResources', () => {
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
   it('keeps CSV resources whose name holds a month and a year', () => {
     const found = listMonthlyCsvResources(
       pkg([
@@ -20,6 +28,27 @@ describe('listMonthlyCsvResources', () => {
       { name: 'Border Notifications - december 2024', url: 'https://x.test/d.csv', month: '2024-12' },
       { name: 'Border Notifications - April 2026', url: 'https://x.test/a.csv', month: '2026-04' },
     ]);
+  });
+
+  it('warns about each CSV resource it skips for want of a month and year, and counts them', () => {
+    listMonthlyCsvResources(
+      pkg([
+        resource('Border Notifications - Supporting Documentation', 'https://x.test/doc.pdf', 'PDF'),
+        resource('Border Notifications - April 2026', 'https://x.test/a.csv'),
+        resource('Border Notifications - Sept 2025', 'https://x.test/s.csv'),
+        resource('All notifications', 'https://x.test/all.csv', 'csv'),
+      ]),
+    );
+    expect(warn.mock.calls.map(([message]) => message)).toEqual([
+      'CKAN CSV resource skipped, no "Month YYYY" in its name: "Border Notifications - Sept 2025" (https://x.test/s.csv)',
+      'CKAN CSV resource skipped, no "Month YYYY" in its name: "All notifications" (https://x.test/all.csv)',
+      '2 CKAN CSV resources skipped for want of a month and year in the name',
+    ]);
+  });
+
+  it('warns about nothing when every CSV resource is monthly', () => {
+    listMonthlyCsvResources(pkg([resource('Border Notifications - April 2026', 'https://x.test/a.csv')]));
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('fails on a response that is not a CKAN package', () => {

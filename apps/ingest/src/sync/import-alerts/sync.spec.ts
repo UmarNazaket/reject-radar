@@ -13,6 +13,8 @@ import { classifyListing, IMPORT_ALERT_INDEX_URL, listingKey, syncImportAlerts }
 
 const fixture = (name: string) => readFileSync(path.join(__dirname, '__fixtures__', name), 'utf8');
 const TODAY = '2026-10-18';
+/** Inside FDA's robots.txt visiting hours (03:00-09:00 UTC), when an Import Alert crawl may start. */
+const VISITING_HOUR = () => new Date(`${TODAY}T05:00:00Z`);
 const BASE = 'https://www.accessdata.fda.gov/cms_ia/';
 const URLS = {
   '16-131': `${BASE}importalert_33.html`,
@@ -103,7 +105,7 @@ describe('Import Alert sync', () => {
   });
 
   const run = (options: { events?: boolean; only?: string[] } = {}) =>
-    syncImportAlerts({ ...deps, failureDir }, { events: options.events ?? true, only: options.only });
+    syncImportAlerts({ ...deps, failureDir, now: VISITING_HOUR }, { events: options.events ?? true, only: options.only });
   const serve = (number: keyof typeof URLS, html: string) => {
     pages[URLS[number]] = html;
   };
@@ -211,6 +213,31 @@ describe('Import Alert sync', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  describe('visiting hours (03:00-09:00 UTC)', () => {
+    const at = (iso: string) => () => new Date(iso);
+    const runAt = (iso: string, options: { only?: string[]; forceHours?: boolean } = {}) =>
+      syncImportAlerts({ ...deps, failureDir, now: at(iso) }, { events: true, ...options });
+
+    it('refuses a full crawl outside them, before any request or run row', async () => {
+      for (const iso of ['2026-10-18T02:59:59Z', '2026-10-18T09:00:00Z', '2026-10-18T15:30:00Z']) {
+        await expect(runAt(iso)).rejects.toThrow(/03:00-09:00 UTC.*--force-hours/);
+      }
+      expect(requested).toEqual([]);
+      expect(await lastRun()).toMatchObject({ status: 'succeeded', rowsRead: 0 });
+      expect(await handle.db.select().from(sourceSyncRun)).toHaveLength(1);
+    });
+
+    it('runs inside them', async () => {
+      expect(await runAt('2026-10-18T03:00:00Z')).toMatchObject({ status: 'succeeded' });
+      expect(await runAt('2026-10-18T08:59:59Z')).toMatchObject({ status: 'succeeded' });
+    });
+
+    it('runs outside them with --force-hours or --only', async () => {
+      expect(await runAt('2026-10-18T15:30:00Z', { forceHours: true })).toMatchObject({ status: 'succeeded' });
+      expect(await runAt('2026-10-18T15:30:00Z', { only: ['99-19'] })).toMatchObject({ status: 'succeeded' });
+    });
   });
 
   it('is idempotent', async () => {
