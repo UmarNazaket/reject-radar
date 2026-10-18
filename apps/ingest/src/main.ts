@@ -10,6 +10,7 @@ import { databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-ch
 import { syncChargeCodes } from './sync/fda/charge-codes';
 import { syncFdaRefusals } from './sync/fda/refusals';
 import { syncImportAlerts } from './sync/import-alerts/sync';
+import { DEFAULT_DETAILS_LIMIT, syncRasff } from './sync/rasff/sync';
 import { formatProbeReport, probePage } from './verify/probe-page';
 import { SOURCE_NAMES } from './verify/sources';
 import { verifySource } from './verify/verify-source';
@@ -117,6 +118,18 @@ program
   .action(async (options: { events: boolean; only?: string[] }) => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncImportAlerts({ ...deps, failureDir: env.INGEST_FAILURE_DIR }, options));
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('sync:rasff')
+  .description('Sync EU RASFF notifications of food and feed from the RASFF Window, with hazard details')
+  .option('--from <date>', 'oldest notification date to read, YYYY-MM-DD (default: 30 days before the newest stored one)', isoDate)
+  .option('--details-limit <n>', 'most notification details to fetch in this run', positiveInt, DEFAULT_DETAILS_LIMIT)
+  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .action(async (options: { from?: string; detailsLimit: number; events: boolean }) => {
+    const env = loadIngestEnv();
+    const result = await withDeps(env, (deps) => syncRasff(deps, options));
     console.log(JSON.stringify(result, null, 2));
   });
 

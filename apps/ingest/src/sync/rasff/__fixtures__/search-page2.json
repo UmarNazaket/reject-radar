@@ -1,0 +1,670 @@
+{
+ "notifications": [
+  {
+   "notifId": 878110,
+   "ecValidationDate": "02-09-2026 16:26:23",
+   "reference": "2026.8053",
+   "notifyingCountry": {
+    "organizationName": "Netherlands",
+    "isoCode": "NL"
+   },
+   "subject": "Aflatoxin B1 in groundnut kernels from Nicaragua",
+   "productCategory": {
+    "id": 18427,
+    "description": "nuts, nut products and seeds"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 304,
+    "description": "information notification for attention"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Nicaragua",
+     "isoCode": "NI"
+    }
+   ]
+  },
+  {
+   "notifId": 878248,
+   "ecValidationDate": "02-09-2026 14:57:55",
+   "reference": "2026.8049",
+   "notifyingCountry": {
+    "organizationName": "France",
+    "isoCode": "FR"
+   },
+   "subject": "Detection of Vibrio vulnificus in a batch of shrimp from Vietnam",
+   "productCategory": {
+    "id": 18438,
+    "description": "crustaceans and products thereof"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 304,
+    "description": "information notification for attention"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Vietnam",
+     "isoCode": "VN"
+    }
+   ]
+  },
+  {
+   "notifId": 876848,
+   "ecValidationDate": "02-09-2026 14:57:36",
+   "reference": "2026.8048",
+   "notifyingCountry": {
+    "organizationName": "Poland",
+    "isoCode": "PL"
+   },
+   "subject": "przekroczenie NDP OTA w mące żytniej pochodzącej z Polski // exceeding the OTA MRL in rye flour originating from Poland",
+   "productCategory": {
+    "id": 18434,
+    "description": "cereals and bakery products"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 303,
+    "description": "information notification for follow-up"
+   },
+   "riskDecision": {
+    "id": 20042,
+    "description": "potential risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Poland",
+     "isoCode": "PL"
+    }
+   ]
+  },
+  {
+   "notifId": 878120,
+   "ecValidationDate": "02-09-2026 14:43:43",
+   "reference": "2026.8047",
+   "notifyingCountry": {
+    "organizationName": "Netherlands",
+    "isoCode": "NL"
+   },
+   "subject": "Unauthorized treatment with ionizing radiation of frozen Pangasius fillets from Vietnam.",
+   "productCategory": {
+    "id": 18445,
+    "description": "fish and fish products"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 305,
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "id": 20042,
+    "description": "potential risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Vietnam",
+     "isoCode": "VN"
+    }
+   ]
+  },
+  {
+   "notifId": 878160,
+   "ecValidationDate": "02-09-2026 14:32:57",
+   "reference": "2026.8046",
+   "notifyingCountry": {
+    "organizationName": "Netherlands",
+    "isoCode": "NL"
+   },
+   "subject": "Unauthorized treatment with ionizing radiation of frozen Pangasius fillets from Vietnam.",
+   "productCategory": {
+    "id": 18445,
+    "description": "fish and fish products"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 305,
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "id": 20042,
+    "description": "potential risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Vietnam",
+     "isoCode": "VN"
+    }
+   ]
+  },
+  {
+   "notifId": 878114,
+   "ecValidationDate": "02-09-2026 14:12:19",
+   "reference": "2026.8044",
+   "notifyingCountry": {
+    "organizationName": "Netherlands",
+    "isoCode": "NL"
+   },
+   "subject": "Aflatoxine B1 in Groundnut from Nicaragua",
+   "productCategory": {
+    "id": 18427,
+    "description": "nuts, nut products and seeds"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 304,
+    "description": "information notification for attention"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Nicaragua",
+     "isoCode": "NI"
+    }
+   ]
+  },
+  {
+   "notifId": 878145,
+   "ecValidationDate": "02-09-2026 12:27:14",
+   "reference": "2026.8036",
+   "notifyingCountry": {
+    "organizationName": "Bulgaria",
+    "isoCode": "BG"
+   },
+   "subject": "Diethyltoluamide in bio kepl origin Canada froM Netherlands",
+   "productCategory": {
+    "id": 18439,
+    "description": "dietetic foods, food supplements and fortified foods"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 303,
+    "description": "information notification for follow-up"
+   },
+   "riskDecision": {
+    "id": 18763,
+    "description": "no risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Bulgaria",
+     "isoCode": "BG"
+    },
+    {
+     "organizationName": "Canada",
+     "isoCode": "CA"
+    }
+   ]
+  },
+  {
+   "notifId": 878006,
+   "ecValidationDate": "02-09-2026 11:15:00",
+   "reference": "2026.8031",
+   "notifyingCountry": {
+    "organizationName": "Belgium",
+    "isoCode": "BE"
+   },
+   "subject": "Pesticides residues in passion fruit from Ecuador",
+   "productCategory": {
+    "id": 18448,
+    "description": "fruits and vegetables"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 306,
+    "description": "alert notification"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Ecuador",
+     "isoCode": "EC"
+    }
+   ]
+  },
+  {
+   "notifId": 878049,
+   "ecValidationDate": "02-09-2026 11:03:27",
+   "reference": "2026.8030",
+   "notifyingCountry": {
+    "organizationName": "Italy",
+    "isoCode": "IT"
+   },
+   "subject": "aflatoxins in pistacchio paste",
+   "productCategory": {
+    "id": 18427,
+    "description": "nuts, nut products and seeds"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 306,
+    "description": "alert notification"
+   },
+   "riskDecision": {
+    "id": 20060,
+    "description": "potentially serious"
+   },
+   "published": true,
+   "originCountries": [
+    {
+     "organizationName": "Italy",
+     "isoCode": "IT"
+    }
+   ]
+  },
+  {
+   "notifId": 877318,
+   "ecValidationDate": "02-09-2026 10:53:51",
+   "reference": "2026.8028",
+   "notifyingCountry": {
+    "organizationName": "Netherlands",
+    "isoCode": "NL"
+   },
+   "subject": "Aflatoxins in raw peanuts from the United States",
+   "productCategory": {
+    "id": 18427,
+    "description": "nuts, nut products and seeds"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 304,
+    "description": "information notification for attention"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "United States",
+     "isoCode": "US"
+    }
+   ]
+  },
+  {
+   "notifId": 877526,
+   "ecValidationDate": "02-09-2026 10:48:07",
+   "reference": "2026.8027",
+   "notifyingCountry": {
+    "organizationName": "Germany",
+    "isoCode": "DE"
+   },
+   "subject": "Unauthorised novel food Prekese (Aidan Fruit) from Ghana, via Belgium",
+   "productCategory": {
+    "id": 18450,
+    "description": "herbs and spices"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 303,
+    "description": "information notification for follow-up"
+   },
+   "riskDecision": {
+    "id": 20042,
+    "description": "potential risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Ghana",
+     "isoCode": "GH"
+    }
+   ]
+  },
+  {
+   "notifId": 878050,
+   "ecValidationDate": "02-09-2026 10:43:42",
+   "reference": "2026.8026",
+   "notifyingCountry": {
+    "organizationName": "Denmark",
+    "isoCode": "DK"
+   },
+   "subject": "Withdrawal of the food supplement “Osavi Hormonal Support Woman - 30 / 60 / 90 vegan caps” marketed to Danish consumers",
+   "productCategory": {
+    "id": 18439,
+    "description": "dietetic foods, food supplements and fortified foods"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 303,
+    "description": "information notification for follow-up"
+   },
+   "riskDecision": {
+    "id": 20042,
+    "description": "potential risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Poland",
+     "isoCode": "PL"
+    }
+   ]
+  },
+  {
+   "notifId": 878109,
+   "ecValidationDate": "02-09-2026 10:24:45",
+   "reference": "2026.8024",
+   "notifyingCountry": {
+    "organizationName": "Croatia",
+    "isoCode": "HR"
+   },
+   "subject": "Absence of official controls and CHED-D for dried ginger from India",
+   "productCategory": {
+    "id": 18450,
+    "description": "herbs and spices"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 305,
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "id": 18763,
+    "description": "no risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "India",
+     "isoCode": "IN"
+    }
+   ]
+  },
+  {
+   "notifId": 878057,
+   "ecValidationDate": "02-09-2026 09:56:05",
+   "reference": "2026.8021",
+   "notifyingCountry": {
+    "organizationName": "Bulgaria",
+    "isoCode": "BG"
+   },
+   "subject": "Acetamiprid аnd Malathion in fresh peppers from Türkiye",
+   "productCategory": {
+    "id": 18448,
+    "description": "fruits and vegetables"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 305,
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Türkiye",
+     "isoCode": "TR"
+    }
+   ]
+  },
+  {
+   "notifId": 878053,
+   "ecValidationDate": "02-09-2026 09:51:53",
+   "reference": "2026.8018",
+   "notifyingCountry": {
+    "organizationName": "Bulgaria",
+    "isoCode": "BG"
+   },
+   "subject": "formetanate in fresh peppers from Türkiye",
+   "productCategory": {
+    "id": 18448,
+    "description": "fruits and vegetables"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 305,
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Türkiye",
+     "isoCode": "TR"
+    }
+   ]
+  },
+  {
+   "notifId": 878001,
+   "ecValidationDate": "02-09-2026 09:48:01",
+   "reference": "2026.8016",
+   "notifyingCountry": {
+    "organizationName": "Bulgaria",
+    "isoCode": "BG"
+   },
+   "subject": "Chlorpyrifos-methyl in fresh peppers from Türkiye",
+   "productCategory": {
+    "id": 18448,
+    "description": "fruits and vegetables"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 305,
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Türkiye",
+     "isoCode": "TR"
+    }
+   ]
+  },
+  {
+   "notifId": 877653,
+   "ecValidationDate": "02-09-2026 09:44:17",
+   "reference": "2026.8015",
+   "notifyingCountry": {
+    "organizationName": "Switzerland",
+    "isoCode": "CH"
+   },
+   "subject": "To high intake of curcumin and piperine in food supplements from Austria",
+   "productCategory": {
+    "id": 18439,
+    "description": "dietetic foods, food supplements and fortified foods"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 304,
+    "description": "information notification for attention"
+   },
+   "riskDecision": {
+    "id": 20060,
+    "description": "potentially serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Austria",
+     "isoCode": "AT"
+    }
+   ]
+  },
+  {
+   "notifId": 877933,
+   "ecValidationDate": "02-09-2026 09:36:07",
+   "reference": "2026.8014",
+   "notifyingCountry": {
+    "organizationName": "Latvia",
+    "isoCode": "LV"
+   },
+   "subject": "Prohibited tolfenpyrad and exceed maximum levels of pesticides residues: lambda-cyhalothrin  0,091 ± 0,046 mg/kg, thiamethoxam 0,18 ± 0,09 mg/kg;  ",
+   "productCategory": {
+    "id": 18435,
+    "description": "cocoa and cocoa preparations, coffee and tea"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 305,
+    "description": "border rejection notification"
+   },
+   "riskDecision": {
+    "id": 20042,
+    "description": "potential risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "China",
+     "isoCode": "CN"
+    }
+   ]
+  },
+  {
+   "notifId": 878047,
+   "ecValidationDate": "02-09-2026 09:25:02",
+   "reference": "2026.8013",
+   "notifyingCountry": {
+    "organizationName": "Finland",
+    "isoCode": "FI"
+   },
+   "subject": "Salmonella Enteritidis in frozen chicken gyros from Greece",
+   "productCategory": {
+    "id": 18430,
+    "description": "poultry meat and poultry meat products"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 306,
+    "description": "alert notification"
+   },
+   "riskDecision": {
+    "id": 18761,
+    "description": "serious"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Greece",
+     "isoCode": "GR"
+    }
+   ]
+  },
+  {
+   "notifId": 876538,
+   "ecValidationDate": "30-08-2026 20:03:27",
+   "reference": "2026.8011",
+   "notifyingCountry": {
+    "organizationName": "Netherlands",
+    "isoCode": "NL"
+   },
+   "subject": "Animal of unknown origin",
+   "productCategory": {
+    "id": 18453,
+    "description": "meat and meat products (other than poultry)"
+   },
+   "productType": {
+    "id": 283,
+    "description": "food"
+   },
+   "notificationClassification": {
+    "id": 303,
+    "description": "information notification for follow-up"
+   },
+   "riskDecision": {
+    "id": 20042,
+    "description": "potential risk"
+   },
+   "published": false,
+   "originCountries": [
+    {
+     "organizationName": "Netherlands",
+     "isoCode": "NL"
+    }
+   ]
+  }
+ ],
+ "totalPages": 331,
+ "totalElements": 33018
+}
