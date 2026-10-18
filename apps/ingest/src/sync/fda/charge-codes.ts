@@ -1,5 +1,5 @@
 import { fdaChargeCode } from '@rejectradar/db';
-import { classifyHazards, UNCLASSIFIED_ID } from '@rejectradar/taxonomy';
+import { classifyHazards, UNCLASSIFIED_ID, type RuleSet } from '@rejectradar/taxonomy';
 import { sql } from 'drizzle-orm';
 import { parse } from 'csv-parse/sync';
 import type { SyncDeps } from '../../core/deps';
@@ -33,6 +33,15 @@ export function parseChargeCodes(csv: string): ChargeCode[] {
   return [...byCode.values()];
 }
 
+/** The hazard of a charge code: the first hazard its mnemonic and statement match, or null when no hazard rule does. */
+export function chargeCodeHazard(rules: RuleSet, c: Pick<ChargeCode, 'name' | 'description'>): number | null {
+  const [first] = classifyHazards(rules, 'fda_charge_code', {
+    charge: [`${c.name} ${c.description ?? ''}`.trim()],
+    code: [c.name],
+  });
+  return first === UNCLASSIFIED_ID ? null : first;
+}
+
 const BATCH_SIZE = 500;
 
 /** Loads FDA's charge-code reference file, with each code's hazard (null when no hazard rule matches). */
@@ -43,13 +52,7 @@ export async function syncChargeCodes(deps: SyncDeps): Promise<SyncRunResult> {
     const codes = parseChargeCodes(response.text());
     ctx.counts.rowsRead = codes.length;
 
-    const rows = codes.map((c) => {
-      const [first] = classifyHazards(deps.rules, 'fda_charge_code', {
-        charge: [`${c.name} ${c.description ?? ''}`.trim()],
-        code: [c.name],
-      });
-      return { ...c, hazardId: first === UNCLASSIFIED_ID ? null : first };
-    });
+    const rows = codes.map((c) => ({ ...c, hazardId: chargeCodeHazard(deps.rules, c) }));
 
     await deps.db.transaction(async (tx) => {
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {

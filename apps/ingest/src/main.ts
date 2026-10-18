@@ -13,6 +13,7 @@ import { syncEuMrl } from './sync/eu-mrl/sync';
 import { syncFdaRefusals } from './sync/fda/refusals';
 import { syncImportAlerts } from './sync/import-alerts/sync';
 import { DEFAULT_DETAILS_LIMIT, syncRasff } from './sync/rasff/sync';
+import { remapTaxonomy } from './sync/remap';
 import { syncUkBn } from './sync/uk-bn/sync';
 import { formatProbeReport, probePage } from './verify/probe-page';
 import { SOURCE_NAMES } from './verify/sources';
@@ -163,6 +164,19 @@ program
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncEuMrl(deps));
     console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('taxonomy:remap')
+  .description('Re-apply the taxonomy rules to every stored record and its notice after a rule was added or changed (emits no events)')
+  .action(async () => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      const { updated } = await remapTaxonomy(db);
+      console.log(JSON.stringify({ updated }, null, 2));
+    } finally {
+      await close();
+    }
   });
 
 program
