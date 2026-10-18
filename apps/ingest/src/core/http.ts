@@ -229,7 +229,7 @@ const HTML_START = /^\s*(?:<!doctype\s+html|<html[\s>])/i;
 function buildResult(url: string, status: number, contentType: string, bytes: Buffer, expect: Expect): FetchResult {
   const text = () => bytes.toString('utf8').replace(/^\uFEFF/, '');
   if (expect === 'json' || expect === 'csv' || expect === 'xml') {
-    const isHtml = /\bhtml\b/i.test(contentType) || HTML_START.test(text().slice(0, 512));
+    const isHtml = /\bhtml\b/i.test(contentType) || HTML_START.test(bytes.subarray(0, 512).toString('utf8'));
     if (isHtml) {
       throw new SourceFetchError(`expected ${expect} but ${url} returned HTML (content-type "${contentType}")`, status, url);
     }

@@ -192,6 +192,35 @@ describe('createFetcher', () => {
     expect(error.status).toBeNull();
   });
 
+  it('sniffs only the head of the body for HTML', async () => {
+    const big = Buffer.alloc(5 * 1024 * 1024, 0x61);
+    const decoded: number[] = [];
+    const original = Buffer.prototype.toString;
+    const spy = jest.spyOn(Buffer.prototype, 'toString').mockImplementation(function (this: Buffer, ...args: unknown[]) {
+      const out = original.apply(this, args as [BufferEncoding?, number?, number?]);
+      decoded.push(out.length);
+      return out;
+    });
+    try {
+      const binary = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0xff]), big]);
+      const accepted = await setup([() => new Response(binary, { headers: { 'content-type': 'application/octet-stream' } })]).fetcher(
+        'https://data.gov.au/x.zip',
+        { expect: 'csv' },
+      );
+      expect(accepted.bytes.length).toBe(binary.length);
+      expect(Math.max(...decoded)).toBeLessThanOrEqual(512);
+
+      const html = Buffer.concat([Buffer.from('<!DOCTYPE html><title>blocked</title>'), big]);
+      const rejected = setup([() => new Response(html, { headers: { 'content-type': 'text/csv' } })]).fetcher('https://data.gov.au/x', {
+        expect: 'csv',
+      });
+      await expect(rejected).rejects.toThrow('expected csv');
+      expect(Math.max(...decoded)).toBeLessThanOrEqual(512);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('hashes the body and decodes it', async () => {
     const { fetcher } = setup([ok('{"a":1}', { 'content-type': 'application/json' })]);
     const result = await fetcher('https://data.gov.au/x', { expect: 'json' });
