@@ -3,6 +3,7 @@ import { classifyCommodity, classifyHazards, type RuleSet } from '@rejectradar/t
 import { parse } from 'csv-parse/sync';
 import { createHash } from 'node:crypto';
 import { countryFromName } from '../../core/country';
+import { decodeCsv } from '../../core/source-files';
 
 /** The data.gov.au package that lists one failing-food CSV per month. */
 export const AU_PACKAGE_URL = 'https://data.gov.au/data/api/3/action/package_show?id=imported-food-inspection-scheme-monthly-failing-food-reports';
@@ -10,8 +11,9 @@ export const AU_PACKAGE_URL = 'https://data.gov.au/data/api/3/action/package_sho
 export type AuField = 'failedOn' | 'product' | 'country' | 'producer' | 'test' | 'result' | 'reference' | 'category';
 
 /**
- * Every header spelling seen so far, lower-cased and trimmed. The department renames columns from month to month
- * ("County of origin" became "Country of origin", "Food category" became "Referral category").
+ * Every header spelling seen so far, lower-cased and trimmed, with one space each side of a slash. The department
+ * renames columns from month to month ("County of origin" became "Country of origin", "Food category" became "Referral
+ * category", "Reference" became "Reference criteria" and, once, "Standard" or "Reference Critera").
  */
 export const AU_HEADER_ALIASES: Readonly<Record<AuField, readonly string[]>> = {
   failedOn: ['date of fail'],
@@ -20,7 +22,7 @@ export const AU_HEADER_ALIASES: Readonly<Record<AuField, readonly string[]>> = {
   producer: ['producer name'],
   test: ['test applied / reason for fail', 'reason for fail', 'test applied'],
   result: ['results / units', 'results'],
-  reference: ['reference criteria'],
+  reference: ['reference criteria', 'reference', 'standard', 'reference critera'],
   category: ['food category', 'referral category'],
 };
 
@@ -52,13 +54,7 @@ export interface AuRecord {
 const TEST_SEPARATOR = '; ';
 
 /** The department's files are mostly UTF-8 but some are Windows-1252 (an en dash is a single 0x96 byte). */
-export function decodeAuCsv(bytes: Uint8Array): string {
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    return new TextDecoder('windows-1252').decode(bytes);
-  }
-}
+export const decodeAuCsv = decodeCsv;
 
 const DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
 
@@ -78,7 +74,12 @@ const ALIAS_TO_FIELD = new Map<string, AuField>(
   (Object.entries(AU_HEADER_ALIASES) as [AuField, readonly string[]][]).flatMap(([field, aliases]) => aliases.map((alias): [string, AuField] => [alias, field])),
 );
 
-const headerKey = (cell: string): string => cell.trim().replace(/\s+/g, ' ').toLowerCase();
+const headerKey = (cell: string): string =>
+  cell
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/ ?\/ ?/g, ' / ')
+    .toLowerCase();
 
 /** Maps each field to its column. Unknown and repeated headers fail, and so does a missing required column. */
 function columnIndexes(header: readonly string[]): Map<AuField, number> {

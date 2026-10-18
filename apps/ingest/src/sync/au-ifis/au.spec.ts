@@ -96,6 +96,16 @@ describe('Australian failing-food parsing', () => {
     expect(() => parseAuCsv(fixture('missing-producer-column.csv'), '2026-07-01')).toThrow(/producer/);
   });
 
+  it.each([
+    ['2022-23 (Reference)', 'Date of fail,Product description,Country of origin,Producer name,Test applied / reason for fail,Results / Units,Reference,Food category'],
+    ['March 2022 (no spaces around the slash)', 'Date of fail,Product description,Country of origin,Producer name,Test applied/ reason for fail,Results/Units,Reference,Food category'],
+    ['July 2024 (typo)', 'Date of Fail,Product Description,County Of Origin,Producer Name,Test applied / Reason for Fail,Results/Units,Reference Critera,Food category'],
+    ['October 2024 (Standard)', 'Date of Fail,Product Description,County Of Origin,Producer Name,Reason for Fail,Results,Standard,Referral Category'],
+  ])('accepts the live header spelling of %s', (_, header) => {
+    const [first] = parseAuCsv(`${header}\n5/07/2026,Chilli powder,India,Mr Agro,Salmonella detected,Detected/125g,FSC 1.6.1,Risk\n`, '2026-07-01');
+    expect(first).toMatchObject({ productDesc: 'Chilli powder', testApplied: 'Salmonella detected', resultText: 'Detected/125g', scheme: 'risk' });
+  });
+
   it('rejects an unknown header, a repeated header and an empty file', () => {
     expect(() => parseAuCsv(HEADER.replace('Reference criteria', 'Surprise column'), '2026-07-01')).toThrow(/Surprise column/);
     expect(() => parseAuCsv(`${HEADER},Producer name`, '2026-07-01')).toThrow(/Producer name/);

@@ -3,6 +3,18 @@ import { sourceFile, type Database } from '@rejectradar/db';
 import { and, eq, sql } from 'drizzle-orm';
 import type { Tx } from './sync-run';
 
+/**
+ * The text of a downloaded CSV. The UK and Australian files are mostly UTF-8 but many are Windows-1252 (an en dash or
+ * a "u" with umlaut is a single byte), so a file that is not valid UTF-8 is read as Windows-1252.
+ */
+export function decodeCsv(bytes: Uint8Array): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes);
+  }
+}
+
 /** The hash a file had when it was last loaded, or null when it never was. */
 export async function loadedFile(db: Database | Tx, source: SyncSource, url: string): Promise<{ sha256: string } | null> {
   const [row] = await db

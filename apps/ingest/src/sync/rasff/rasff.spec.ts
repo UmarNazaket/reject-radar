@@ -214,8 +214,8 @@ describe('RASFF sync', () => {
     notifications: types.map((type, i) => ({ ...oldPage.notifications[i], productType: type === null ? null : { id: 1, description: type } })),
   });
 
-  it('compares product types case-insensitively', async () => {
-    const result = await syncRasff(withBackend(backend([typedPage('Food', 'FEED', 'Food Contact Material')])), options);
+  it('compares product types case-insensitively and skips food contact materials and animals', async () => {
+    const result = await syncRasff(withBackend(backend([typedPage('Food', 'FEED', 'Food Contact Material', 'Animals')])), options);
     expect(result).toMatchObject({ status: 'succeeded', rowsInserted: 2 });
     expect(await total(rasffNotification)).toBe(2);
   });

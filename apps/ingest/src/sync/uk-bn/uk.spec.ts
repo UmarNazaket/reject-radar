@@ -100,8 +100,47 @@ describe('UK border-notification parsing', () => {
     expect(() => parseUkCsv(HEADER.replace(',Country', ''), '2026-04')).toThrow(/Country/);
     expect(() => parseUkCsv('', '2026-04')).toThrow(/header/i);
     expect(() => parseUkCsv(`${HEADER}\n31/02/2026,India,,,,,,,,,\n`, '2026-04')).toThrow(/31\/02\/2026/);
-    expect(() => parseUkCsv(`${HEADER}\n2026-04-01,India,,,,,,,,,\n`, '2026-04')).toThrow(/2026-04-01/);
+    expect(() => parseUkCsv(`${HEADER}\n2026-13-01,India,,,,,,,,,\n`, '2026-04')).toThrow(/2026-13-01/);
+    expect(() => parseUkCsv(`${HEADER}\n04-01-2026,India,,,,,,,,,\n`, '2026-04')).toThrow(/04-01-2026/);
     expect(() => parseUkCsv(`${HEADER}\n,India,,,,,,,,,\n`, '2026-04')).toThrow(/date/i);
+  });
+
+  describe('real files, January 2023 to April 2026', () => {
+    const WITHOUT_NET_WEIGHT = UK_HEADERS.filter((name) => name !== 'NetWeight').join(',');
+
+    it('reads the 2023-24 layout: no NetWeight column and ISO dates', () => {
+      const rows = parseUkCsv(`${WITHOUT_NET_WEIGHT}\r\n2023-01-05,Venezuela,3048990,Fish & fish products,Not listed,Yes,POAO,Documentary checks,Documentary,NA\r\n`, '2023-01');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ notifiedOn: '2023-01-05', originCountry: 'VE', commodity: '3048990', productName: 'Not listed', reason: 'NA' });
+    });
+
+    it('ignores blank header cells after the last column, but not data under them', () => {
+      const line = '01/08/2025,India,0910,3 kg,Herbs and spices,Ginger,Yes,FNAO,Mycotoxins,Mycotoxins,Physical';
+      expect(parseUkCsv(`${HEADER},,,,\r\n${line},,,,\r\n`, '2025-08')).toHaveLength(1);
+      expect(() => parseUkCsv(`${HEADER},,\r\n${line},,stray\r\n`, '2025-08')).toThrow(/row 2.*stray/);
+    });
+
+    it('reads a zero-padded day or month (24/011/2024)', () => {
+      const [row] = parseUkCsv(`${HEADER}\r\n24/011/2024,Norway,3021400,635 kg,Fish & fish products,Chilled salmon,Yes,POAO,Microbiological contamination,Laboratory,Physical\r\n`, '2024-11');
+      expect(row.notifiedOn).toBe('2024-11-24');
+    });
+
+    it("reads a date whose month or year is garbled as that day of the file's month (December 2024), with a warning", () => {
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      try {
+        const line = (date: string) => `${HEADER}\r\n${date},Bulgaria,160100,241.5 kg,Meat & meat products,Sausage,Yes,POAO,Microbiological contamination,Laboratory,Physical\r\n`;
+        expect(parseUkCsv(line('28/12/82024'), '2024-12')[0].notifiedOn).toBe('2024-12-28');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('28/12/82024'));
+        expect(parseUkCsv(line('19/24/2024'), '2024-12')[0].notifiedOn).toBe('2024-12-19');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('19/24/2024'));
+        // The part that is not garbled must match the file's month, and the day must exist in it.
+        expect(() => parseUkCsv(line('28/11/82024'), '2024-12')).toThrow(/28\/11\/82024/);
+        expect(() => parseUkCsv(line('19/24/2023'), '2024-12')).toThrow(/19\/24\/2023/);
+        expect(() => parseUkCsv(line('32/12/82024'), '2024-12')).toThrow(/32\/12\/82024/);
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 });
 
@@ -326,6 +365,13 @@ describe('UK sync', () => {
     await syncUkBn(backend({ [URL_2026]: changedApril2026() }), options);
     expect(await handle.db.select().from(ukBorderNotification).where(eq(ukBorderNotification.notifiedOn, '2024-12-05'))).toEqual(dec);
     expect(await total(sourceFile)).toBe(3);
+  });
+
+  it('decodes a Windows-1252 file (most 2024-26 files are)', async () => {
+    const csv = `${HEADER}\r\n01/04/2026,Türkiye,0802,3 kg,Nuts,Crème de pistache,Yes,FNAO,Documentary checks,Documentary,Documentary\r\n`;
+    await syncUkBn(backend({ [URL_2026]: Buffer.from(csv, 'latin1') }), options);
+    const [row] = await handle.db.select().from(ukBorderNotification).where(eq(ukBorderNotification.notifiedOn, '2026-04-01'));
+    expect(row).toMatchObject({ originCountry: 'TR', productName: 'Crème de pistache' });
   });
 
   it('writes nothing when a file has an unknown header', async () => {

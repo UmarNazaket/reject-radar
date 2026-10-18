@@ -1,6 +1,7 @@
 import { ukBorderNotification } from '@rejectradar/db';
 import type { SyncDeps } from '../../core/deps';
 import { syncMonthlyFiles, type MonthlyFileSource } from '../../core/monthly-files';
+import { decodeCsv } from '../../core/source-files';
 import type { SyncRunResult } from '../../core/sync-run';
 import { classifyUk, parseUkCsv, UK_PACKAGE_URL, type UkRow } from './parse';
 
@@ -15,7 +16,7 @@ export const UK_FILES: MonthlyFileSource<UkRow, typeof ukBorderNotification> = {
   packageUrl: UK_PACKAGE_URL,
   table: ukBorderNotification,
   keyColumn: ukBorderNotification.sourceKey,
-  parse: (file, resource) => parseUkCsv(file.text(), resource.month),
+  parse: (file, resource) => parseUkCsv(decodeCsv(file.bytes), resource.month),
   classify: classifyUk,
   typedRow: (r) => ({
     sourceKey: r.sourceKey,
