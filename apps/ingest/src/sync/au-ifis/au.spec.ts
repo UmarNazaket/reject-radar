@@ -362,6 +362,40 @@ describe('Australian sync', () => {
     expect(file.rows).toBe(22);
   });
 
+  /** July 2026 with one cell of its second record (Cremoso al tartufo cheese) replaced. */
+  const editedJuly = (from: string, to: string) => {
+    const lines = fixture('july-2026.csv').split('\n');
+    expect(lines[2]).toContain(from);
+    lines[2] = lines[2].replace(from, to);
+    return lines.join('\n');
+  };
+
+  it('updates a corrected record in a changed file in place, with no event', async () => {
+    await syncAuIfis(backend(), options);
+    const before = parseAuCsv(fixture('july-2026.csv'), '2026-07-01')[1];
+    const [oldNotice] = await handle.db.select().from(notice).where(eq(notice.sourceKey, before.sourceKey));
+    const events = await total(changeEvent);
+
+    const corrected = editedJuly(',Listeria monocytogenes detected,', ',Listeria monocytogenes detected in excess of level permitted,');
+    const after = parseAuCsv(corrected, '2026-07-01')[1];
+    expect(after.sourceKey).not.toBe(before.sourceKey);
+    const result = await syncAuIfis(backend({ [URL_JULY]: corrected }), options);
+    expect(result).toMatchObject({ rowsRead: 22, rowsInserted: 0, rowsUpdated: 1, rowsDeleted: 0, eventsEmitted: 0 });
+    expect(await total(changeEvent)).toBe(events);
+    expect(await total(auFailingFood)).toBe(97);
+    expect(await handle.db.select().from(auFailingFood).where(eq(auFailingFood.sourceKey, before.sourceKey))).toHaveLength(0);
+    const [typed] = await handle.db.select().from(auFailingFood).where(eq(auFailingFood.sourceKey, after.sourceKey));
+    expect(typed.testApplied).toBe('Listeria monocytogenes detected in excess of level permitted');
+    const [moved] = await handle.db.select().from(notice).where(eq(notice.sourceKey, after.sourceKey));
+    expect(moved.id).toBe(oldNotice.id);
+  });
+
+  it('treats a record whose producer changed as a new record, with an event', async () => {
+    await syncAuIfis(backend(), options);
+    const result = await syncAuIfis(backend({ [URL_JULY]: editedJuly(',Latteria Moro Di Moro Sergio,', ',Another Dairy,') }), options);
+    expect(result).toMatchObject({ rowsInserted: 1, rowsUpdated: 0, rowsDeleted: 1, eventsEmitted: 1 });
+  });
+
   it('writes nothing when a file lacks a required column', async () => {
     await expect(syncAuIfis(backend({ [URL_JULY]: fixtureBytes('missing-producer-column.csv') }), options)).rejects.toThrow(/producer/);
     expect(await total(auFailingFood)).toBe(0);

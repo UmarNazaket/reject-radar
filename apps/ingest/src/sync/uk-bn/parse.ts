@@ -71,7 +71,8 @@ function columnIndexes(header: readonly string[]): Record<UkHeader, number> {
 /**
  * Reads one monthly file. Headers are checked after a byte-order mark and padding are removed, in any case. Blank rows
  * (the files sometimes end with `,,,,,,,,,,`) are skipped. The key hashes the month, all eleven values and the position
- * among identical rows, so a row that is edited in a later release becomes a new row and the old one is deleted.
+ * among identical rows, so a row that is edited in a later release gets a new key; the sync pairs it with the key it
+ * replaces and updates that row in place (see `syncMonthlyFiles`).
  */
 export function parseUkCsv(csv: string, month: string): UkRow[] {
   const records = parse(csv, { bom: true, skip_empty_lines: true }) as string[][];

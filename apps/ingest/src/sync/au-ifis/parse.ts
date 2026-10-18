@@ -123,7 +123,8 @@ interface Draft {
  * Reads one monthly file. Headers are matched by alias after trimming and lower-casing. Fully blank rows are skipped.
  * A continuation row (no date, product, country or producer, but a test or a result) adds a failed test to the record
  * above it. The key hashes the month, the record's identifying fields, its first test and its position among records
- * that are otherwise identical; the results are left out so a corrected result updates the record instead of replacing it.
+ * that are otherwise identical; the results are left out so a corrected result keeps the key. Any other correction gives
+ * a new key, which the sync pairs with the key it replaces and updates in place (see `syncMonthlyFiles`).
  */
 export function parseAuCsv(csv: string, reportMonth: string): AuRecord[] {
   const rows = parse(csv, { bom: true, skip_empty_lines: true, relax_column_count: true }) as string[][];

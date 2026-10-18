@@ -268,6 +268,57 @@ describe('UK sync', () => {
     expect(file.rows).toBe(71);
   });
 
+  /** April 2026 with one cell of its second data row (Jamaica, Mango Peach Drink) replaced. */
+  const editedApril2026 = (from: string, to: string) => {
+    const lines = APRIL_2026.split('\n');
+    expect(lines[2]).toContain(from);
+    lines[2] = lines[2].replace(from, to);
+    return lines.join('\n');
+  };
+
+  it('updates a corrected row in a changed file in place, with no event', async () => {
+    await syncUkBn(backend(), options);
+    const before = parseUkCsv(APRIL_2026, '2026-04')[1];
+    const [oldNotice] = await handle.db.select().from(notice).where(eq(notice.sourceKey, before.sourceKey));
+    const events = await total(changeEvent);
+
+    const corrected = editedApril2026(',Composition,', ',Microbiological contamination,');
+    const after = parseUkCsv(corrected, '2026-04')[1];
+    expect(after.sourceKey).not.toBe(before.sourceKey);
+    const result = await syncUkBn(backend({ [URL_2026]: corrected }), options);
+    expect(result).toMatchObject({ rowsRead: 71, rowsInserted: 0, rowsUpdated: 1, rowsDeleted: 0, eventsEmitted: 0 });
+    expect(await total(changeEvent)).toBe(events);
+    expect(await total(ukBorderNotification)).toBe(142);
+    expect(await total(notice)).toBe(142);
+    // The row and its notice moved to the new key; the notice keeps its id, so its event still points at it.
+    expect(await handle.db.select().from(ukBorderNotification).where(eq(ukBorderNotification.sourceKey, before.sourceKey))).toHaveLength(0);
+    const [typed] = await handle.db.select().from(ukBorderNotification).where(eq(ukBorderNotification.sourceKey, after.sourceKey));
+    expect(typed.hazardCategory).toBe('Microbiological contamination');
+    const [moved] = await handle.db.select().from(notice).where(eq(notice.sourceKey, after.sourceKey));
+    expect(moved.id).toBe(oldNotice.id);
+    expect(moved.title).toContain('Microbiological contamination');
+    const [event] = await handle.db.select().from(changeEvent).where(eq(changeEvent.noticeId, oldNotice.id));
+    expect(event).toBeDefined();
+  });
+
+  it('counts a correction of an unstored value (net weight) as one update', async () => {
+    await syncUkBn(backend(), options);
+    const result = await syncUkBn(backend({ [URL_2026]: editedApril2026(',238 kg,', ',240 kg,') }), options);
+    expect(result).toMatchObject({ rowsInserted: 0, rowsUpdated: 1, rowsDeleted: 0, eventsEmitted: 0 });
+  });
+
+  it('treats a row whose product changed as a new row, with an event', async () => {
+    await syncUkBn(backend(), options);
+    const result = await syncUkBn(backend({ [URL_2026]: editedApril2026(',Mango Peach Drink,', ',Guava Drink,') }), options);
+    expect(result).toMatchObject({ rowsInserted: 1, rowsUpdated: 0, rowsDeleted: 1, eventsEmitted: 1 });
+  });
+
+  it('emits events for every row of a file never loaded before', async () => {
+    await syncUkBn(backend({ [URL_2026]: `${HEADER}\r\n` }), options);
+    const result = await syncUkBn(backend(), options);
+    expect(result).toMatchObject({ rowsInserted: 71, rowsUpdated: 0, rowsDeleted: 0, eventsEmitted: 71 });
+  });
+
   it('leaves other files alone when one changes', async () => {
     await syncUkBn(backend(), options);
     const dec = await handle.db.select().from(ukBorderNotification).where(eq(ukBorderNotification.notifiedOn, '2024-12-05'));
