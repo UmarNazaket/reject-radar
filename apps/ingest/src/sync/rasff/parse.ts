@@ -11,6 +11,7 @@ export interface RasffListItem {
   reference: string;
   /** `YYYY-MM-DD`. */
   notifiedOn: string;
+  /** `''` when the list gives none (4 of 33,019 notifications in October 2026). */
   subject: string;
   productCategory: string | null;
   /** `food`, `feed` or `food contact material`. */
@@ -72,7 +73,10 @@ const listItemSchema = z.object({
   ecValidationDate: rasffDate,
   reference: z.string().trim().min(1),
   notifyingCountry: country.nullish(),
-  subject: z.string().trim().min(1),
+  subject: z
+    .string()
+    .nullish()
+    .transform((value) => (value ?? '').trim()),
   productCategory: description,
   productType: description,
   notificationClassification: description,

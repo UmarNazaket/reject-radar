@@ -38,6 +38,12 @@ describe('RASFF parsing', () => {
     expect(() => parseSearchPage(broken)).toThrow(/notifications\.0\.reference/);
   });
 
+  it('reads a blank or missing subject as empty (4 of the 33,019 live notifications)', () => {
+    const [first, second] = PAGE1.notifications;
+    const { items } = parseSearchPage({ ...PAGE1, notifications: [{ ...first, subject: ' ' }, { ...second, subject: undefined }] });
+    expect(items.map((i) => i.subject)).toEqual(['', '']);
+  });
+
   it('rejects a date it cannot read', () => {
     const broken = { ...PAGE1, notifications: [{ ...PAGE1.notifications[0], ecValidationDate: '2026-10-16' }] };
     expect(() => parseSearchPage(broken)).toThrow(/notifications\.0\.ecValidationDate/);
@@ -218,6 +224,16 @@ describe('RASFF sync', () => {
     const result = await syncRasff(withBackend(backend([typedPage('Food', 'FEED', 'Food Contact Material', 'Animals', 'Other', 'Plants, plant products and other objects')])), options);
     expect(result).toMatchObject({ status: 'succeeded', rowsInserted: 2 });
     expect(await total(rasffNotification)).toBe(2);
+  });
+
+  it('stores a notification without a subject, titling its notice by reference', async () => {
+    const page = { ...oldPage, totalPages: 1, notifications: [{ ...oldPage.notifications[0], subject: ' ', productType: { id: 1, description: 'food' } }] };
+    const reference = String(PAGE1.notifications[0]['reference']);
+    await syncRasff(withBackend(backend([page])), options);
+    const [row] = await handle.db.select().from(rasffNotification).where(eq(rasffNotification.reference, reference));
+    expect(row.subject).toBe('');
+    const [n] = await handle.db.select().from(notice).where(eq(notice.sourceKey, reference));
+    expect(n).toMatchObject({ title: `RASFF notification ${reference}`, productText: null });
   });
 
   it('fails the run, naming it, on an unknown or missing product type', async () => {

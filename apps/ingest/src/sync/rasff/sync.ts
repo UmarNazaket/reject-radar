@@ -323,9 +323,9 @@ export async function syncRasff(
         originCountry: row.originCountries[0] ?? null,
         commodityId,
         hazardIds,
-        productText: row.subject,
+        productText: row.subject === '' ? null : row.subject,
         firmName: null,
-        title: row.subject,
+        title: row.subject === '' ? `RASFF notification ${row.reference}` : row.subject,
         url: rasffPublicUrl(row.notifId),
       }));
       const upserted = await upsertNotices(tx, notices);
