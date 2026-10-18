@@ -4,8 +4,11 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { openDb } from './core/db';
 import { loadIngestEnv } from './core/env';
+import { createDeps } from './core/deps';
 import { createFetcher } from './core/http';
 import { databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
+import { syncChargeCodes } from './sync/fda/charge-codes';
+import { syncFdaRefusals } from './sync/fda/refusals';
 import { formatProbeReport, probePage } from './verify/probe-page';
 import { SOURCE_NAMES } from './verify/sources';
 import { verifySource } from './verify/verify-source';
@@ -19,6 +22,21 @@ const positiveInt = (value: string): number => {
 
 /** The polite fetcher every command uses; its contact address comes from the validated environment. */
 const fetcherFor = (env: IngestEnv) => createFetcher({ contact: env.INGEST_CONTACT_EMAIL });
+
+const isoDate = (value: string): string => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) throw new InvalidArgumentError('Use a date as YYYY-MM-DD.');
+  return value;
+};
+
+/** Opens the database and rules, runs a sync and always closes the connection pool. */
+async function withDeps<T>(env: IngestEnv, run: (deps: Awaited<ReturnType<typeof createDeps>>) => Promise<T>): Promise<T> {
+  const deps = await createDeps(env);
+  try {
+    return await run(deps);
+  } finally {
+    await deps.close();
+  }
+}
 
 const program = new Command().name('rejectradar-ingest').description('RejectRadar data ingestion CLI');
 
@@ -63,6 +81,31 @@ program
       await mkdir(path.dirname(options.report), { recursive: true });
       await appendFile(options.report, formatProbeReport(result), 'utf8');
     }
+  });
+
+program
+  .command('sync:fda-charge-codes')
+  .description('Load FDA charge codes (the reference file behind RefusalCharges) with their hazards')
+  .action(async () => {
+    const env = loadIngestEnv();
+    const result = await withDeps(env, (deps) => syncChargeCodes(deps));
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('sync:fda-refusals')
+  .description('Sync FDA import refusals of food and feed (default: the last 120 days)')
+  .option('--from <date>', 'first RefusalDate, YYYY-MM-DD', isoDate)
+  .option('--to <date>', 'last RefusalDate, YYYY-MM-DD', isoDate)
+  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .action(async (options: { from?: string; to?: string; events: boolean }) => {
+    const env = loadIngestEnv();
+    if (!env.FDA_API_USER || !env.FDA_API_KEY) {
+      throw new Error('sync:fda-refusals needs FDA_API_USER and FDA_API_KEY in the environment (FDA OII Unified Logon, see .env.example).');
+    }
+    const creds = { user: env.FDA_API_USER, key: env.FDA_API_KEY };
+    const result = await withDeps(env, (deps) => syncFdaRefusals({ ...deps, creds }, options));
+    console.log(JSON.stringify(result, null, 2));
   });
 
 program

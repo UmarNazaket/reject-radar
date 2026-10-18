@@ -12,6 +12,11 @@ describe('buildRefusalsBody', () => {
       rows: 5000,
       start: 1,
     });
+    expect(buildRefusalsBody({ from: 'a', to: 'b', productCategories: ['Human Foods'], sort: 'RefusalDate' })).toMatchObject({
+      filters: { RefusalDateFrom: ['a'], RefusalDateTo: ['b'], ProductCategory: ['Human Foods'] },
+      sort: 'RefusalDate',
+    });
+    expect(buildRefusalsBody({ from: 'a', to: 'b', productCategories: [] })).toMatchObject({ filters: { RefusalDateFrom: ['a'], RefusalDateTo: ['b'] } });
     expect(buildRefusalsBody({ from: 'a', to: 'b', countTotal: true, rows: 9000, start: 5001 })).toMatchObject({
       rows: 5000,
       start: 5001,

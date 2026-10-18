@@ -17,6 +17,10 @@ export interface FdaPageRequest {
   start?: number;
   rows?: number;
   countTotal?: boolean;
+  /** Only these ProductCategory values; the filter is left out when empty or unset. */
+  productCategories?: readonly string[];
+  /** Column to sort by (ascending); unsorted when unset. */
+  sort?: string;
 }
 
 export interface FdaPage {
@@ -35,10 +39,12 @@ export interface FdaResponse {
 
 /** Required keys are always sent; optional keys only when used (https://datadashboard.fda.gov/oii/api/index.htm). */
 export function buildRefusalsBody(req: FdaPageRequest): Record<string, unknown> {
+  const filters: Record<string, unknown> = { RefusalDateFrom: [req.from], RefusalDateTo: [req.to] };
+  if (req.productCategories && req.productCategories.length > 0) filters['ProductCategory'] = [...req.productCategories];
   const body: Record<string, unknown> = {
     columns: [],
-    filters: { RefusalDateFrom: [req.from], RefusalDateTo: [req.to] },
-    sort: '',
+    filters,
+    sort: req.sort ?? '',
     sortorder: 'asc',
     rows: Math.min(req.rows ?? FDA_MAX_ROWS, FDA_MAX_ROWS),
     start: req.start ?? 1,
