@@ -146,8 +146,9 @@ export function parseAlertPage(html: string, url: string): ParsedAlert {
   let product: ParsedListingProduct | null = null;
   let problemsText: string | null = null;
   const closeProduct = () => {
-    if (product && problemsText) {
-      product.notes = [product.notes, problemsText].filter(Boolean).join(' | ').slice(0, NOTES_MAX);
+    if (product) {
+      const joined = [product.notes, problemsText].filter(Boolean).join(' | ');
+      product.notes = joined === '' ? null : joined.slice(0, NOTES_MAX);
     }
     product = null;
     problemsText = null;

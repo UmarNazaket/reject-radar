@@ -8,7 +8,8 @@ const BASE = 'https://www.accessdata.fda.gov/cms_ia/ialist.html';
 const URL_99_19 = 'https://www.accessdata.fda.gov/cms_ia/importalert_263.html';
 
 describe('parseAlertIndex', () => {
-  const entries = parseAlertIndex(fixture('ialist.html'), BASE);
+  const indexHtml = fixture('ialist.html');
+  const entries = parseAlertIndex(indexHtml, BASE);
 
   it('parses the index', () => {
     expect(entries).toHaveLength(154);
@@ -28,6 +29,36 @@ describe('parseAlertIndex', () => {
     }
     expect(isFoodAlert({ number: '99-32', title: 'Detention of Drug Products From Firms' })).toBe(false);
     expect(isFoodAlert({ number: '99-35', title: 'Detention of Medical Devices' })).toBe(false);
+  });
+
+  const expectStructureError = (html: string) => {
+    let error: unknown;
+    try {
+      parseAlertIndex(html, BASE);
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(PageStructureError);
+    expect((error as PageStructureError).sample).toBe(html);
+  };
+
+  it('rejects an index without rows', () => {
+    expectStructureError(indexHtml.replace(/<tbody>[\s\S]*<\/tbody>/, '<tbody></tbody>'));
+  });
+
+  it('rejects an index whose table headers were renamed', () => {
+    const renamed = indexHtml.replace('Import Alert Number', 'Alert No.');
+    expect(renamed).not.toBe(indexHtml);
+    expectStructureError(renamed);
+  });
+
+  it('rejects an index with a malformed four-cell row', () => {
+    const broken = indexHtml.replace('<td>99-19</td>', '<td>nineteen</td>');
+    expect(broken).not.toBe(indexHtml);
+    expectStructureError(broken);
+    const noLink = indexHtml.replace(/<a href="importalert_263.html">([\s\S]*?)<\/a>/, '$1');
+    expect(noLink).not.toBe(indexHtml);
+    expectStructureError(noLink);
   });
 });
 
@@ -84,6 +115,17 @@ describe('parseAlertPage', () => {
     expect(product?.notes).toBe('Problem: PHOSALONE | Problems: FENITROTHION;');
     expect(product?.notes?.length).toBeLessThanOrEqual(1000);
     expect(page.listings.flatMap((l) => l.products).every((p) => (p.notes ?? '').length <= 1000)).toBe(true);
+  });
+
+  it('cuts a long Notes value to 1,000 characters', () => {
+    const long = 'x'.repeat(1500);
+    const marker = '<div>Desc: Fenugreek Leaves (Dried)</div>';
+    expect(html).toContain(marker);
+    const page = parseAlertPage(html.replace(marker, `${marker}<div>Notes: ${long}</div>`), URL_99_19);
+    const product = page.listings[0].products[0];
+    expect(product.problems).toEqual([]);
+    expect(product.notes).toHaveLength(1000);
+    expect(product.notes?.startsWith('xxx')).toBe(true);
   });
 
   it('parses a green-only alert', () => {
