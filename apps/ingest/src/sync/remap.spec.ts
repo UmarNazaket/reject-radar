@@ -23,6 +23,7 @@ import type { SyncDeps } from '../core/deps';
 import { openDb } from '../core/db';
 import { loadRuleSet } from '../core/rules';
 import { fakeFetcher, fetchResult } from '../core/test-fetcher';
+import { seedSucceededRun } from '../core/test-sync-run';
 import { FDA_REFUSALS_URL } from '../verify/fda-api';
 import { AU_PACKAGE_URL } from './au-ifis/parse';
 import { syncAuIfis } from './au-ifis/sync';
@@ -141,6 +142,7 @@ describe('taxonomy remap', () => {
   };
 
   it('re-applies a new rule to the Australian row and its notice without touching events or runs', async () => {
+    await seedSucceededRun(handle.db, 'au_ifis');
     await syncAuIfis(deps, { events: true });
     const events = await total(changeEvent);
     const runs = await total(sourceSyncRun);

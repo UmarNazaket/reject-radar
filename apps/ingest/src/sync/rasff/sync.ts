@@ -4,7 +4,7 @@ import { and, desc, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { SyncDeps } from '../../core/deps';
 import { SourceFetchError } from '../../core/http';
 import { insertEvents, upsertNotices, type EventInput, type NoticeInput } from '../../core/notices';
-import { runSync, type SyncRunResult } from '../../core/sync-run';
+import { eventsForRun, runSync, type SyncRunResult } from '../../core/sync-run';
 import {
   parseDetail,
   parseSearchPage,
@@ -149,6 +149,7 @@ export async function syncRasff(
   const skipped = { gone: 0, invalid: 0, transient: 0 };
   let fetched = 0;
   const result = await runSync(deps.db, 'rasff', async (ctx) => {
+    const emitEvents = await eventsForRun(deps.db, 'rasff', options.events);
     ctx.setOrigin(RASFF_SEARCH_URL);
 
     let cutoff = options.from;
@@ -313,7 +314,7 @@ export async function syncRasff(
       }));
       const upserted = await upsertNotices(tx, notices);
 
-      if (options.events) {
+      if (emitEvents) {
         const events: EventInput[] = [];
         for (const { row, commodityId, hazardIds } of written) {
           const notice = upserted.get(row.reference);

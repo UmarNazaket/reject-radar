@@ -8,6 +8,7 @@ import { openDb } from '../../core/db';
 import { SourceFetchError, type FetchOptions } from '../../core/http';
 import { loadRuleSet } from '../../core/rules';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
+import { seedSucceededRun } from '../../core/test-sync-run';
 import { parseDetail, parseSearchPage, rasffDetailUrl, rasffNoticeType, rasffPublicUrl, RASFF_SEARCH_URL, type RasffHazard, type RasffListItem } from './parse';
 import { classifyRasff, syncRasff } from './sync';
 
@@ -96,6 +97,8 @@ describe('RASFF sync', () => {
     await handle.db.delete(notice);
     await handle.db.delete(rasffNotification);
     await handle.db.delete(sourceSyncRun);
+    // Not a first load, unless a test deletes this run: events are emitted as asked.
+    await seedSucceededRun(handle.db, 'rasff');
     const rules = await loadRuleSet(handle.db);
     deps = { db: handle.db, rules, today: () => TODAY, fetcher: fakeFetcher(() => fetchResult('')).fetcher };
   });
@@ -202,6 +205,24 @@ describe('RASFF sync', () => {
     expect(await total(changeEvent)).toBe(97);
     const [updated] = await handle.db.select().from(notice).where(eq(notice.sourceKey, '2026.9213'));
     expect(updated.title).toBe('Salmonella in sesame seeds, updated');
+  });
+
+  it('suppresses events on a first load, then emits them', async () => {
+    await handle.db.delete(sourceSyncRun);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const older = { ...PAGE2, totalPages: 1 };
+      const first = await syncRasff(withBackend(backend([older])), { ...options, from: '2020-01-01' });
+      expect(first).toMatchObject({ status: 'succeeded', eventsEmitted: 0 });
+      expect(first.rowsInserted).toBeGreaterThan(0);
+      expect(warn).toHaveBeenCalledWith('first load of rasff: events suppressed');
+      expect(await total(changeEvent)).toBe(0);
+      const second = await syncRasff(withBackend(backend([PAGE1])), { ...options, from: '2026-10-01' });
+      expect(second).toMatchObject({ rowsInserted: 97, eventsEmitted: 97 });
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('emits no events with --no-events', async () => {

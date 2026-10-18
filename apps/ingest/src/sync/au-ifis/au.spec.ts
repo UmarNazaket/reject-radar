@@ -7,6 +7,7 @@ import { openDb } from '../../core/db';
 import { loadRuleSet } from '../../core/rules';
 import { listMonthlyCsvResources } from '../../core/source-files';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
+import { seedSucceededRun } from '../../core/test-sync-run';
 import { AU_HEADER_ALIASES, AU_REQUIRED, classifyAu, decodeAuCsv, parseAuCsv, type AuRecord } from './parse';
 import { AU_PACKAGE_URL, syncAuIfis } from './sync';
 
@@ -199,6 +200,8 @@ describe('Australian sync', () => {
     await handle.db.delete(auFailingFood);
     await handle.db.delete(sourceFile);
     await handle.db.delete(sourceSyncRun);
+    // Not a first load, unless a test deletes this run: events are emitted as asked.
+    await seedSucceededRun(handle.db, 'au_ifis');
     const rules = await loadRuleSet(handle.db);
     deps = { db: handle.db, rules, today: () => TODAY, fetcher: fakeFetcher(() => fetchResult('')).fetcher };
   });
@@ -302,6 +305,22 @@ describe('Australian sync', () => {
     expect(unnamed[0].requiresFirm).toBe(false);
     const [n] = await handle.db.select().from(notice).where(eq(notice.productText, 'Unnamed chilli'));
     expect(n.firmName).toBeNull();
+  });
+
+  it('suppresses events on a first load, then emits them', async () => {
+    await handle.db.delete(sourceSyncRun);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const first = await syncAuIfis(backend(), options);
+      expect(first).toMatchObject({ status: 'succeeded', rowsInserted: 97, eventsEmitted: 0 });
+      expect(warn).toHaveBeenCalledWith('first load of au_ifis: events suppressed');
+      expect(await total(changeEvent)).toBe(0);
+      const second = await syncAuIfis(backend({ [URL_JULY]: changedJuly() }), options);
+      expect(second).toMatchObject({ rowsInserted: 1, eventsEmitted: 1 });
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('emits no events with --no-events', async () => {

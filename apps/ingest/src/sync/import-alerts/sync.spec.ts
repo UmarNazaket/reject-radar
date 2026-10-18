@@ -7,6 +7,7 @@ import type { SyncDeps } from '../../core/deps';
 import { openDb } from '../../core/db';
 import { loadRuleSet } from '../../core/rules';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
+import { seedSucceededRun } from '../../core/test-sync-run';
 import { parseAlertPage, type ParsedListing } from './parse-page';
 import { classifyListing, IMPORT_ALERT_INDEX_URL, listingKey, syncImportAlerts } from './sync';
 
@@ -80,6 +81,8 @@ describe('Import Alert sync', () => {
     await handle.db.delete(notice);
     await handle.db.delete(importAlert);
     await handle.db.delete(sourceSyncRun);
+    // Not a first load, unless a test deletes this run: events are emitted as asked.
+    await seedSucceededRun(handle.db, 'import_alerts');
     const rules = await loadRuleSet(handle.db);
     const fake = fakeFetcher((url, options) => {
       requested.push(url);
@@ -179,6 +182,25 @@ describe('Import Alert sync', () => {
     expect(await total(notice)).toBe(red.length);
     expect(result).toMatchObject({ status: 'succeeded', rowsRead: expected.size, rowsInserted: expected.size, rowsUpdated: 0, eventsEmitted: red.length });
     expect((await lastRun()).status).toBe('succeeded');
+  });
+
+  it('suppresses events on a first load, then emits them', async () => {
+    await handle.db.delete(sourceSyncRun);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      serve('99-19', withoutFirstFirm(ORIGINAL['99-19']));
+      const first = await run();
+      expect(first).toMatchObject({ status: 'succeeded', eventsEmitted: 0 });
+      expect(first.rowsInserted).toBeGreaterThan(0);
+      expect(warn).toHaveBeenCalledWith('first load of import_alerts: events suppressed');
+      expect(await total(changeEvent)).toBe(0);
+      serve('99-19', ORIGINAL['99-19']);
+      const second = await run();
+      expect(second).toMatchObject({ rowsInserted: 1, eventsEmitted: 1 });
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('is idempotent', async () => {

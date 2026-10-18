@@ -7,6 +7,7 @@ import { openDb } from '../../core/db';
 import { SourceFetchError, type FetchOptions } from '../../core/http';
 import { loadRuleSet } from '../../core/rules';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
+import { seedSucceededRun } from '../../core/test-sync-run';
 import { parseChargeCodes, syncChargeCodes } from './charge-codes';
 import { classifyRefusal, monthSlices, parseRefusal, syncFdaRefusals, type RefusalRecord } from './refusals';
 
@@ -88,6 +89,8 @@ describe('FDA refusals sync', () => {
     await handle.db.delete(fdaRefusal);
     await handle.db.delete(fdaChargeCode);
     await handle.db.delete(sourceSyncRun);
+    // Not a first load, unless a test deletes this run: events are emitted as asked.
+    await seedSucceededRun(handle.db, 'fda_refusals');
     const rules = await loadRuleSet(handle.db);
     deps = { db: handle.db, rules, today: () => TODAY, fetcher: fakeFetcher(() => fetchResult('')).fetcher };
   });
@@ -178,6 +181,19 @@ describe('FDA refusals sync', () => {
     expect(second).toMatchObject({ rowsInserted: 0, rowsUpdated: 1, eventsEmitted: 0 });
     const [row] = await handle.db.select().from(fdaRefusal).where(eq(fdaRefusal.sourceKey, page.result[0].ShipmentID));
     expect(row.productDesc).toBe('SOMETHING ELSE ENTIRELY');
+  });
+
+  it('suppresses events on a first load, then emits them', async () => {
+    await handle.db.delete(sourceSyncRun);
+    const page = JSON.parse(PAGE1);
+    const [kept] = page.result.splice(0, 1);
+    const first = await syncFdaRefusals(withApi(api(() => JSON.stringify(page))), options);
+    expect(first).toMatchObject({ status: 'succeeded', rowsInserted: 119, eventsEmitted: 0 });
+    expect(warn).toHaveBeenCalledWith('first load of fda_refusals: events suppressed');
+    page.result.unshift(kept);
+    const second = await syncFdaRefusals(withApi(api(() => JSON.stringify(page))), options);
+    expect(second).toMatchObject({ rowsInserted: 1, eventsEmitted: 1 });
+    expect(await total(changeEvent)).toBe(1);
   });
 
   it('--no-events writes rows but no events', async () => {

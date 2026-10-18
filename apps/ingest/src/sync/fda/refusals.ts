@@ -6,7 +6,7 @@ import { countryFromFda } from '../../core/country';
 import type { SyncDeps } from '../../core/deps';
 import { FDA_MAX_ROWS, FDA_REFUSALS_URL, fetchRefusalsPage, type FdaCredentials } from '../../verify/fda-api';
 import { insertEvents, upsertNotices, type EventInput, type NoticeInput } from '../../core/notices';
-import { runSync, type SyncRunResult } from '../../core/sync-run';
+import { eventsForRun, runSync, type SyncRunResult } from '../../core/sync-run';
 
 /** The ProductCategory values this product covers; the API filters on them. */
 export const FDA_FOOD_CATEGORIES = ['Human Foods', 'Animal Feed'] as const;
@@ -190,6 +190,7 @@ export async function syncFdaRefusals(
   }
 
   return runSync(deps.db, 'fda_refusals', async (ctx) => {
+    const emitEvents = await eventsForRun(deps.db, 'fda_refusals', options.events);
     ctx.setOrigin(FDA_REFUSALS_URL);
     const raw = await fetchAll(deps, deps.creds, from, to);
     ctx.counts.rowsRead = raw.length;
@@ -265,7 +266,7 @@ export async function syncFdaRefusals(
       }));
       const upserted = await upsertNotices(tx, notices);
 
-      if (options.events) {
+      if (emitEvents) {
         const events: EventInput[] = [];
         for (const { record, commodityId, hazardIds } of classified) {
           const written = upserted.get(record.sourceKey);

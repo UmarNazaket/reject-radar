@@ -84,3 +84,15 @@ export async function lastSucceededRun(db: Database, source: SyncSource): Promis
     .limit(1);
   return row ?? null;
 }
+
+/**
+ * Whether this run may emit change events (P2-D6). A source with no succeeded run yet is on its first load, which would
+ * otherwise emit one event per stored record (thousands for most sources), so its events are suppressed with a warning,
+ * even when `--no-events` was forgotten or a schedule fires before the manual backfill.
+ */
+export async function eventsForRun(db: Database, source: SyncSource, requested: boolean): Promise<boolean> {
+  if (!requested) return false;
+  if ((await lastSucceededRun(db, source)) !== null) return true;
+  console.warn(`first load of ${source}: events suppressed`);
+  return false;
+}

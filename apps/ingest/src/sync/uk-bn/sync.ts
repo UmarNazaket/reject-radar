@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { SyncDeps } from '../../core/deps';
 import { insertEvents, upsertNotices, type EventInput, type NoticeInput } from '../../core/notices';
 import { listMonthlyCsvResources, loadedFile, recordFile, type MonthlyResource } from '../../core/source-files';
-import { runSync, type SyncRunResult } from '../../core/sync-run';
+import { eventsForRun, runSync, type SyncRunResult } from '../../core/sync-run';
 import { classifyUk, parseUkCsv, UK_PACKAGE_URL, type UkRow } from './parse';
 
 export { UK_PACKAGE_URL };
@@ -38,6 +38,7 @@ const noticeTitle = (r: UkRow): string =>
  */
 export async function syncUkBn(deps: SyncDeps, options: { events: boolean }): Promise<SyncRunResult> {
   return runSync(deps.db, 'uk_bn', async (ctx) => {
+    const emitEvents = await eventsForRun(deps.db, 'uk_bn', options.events);
     ctx.setOrigin(UK_PACKAGE_URL);
     const resources = listMonthlyCsvResources((await deps.fetcher(UK_PACKAGE_URL, { expect: 'json' })).json());
 
@@ -124,7 +125,7 @@ export async function syncUkBn(deps: SyncDeps, options: { events: boolean }): Pr
         }));
         const upserted = await upsertNotices(tx, notices);
 
-        if (options.events) {
+        if (emitEvents) {
           const events: EventInput[] = [];
           for (const r of rows) {
             const created = upserted.get(r.sourceKey);

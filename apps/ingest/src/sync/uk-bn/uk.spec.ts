@@ -7,6 +7,7 @@ import { openDb } from '../../core/db';
 import { loadRuleSet } from '../../core/rules';
 import { listMonthlyCsvResources } from '../../core/source-files';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
+import { seedSucceededRun } from '../../core/test-sync-run';
 import { classifyUk, parseUkCsv, UK_HEADERS, UK_PACKAGE_URL, type UkRow } from './parse';
 import { syncUkBn } from './sync';
 
@@ -143,6 +144,8 @@ describe('UK sync', () => {
     await handle.db.delete(ukBorderNotification);
     await handle.db.delete(sourceFile);
     await handle.db.delete(sourceSyncRun);
+    // Not a first load, unless a test deletes this run: events are emitted as asked.
+    await seedSucceededRun(handle.db, 'uk_bn');
     const rules = await loadRuleSet(handle.db);
     deps = { db: handle.db, rules, today: () => TODAY, fetcher: fakeFetcher(() => fetchResult('')).fetcher };
   });
@@ -209,6 +212,22 @@ describe('UK sync', () => {
     const [typed] = await handle.db.select().from(ukBorderNotification).where(eq(ukBorderNotification.sourceKey, first.sourceKey));
     expect(typed).toMatchObject({ notifiedOn: '2026-04-01', originCountry: 'TT', productName: 'Cheese Regular', commodityId: n.commodityId, hazardIds: n.hazardIds });
     expect(n.hazardIds.length).toBeGreaterThan(0);
+  });
+
+  it('suppresses events on a first load, then emits them', async () => {
+    await handle.db.delete(sourceSyncRun);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const first = await syncUkBn(backend(), options);
+      expect(first).toMatchObject({ status: 'succeeded', rowsInserted: 142, eventsEmitted: 0 });
+      expect(warn).toHaveBeenCalledWith('first load of uk_bn: events suppressed');
+      expect(await total(changeEvent)).toBe(0);
+      const second = await syncUkBn(backend({ [URL_2026]: changedApril2026() }), options);
+      expect(second).toMatchObject({ rowsInserted: 1, eventsEmitted: 1 });
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('emits no events with --no-events', async () => {

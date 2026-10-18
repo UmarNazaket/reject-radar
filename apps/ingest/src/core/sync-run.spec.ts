@@ -3,7 +3,7 @@ import { count, desc, eq } from 'drizzle-orm';
 import { openDb } from './db';
 import { upsertNotices } from './notices';
 import { SIZE_LIMIT_BYTES, SizeLimitError } from './size-check';
-import { lastSucceededRun, runSync } from './sync-run';
+import { eventsForRun, lastSucceededRun, runSync } from './sync-run';
 
 describe('runSync', () => {
   let handle: ReturnType<typeof openDb>;
@@ -114,5 +114,39 @@ describe('runSync', () => {
     expect(await lastSucceededRun(handle.db, 'rasff')).toBeNull();
     const rows = await handle.db.select().from(sourceSyncRun).where(eq(sourceSyncRun.source, 'uk_bn'));
     expect(rows).toHaveLength(3);
+  });
+
+  describe('eventsForRun (first-load guard)', () => {
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    it('suppresses events on the first load of a source and says so', async () => {
+      expect(await eventsForRun(handle.db, 'uk_bn', true)).toBe(false);
+      expect(warn).toHaveBeenCalledWith('first load of uk_bn: events suppressed');
+    });
+
+    it('a failed run does not count as a load', async () => {
+      await expect(runSync(handle.db, 'uk_bn', () => Promise.reject(new Error('no')))).rejects.toThrow();
+      expect(await eventsForRun(handle.db, 'uk_bn', true)).toBe(false);
+    });
+
+    it('emits normally once the source has a succeeded run', async () => {
+      await runSync(handle.db, 'uk_bn', async () => undefined);
+      expect(await eventsForRun(handle.db, 'uk_bn', true)).toBe(true);
+      expect(await eventsForRun(handle.db, 'rasff', true)).toBe(false);
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('never turns events on when the caller asked for none', async () => {
+      expect(await eventsForRun(handle.db, 'uk_bn', false)).toBe(false);
+      await runSync(handle.db, 'uk_bn', async () => undefined);
+      expect(await eventsForRun(handle.db, 'uk_bn', false)).toBe(false);
+      expect(warn).not.toHaveBeenCalled();
+    });
   });
 });

@@ -8,7 +8,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { SyncDeps } from '../../core/deps';
 import { insertEvents, upsertNotices, type EventInput, type NoticeInput } from '../../core/notices';
-import { runSync, type SyncRunResult, type Tx } from '../../core/sync-run';
+import { eventsForRun, runSync, type SyncRunResult, type Tx } from '../../core/sync-run';
 import { isFoodAlert, parseAlertIndex, type AlertIndexEntry } from './parse-index';
 import { PageStructureError, parseAlertPage, type ParsedAlert, type ParsedListing, type ParsedListingProduct } from './parse-page';
 
@@ -252,6 +252,7 @@ export async function syncImportAlerts(
   options: { events: boolean; only?: string[] },
 ): Promise<SyncRunResult> {
   return runSync(deps.db, 'import_alerts', async (ctx) => {
+    const emitEvents = await eventsForRun(deps.db, 'import_alerts', options.events);
     const crawled = await crawl(deps, options.only);
     ctx.setOrigin(IMPORT_ALERT_INDEX_URL, crawled.indexSha256);
     const prepared = prepareListings(deps.rules, crawled.alerts);
@@ -478,7 +479,7 @@ export async function syncImportAlerts(
 
       // Events.
       let eventsEmitted = 0;
-      if (options.events && drafts.length > 0) {
+      if (emitEvents && drafts.length > 0) {
         const stored = new Map<string, { id: number; commodityId: number | null; hazardIds: number[] }>();
         for (const batch of chunks([...new Set(drafts.map((d) => d.key))], KEY_CHUNK)) {
           const found = await tx

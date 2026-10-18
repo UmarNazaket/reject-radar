@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { SyncDeps } from '../../core/deps';
 import { insertEvents, upsertNotices, type EventInput, type NoticeInput } from '../../core/notices';
 import { listMonthlyCsvResources, loadedFile, recordFile, type MonthlyResource } from '../../core/source-files';
-import { runSync, type SyncRunResult } from '../../core/sync-run';
+import { eventsForRun, runSync, type SyncRunResult } from '../../core/sync-run';
 import { AU_PACKAGE_URL, classifyAu, decodeAuCsv, parseAuCsv, testsOf, type AuRecord } from './parse';
 
 export { AU_PACKAGE_URL };
@@ -44,6 +44,7 @@ const dateOf = (r: AuRecord): string => r.failedOn ?? r.reportMonth;
  */
 export async function syncAuIfis(deps: SyncDeps, options: { events: boolean }): Promise<SyncRunResult> {
   return runSync(deps.db, 'au_ifis', async (ctx) => {
+    const emitEvents = await eventsForRun(deps.db, 'au_ifis', options.events);
     ctx.setOrigin(AU_PACKAGE_URL);
     const resources = listMonthlyCsvResources((await deps.fetcher(AU_PACKAGE_URL, { expect: 'json' })).json());
 
@@ -132,7 +133,7 @@ export async function syncAuIfis(deps: SyncDeps, options: { events: boolean }): 
         }));
         const upserted = await upsertNotices(tx, notices);
 
-        if (options.events) {
+        if (emitEvents) {
           const events: EventInput[] = [];
           for (const r of records) {
             const created = upserted.get(r.sourceKey);
