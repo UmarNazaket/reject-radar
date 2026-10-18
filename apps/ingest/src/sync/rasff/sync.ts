@@ -30,16 +30,20 @@ const ITEMS_PER_PAGE = 100;
 const BATCH_SIZE = 500;
 const KEY_CHUNK = 2000;
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-/** The product types the RASFF Window uses (compared in lower case; `animals` is live animals); only food and feed are kept. */
-const KNOWN_PRODUCT_TYPES = new Set(['food', 'feed', 'food contact material', 'animals']);
+/**
+ * Every product type the RASFF Window used in October 2026, over all 33,019 notifications (compared in lower case):
+ * food 29,843, feed 1,881, food contact material 1,264, other 16, animals 11, plants... 4. Only food and feed are kept.
+ */
+const KNOWN_PRODUCT_TYPES: readonly string[] = ['food', 'feed', 'food contact material', 'animals', 'other', 'plants, plant products and other objects'];
 const KEPT_PRODUCT_TYPES = new Set(['food', 'feed']);
+const knownList = KNOWN_PRODUCT_TYPES.map((type) => `"${type}"`).join(', ');
 
-/** Whether a listed notification is kept; a product type outside the three known ones fails the run, naming it. */
+/** Whether a listed notification is kept; a missing product type or one not in the known list fails the run, naming it. */
 function isKeptProductType(item: Pick<RasffListItem, 'reference' | 'productType'>): boolean {
-  if (item.productType === null) throw new Error(`RASFF notification ${item.reference} has no productType; expected food, feed, food contact material or animals`);
+  if (item.productType === null) throw new Error(`RASFF notification ${item.reference} has no productType; expected one of ${knownList}`);
   const type = item.productType.toLowerCase();
-  if (!KNOWN_PRODUCT_TYPES.has(type)) {
-    throw new Error(`RASFF notification ${item.reference} has an unknown productType "${item.productType}"; expected food, feed, food contact material or animals`);
+  if (!KNOWN_PRODUCT_TYPES.includes(type)) {
+    throw new Error(`RASFF notification ${item.reference} has an unknown productType "${item.productType}"; expected one of ${knownList}`);
   }
   return KEPT_PRODUCT_TYPES.has(type);
 }
