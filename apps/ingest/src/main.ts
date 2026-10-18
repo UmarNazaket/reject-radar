@@ -9,6 +9,7 @@ import { createFetcher } from './core/http';
 import { databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
 import { syncChargeCodes } from './sync/fda/charge-codes';
 import { syncFdaRefusals } from './sync/fda/refusals';
+import { syncImportAlerts } from './sync/import-alerts/sync';
 import { formatProbeReport, probePage } from './verify/probe-page';
 import { SOURCE_NAMES } from './verify/sources';
 import { verifySource } from './verify/verify-source';
@@ -105,6 +106,17 @@ program
     }
     const creds = { user: env.FDA_API_USER, key: env.FDA_API_KEY };
     const result = await withDeps(env, (deps) => syncFdaRefusals({ ...deps, creds }, options));
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('sync:import-alerts')
+  .description('Sync FDA Import Alerts (food alerts only): the Red and Green Lists, with the two-run delisting rule')
+  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .option('--only <numbers>', 'comma-separated alert numbers to crawl, e.g. 99-19,16-131 (manual checks)', list)
+  .action(async (options: { events: boolean; only?: string[] }) => {
+    const env = loadIngestEnv();
+    const result = await withDeps(env, (deps) => syncImportAlerts({ ...deps, failureDir: env.INGEST_FAILURE_DIR }, options));
     console.log(JSON.stringify(result, null, 2));
   });
 
