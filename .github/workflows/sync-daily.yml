@@ -1,0 +1,64 @@
+name: Sync daily
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # Import Alerts (FDA robots.txt visiting hours: 03:00-09:00 UTC)
+    - cron: '0 5 * * *' # RASFF
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One writer at a time on the shared database.
+concurrency:
+  group: ingest-db
+  cancel-in-progress: false
+
+jobs:
+  import-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.event.schedule == '0 4 * * *' || github.event_name == 'workflow_dispatch'
+    env:
+      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+      FDA_API_USER: ${{ secrets.FDA_API_USER }}
+      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npx nx build ingest
+      - name: Check database size
+        run: node dist/apps/ingest/main.js db:size-check
+      - name: sync:import-alerts
+        run: node dist/apps/ingest/main.js sync:import-alerts
+      # P3: entities:link
+      # P5: alerts:run
+
+  rasff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event.schedule == '0 5 * * *' || github.event_name == 'workflow_dispatch'
+    env:
+      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+      FDA_API_USER: ${{ secrets.FDA_API_USER }}
+      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npx nx build ingest
+      - name: Check database size
+        run: node dist/apps/ingest/main.js db:size-check
+      - name: sync:rasff --details-limit 200
+        run: node dist/apps/ingest/main.js sync:rasff --details-limit 200
+      # P3: entities:link
+      # P5: alerts:run

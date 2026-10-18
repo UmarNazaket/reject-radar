@@ -1,0 +1,75 @@
+name: Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Source to load
+        type: choice
+        required: true
+        options:
+          - fda_charge_codes
+          - fda_refusals
+          - import_alerts
+          - rasff
+          - uk_bn
+          - au_ifis
+          - eu_mrl
+          - taxonomy_remap
+      from:
+        description: Earliest date to load, YYYY-MM-DD (fda_refusals and rasff; blank uses the command default)
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+# One writer at a time on the shared database.
+concurrency:
+  group: ingest-db
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+      FDA_API_USER: ${{ secrets.FDA_API_USER }}
+      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npx nx build ingest
+      - name: Check database size
+        run: node dist/apps/ingest/main.js db:size-check
+      - name: Run the sync
+        env:
+          SOURCE: ${{ inputs.source }}
+          FROM: ${{ inputs.from }}
+        run: |
+          set -euo pipefail
+          if [ -n "$FROM" ] && ! printf '%s' "$FROM" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+            echo "from must be YYYY-MM-DD, got: $FROM" >&2
+            exit 1
+          fi
+          from_args=()
+          if [ -n "$FROM" ]; then from_args=(--from "$FROM"); fi
+          cli=(node dist/apps/ingest/main.js)
+          case "$SOURCE" in
+            fda_charge_codes) "${cli[@]}" sync:fda-charge-codes ;;
+            fda_refusals)     "${cli[@]}" sync:fda-refusals "${from_args[@]}" --no-events ;;
+            import_alerts)    "${cli[@]}" sync:import-alerts --no-events ;;
+            rasff)            "${cli[@]}" sync:rasff "${from_args[@]}" --details-limit 15000 --no-events ;;
+            uk_bn)            "${cli[@]}" sync:uk-bn --no-events ;;
+            au_ifis)          "${cli[@]}" sync:au-ifis --no-events ;;
+            eu_mrl)           "${cli[@]}" sync:eu-mrl ;;
+            taxonomy_remap)   "${cli[@]}" taxonomy:remap ;;
+            *) echo "unknown source: $SOURCE" >&2; exit 1 ;;
+          esac

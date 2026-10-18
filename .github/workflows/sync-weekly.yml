@@ -1,0 +1,91 @@
+name: Sync weekly
+
+on:
+  schedule:
+    - cron: '0 6 * * 5' # FDA charge codes and refusals (refresh day to be confirmed, see task 13 step 7)
+    - cron: '30 6 * * 1' # UK border notifications
+    - cron: '45 6 * * 1' # Australian IFIS
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One writer at a time on the shared database.
+concurrency:
+  group: ingest-db
+  cancel-in-progress: false
+
+jobs:
+  fda:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event.schedule == '0 6 * * 5' || github.event_name == 'workflow_dispatch'
+    env:
+      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+      FDA_API_USER: ${{ secrets.FDA_API_USER }}
+      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npx nx build ingest
+      - name: Check database size
+        run: node dist/apps/ingest/main.js db:size-check
+      - name: sync:fda-charge-codes
+        run: node dist/apps/ingest/main.js sync:fda-charge-codes
+      - name: sync:fda-refusals
+        run: node dist/apps/ingest/main.js sync:fda-refusals
+      # P3: entities:link
+      # P5: alerts:run
+
+  uk-bn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event.schedule == '30 6 * * 1' || github.event_name == 'workflow_dispatch'
+    env:
+      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+      FDA_API_USER: ${{ secrets.FDA_API_USER }}
+      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npx nx build ingest
+      - name: Check database size
+        run: node dist/apps/ingest/main.js db:size-check
+      - name: sync:uk-bn
+        run: node dist/apps/ingest/main.js sync:uk-bn
+      # P3: entities:link
+      # P5: alerts:run
+
+  au-ifis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event.schedule == '45 6 * * 1' || github.event_name == 'workflow_dispatch'
+    env:
+      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+      FDA_API_USER: ${{ secrets.FDA_API_USER }}
+      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npx nx build ingest
+      - name: Check database size
+        run: node dist/apps/ingest/main.js db:size-check
+      - name: sync:au-ifis
+        run: node dist/apps/ingest/main.js sync:au-ifis
+      # P3: entities:link
+      # P5: alerts:run
