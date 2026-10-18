@@ -1,0 +1,32 @@
+{
+  "help": "https://data.gov.au/data/api/3/action/help_show?name=package_show",
+  "success": true,
+  "result": {
+    "id": "e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5",
+    "name": "imported-food-inspection-scheme-monthly-failing-food-reports",
+    "title": "Imported Food Inspection Scheme - monthly failing food reports",
+    "resources": [
+      {
+        "id": "202d9e34-4e6d-4f6b-bacd-5731aa59e30d",
+        "name": "Imported Food Inspection Scheme – May 2026 Failing food report",
+        "format": "CSV",
+        "url": "https://data.gov.au/data/dataset/e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5/resource/202d9e34-4e6d-4f6b-bacd-5731aa59e30d/download/may-2026-ifis-failing-food-report.csv",
+        "state": "active"
+      },
+      {
+        "id": "b0950e17-c23b-4d8e-8122-4397459b4cec",
+        "name": "Imported Food Inspection Scheme – June 2026 Failing food report",
+        "format": "CSV",
+        "url": "https://data.gov.au/data/dataset/e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5/resource/b0950e17-c23b-4d8e-8122-4397459b4cec/download/failing-food-report-june-2026.csv",
+        "state": "active"
+      },
+      {
+        "id": "a75154c8-1913-4a90-a498-ac78b02379c0",
+        "name": "Imported Food Inspection Scheme – July 2026 Failing food report",
+        "format": "CSV",
+        "url": "https://data.gov.au/data/dataset/e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5/resource/a75154c8-1913-4a90-a498-ac78b02379c0/download/july-2026-ifis-failing-food-report.csv",
+        "state": "active"
+      }
+    ]
+  }
+}

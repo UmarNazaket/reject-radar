@@ -8,6 +8,7 @@ import { createDeps } from './core/deps';
 import { createFetcher } from './core/http';
 import { databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
 import { syncChargeCodes } from './sync/fda/charge-codes';
+import { syncAuIfis } from './sync/au-ifis/sync';
 import { syncFdaRefusals } from './sync/fda/refusals';
 import { syncImportAlerts } from './sync/import-alerts/sync';
 import { DEFAULT_DETAILS_LIMIT, syncRasff } from './sync/rasff/sync';
@@ -141,6 +142,16 @@ program
   .action(async (options: { events: boolean }) => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncUkBn(deps, options));
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('sync:au-ifis')
+  .description('Sync Australian Imported Food Inspection Scheme failing-food reports: the monthly CSV files listed on data.gov.au, loading new or changed files by SHA-256')
+  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .action(async (options: { events: boolean }) => {
+    const env = loadIngestEnv();
+    const result = await withDeps(env, (deps) => syncAuIfis(deps, options));
     console.log(JSON.stringify(result, null, 2));
   });
 
