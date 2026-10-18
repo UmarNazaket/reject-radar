@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SyncDeps } from '../../core/deps';
 import { openDb } from '../../core/db';
-import type { FetchOptions } from '../../core/http';
+import { SourceFetchError, type FetchOptions } from '../../core/http';
 import { loadRuleSet } from '../../core/rules';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
 import { parseDetail, parseSearchPage, rasffDetailUrl, rasffNoticeType, rasffPublicUrl, RASFF_SEARCH_URL, type RasffHazard, type RasffListItem } from './parse';
@@ -101,7 +101,7 @@ describe('RASFF sync', () => {
   });
 
   /** Serves the list pages (by `pageNumber`) and the same detail for every notification. */
-  const backend = (pages: Record<string, unknown>[] = [PAGE1, PAGE2], detail = DETAIL) => {
+  const backend = (pages: Record<string, unknown>[] = [PAGE1, PAGE2], detail = DETAIL, failures: Record<number, number | 'garbage'> = {}) => {
     const requested: { kind: 'list' | 'detail'; page?: number; url: string }[] = [];
     const fake = fakeFetcher((url: string, options?: FetchOptions) => {
       if (url === RASFF_SEARCH_URL) {
@@ -113,6 +113,9 @@ describe('RASFF sync', () => {
         return fetchResult(JSON.stringify(body), { contentType: 'application/json', url });
       }
       requested.push({ kind: 'detail', url });
+      const failure = failures[Number(/\/id\/(\d+)\//.exec(url)?.[1])];
+      if (typeof failure === 'number') throw new SourceFetchError(`HTTP ${failure} from ${url}`, failure, url);
+      if (failure === 'garbage') return fetchResult('not json', { contentType: 'application/json', url });
       return fetchResult(detail, { contentType: 'application/json', url });
     });
     return { ...fake, requested };
@@ -257,6 +260,112 @@ describe('RASFF sync', () => {
     expect((row.hazards as unknown[]).length).toBe(1);
     const [n] = await handle.db.select().from(notice).where(eq(notice.sourceKey, '2026.9213'));
     expect(n.hazardIds).toContain(400);
+  });
+
+  describe('detail fetching', () => {
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    const three = { ...PAGE1, notifications: PAGE1.notifications.slice(0, 3), totalPages: 1 };
+    const threeIds = three.notifications.map((n) => n['notifId'] as number);
+    const detailRequests = (b: ReturnType<typeof backend>) => b.requested.filter((r) => r.kind === 'detail').map((r) => r.url);
+    const rowOf = async (notifId: number) => {
+      const [row] = await handle.db.select().from(rasffNotification).where(eq(rasffNotification.url, rasffPublicUrl(notifId)));
+      return row;
+    };
+    const from = { from: '2026-10-01' };
+
+    it('fetches new references before the backlog and uses the spare slots for the oldest backlog rows', async () => {
+      await handle.db.insert(rasffNotification).values(
+        Array.from({ length: 10 }, (_, i) => ({
+          reference: `B.${i + 1}`,
+          notifiedOn: `2026-01-${String(i + 1).padStart(2, '0')}`,
+          subject: 'Older notification',
+          url: rasffPublicUrl(900_000 + i + 1),
+        })),
+      );
+      const b = backend([three]);
+      await syncRasff(withBackend(b), { detailsLimit: 5, events: false, ...from });
+      expect(detailRequests(b)).toEqual([...threeIds.map(rasffDetailUrl), rasffDetailUrl(900_001), rasffDetailUrl(900_002)]);
+      const fetched = (await handle.db.select().from(rasffNotification)).filter((r) => r.detailsFetchedAt !== null);
+      expect(fetched.map((r) => r.reference).sort()).toEqual(['2026.9233', '2026.9235', '2026.9236', 'B.1', 'B.2']);
+    });
+
+    it('fetches a detail with no hazards once and not again', async () => {
+      const empty = JSON.stringify({ ...JSON.parse(DETAIL), product: { hazards: [] } });
+      const first = backend([three], empty);
+      const result = await syncRasff(withBackend(first), { detailsLimit: 10, events: false, ...from });
+      expect(detailRequests(first)).toHaveLength(3);
+      expect(result).toMatchObject({ detailsFetched: 3, detailsGone: 0, detailsInvalid: 0, detailsTransient: 0 });
+      expect((await rowOf(threeIds[0])).detailsFetchedAt).not.toBeNull();
+
+      const second = backend([three], empty);
+      await syncRasff(withBackend(second), { detailsLimit: 10, events: false, ...from });
+      expect(detailRequests(second)).toHaveLength(0);
+    });
+
+    it('marks a 404 detail as fetched, writes everything else and does not retry it', async () => {
+      const b = backend([three], DETAIL, { [threeIds[1]]: 404 });
+      const result = await syncRasff(withBackend(b), { detailsLimit: 10, events: true, ...from });
+      expect(result).toMatchObject({ status: 'succeeded', rowsInserted: 3, eventsEmitted: 3, detailsFetched: 2, detailsGone: 1, detailsInvalid: 0, detailsTransient: 0 });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toMatch(/1 gone/);
+      const gone = await rowOf(threeIds[1]);
+      expect(gone.detailsFetchedAt).not.toBeNull();
+      expect(gone.hazards).toEqual([]);
+      expect((await rowOf(threeIds[0])).hazards).toHaveLength(1);
+      expect((await rowOf(threeIds[2])).hazards).toHaveLength(1);
+      expect(await total(notice)).toBe(3);
+
+      const again = backend([three]);
+      await syncRasff(withBackend(again), { detailsLimit: 10, events: true, ...from });
+      expect(detailRequests(again)).toHaveLength(0);
+    });
+
+    it('leaves a 503 detail unmarked and retries it next run', async () => {
+      const b = backend([three], DETAIL, { [threeIds[1]]: 503 });
+      const result = await syncRasff(withBackend(b), { detailsLimit: 10, events: true, ...from });
+      expect(result).toMatchObject({ status: 'succeeded', rowsInserted: 3, detailsFetched: 2, detailsGone: 0, detailsTransient: 1 });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect((await rowOf(threeIds[1])).detailsFetchedAt).toBeNull();
+      expect((await rowOf(threeIds[0])).detailsFetchedAt).not.toBeNull();
+
+      const again = backend([three]);
+      const retried = await syncRasff(withBackend(again), { detailsLimit: 10, events: true, ...from });
+      expect(detailRequests(again)).toEqual([rasffDetailUrl(threeIds[1])]);
+      expect(retried).toMatchObject({ detailsFetched: 1, detailsTransient: 0, eventsEmitted: 0 });
+      expect((await rowOf(threeIds[1])).detailsFetchedAt).not.toBeNull();
+      expect((await rowOf(threeIds[1])).hazards).toHaveLength(1);
+    });
+
+    it('treats a network failure without a status as transient', async () => {
+      const fake = fakeFetcher((url: string) => {
+        if (url !== RASFF_SEARCH_URL) throw new SourceFetchError('timed out', null, url);
+        return fetchResult(JSON.stringify(three), { contentType: 'application/json', url });
+      });
+      const result = await syncRasff({ ...deps, fetcher: fake.fetcher }, { detailsLimit: 10, events: false, ...from });
+      expect(result).toMatchObject({ rowsInserted: 3, detailsTransient: 3 });
+      expect((await rowOf(threeIds[0])).detailsFetchedAt).toBeNull();
+    });
+
+    it('skips and marks a detail whose hazard has no name, or whose body is not JSON', async () => {
+      const nameless = JSON.parse(DETAIL);
+      delete nameless.product.hazards[0].name;
+      const b = backend([three], JSON.stringify(nameless), { [threeIds[2]]: 'garbage' });
+      const result = await syncRasff(withBackend(b), { detailsLimit: 10, events: false, ...from });
+      expect(result).toMatchObject({ status: 'succeeded', rowsInserted: 3, detailsFetched: 0, detailsInvalid: 3 });
+      expect(warn).toHaveBeenCalledTimes(1);
+      for (const id of threeIds) expect((await rowOf(id)).detailsFetchedAt).not.toBeNull();
+
+      const again = backend([three]);
+      await syncRasff(withBackend(again), { detailsLimit: 10, events: false, ...from });
+      expect(detailRequests(again)).toHaveLength(0);
+    });
   });
 
   it('keeps stored hazards when a later list run sees the same notification again', async () => {

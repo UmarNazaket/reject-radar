@@ -1,7 +1,8 @@
 import { rasffNotification } from '@rejectradar/db';
 import { classifyCommodity, classifyHazards, UNCLASSIFIED_ID, type RuleSet } from '@rejectradar/taxonomy';
-import { and, desc, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { SyncDeps } from '../../core/deps';
+import { SourceFetchError } from '../../core/http';
 import { insertEvents, upsertNotices, type EventInput, type NoticeInput } from '../../core/notices';
 import { runSync, type SyncRunResult } from '../../core/sync-run';
 import {
@@ -62,11 +63,21 @@ export function classifyRasff(
   return { commodityId, hazardIds };
 }
 
+/** The run result plus how the detail fetches went. */
+export interface RasffRunResult extends SyncRunResult {
+  detailsFetched: number;
+  detailsGone: number;
+  detailsInvalid: number;
+  detailsTransient: number;
+}
+
 /** A notification as stored: the list fields plus what only the detail holds. */
 interface Row extends RasffListItem {
   distributionCountries: string[];
   hazards: RasffHazard[];
   isNew: boolean;
+  /** Set when this run fetched the detail or gave up on it for good; written as `details_fetched_at = now()`. */
+  markFetched: boolean;
 }
 
 type StoredRow = typeof rasffNotification.$inferSelect;
@@ -94,6 +105,7 @@ const rowFromStored = (s: StoredRow): Row | null => {
     distributionCountries: s.distributionCountries,
     hazards: s.hazards as RasffHazard[],
     isNew: false,
+    markFetched: false,
   };
 };
 
@@ -123,17 +135,20 @@ async function readList(deps: SyncDeps, cutoff: string): Promise<{ read: number;
 /**
  * Syncs RASFF notifications of food and feed into `rasff_notification` and `notice`, in one transaction. The search list
  * is read newest first back to the cutoff (`from`, else 30 days before the newest stored notification). Hazards live only
- * in each notification's detail: up to `detailsLimit` details are fetched per run, oldest notifications first, covering
- * new references and stored ones still without hazards. Events are emitted for new references only.
+ * in each notification's detail: up to `detailsLimit` details are fetched per run, new references first, then stored
+ * ones never fetched (oldest first). A detail that is gone or malformed is given up on; a transient failure is retried
+ * next run. Events are emitted for new references only.
  */
 export async function syncRasff(
   deps: SyncDeps,
   options: { from?: string; detailsLimit: number; events: boolean },
-): Promise<SyncRunResult> {
+): Promise<RasffRunResult> {
   if (options.from !== undefined && !DATE_ONLY.test(options.from)) throw new Error(`Invalid date "${options.from}"; use YYYY-MM-DD`);
   if (!Number.isSafeInteger(options.detailsLimit) || options.detailsLimit < 0) throw new Error('detailsLimit must be a whole number of 0 or more');
 
-  return runSync(deps.db, 'rasff', async (ctx) => {
+  const skipped = { gone: 0, invalid: 0, transient: 0 };
+  let fetched = 0;
+  const result = await runSync(deps.db, 'rasff', async (ctx) => {
     ctx.setOrigin(RASFF_SEARCH_URL);
 
     let cutoff = options.from;
@@ -164,37 +179,71 @@ export async function syncRasff(
         distributionCountries: before?.distributionCountries ?? [],
         hazards: (before?.hazards as RasffHazard[] | undefined) ?? [],
         isNew: before === undefined,
+        markFetched: false,
       });
     }
 
-    const candidates = new Map<string, Row>([...rows].filter(([, row]) => row.hazards.length === 0));
-    if (options.detailsLimit > 0) {
+    // New references come first, newest first as listed; the remaining slots go to stored rows whose details were never
+    // fetched, oldest first, so a backlog can never starve fresh notifications.
+    const toDetail = [...rows.values()].filter((row) => row.isNew).slice(0, options.detailsLimit);
+    const spare = options.detailsLimit - toDetail.length;
+    if (spare > 0) {
       const backlog = await deps.db
         .select()
         .from(rasffNotification)
-        .where(and(sql`${rasffNotification.hazards} = '[]'::jsonb`, isNotNull(rasffNotification.url)))
+        .where(and(isNull(rasffNotification.detailsFetchedAt), isNotNull(rasffNotification.url)))
         .orderBy(rasffNotification.notifiedOn, rasffNotification.reference)
-        .limit(options.detailsLimit);
+        .limit(spare);
       for (const s of backlog) {
-        const row = rowFromStored(s);
-        if (row !== null && !candidates.has(row.reference)) candidates.set(row.reference, row);
+        const row = rows.get(s.reference) ?? rowFromStored(s);
+        if (row !== null) toDetail.push(row);
       }
     }
-    const toDetail = [...candidates.values()]
-      .sort((a, b) => a.notifiedOn.localeCompare(b.notifiedOn) || a.reference.localeCompare(b.reference))
-      .slice(0, options.detailsLimit);
 
     for (const row of toDetail) {
-      const detail = parseDetail((await deps.fetcher(rasffDetailUrl(row.notifId), { expect: 'json' })).json());
+      // A gone or malformed detail is given up on (marked fetched); a transient failure is left to the next run.
+      let json: unknown;
+      try {
+        json = (await deps.fetcher(rasffDetailUrl(row.notifId), { expect: 'json' })).json();
+      } catch (error) {
+        if (error instanceof SourceFetchError && (error.status === 404 || error.status === 410)) {
+          skipped.gone++;
+          row.markFetched = true;
+        } else if (error instanceof SourceFetchError || !(error instanceof SyntaxError)) {
+          skipped.transient++;
+        } else {
+          skipped.invalid++;
+          row.markFetched = true;
+        }
+        rows.set(row.reference, row);
+        continue;
+      }
+      let detail: ReturnType<typeof parseDetail>;
+      try {
+        detail = parseDetail(json);
+      } catch {
+        skipped.invalid++;
+        row.markFetched = true;
+        rows.set(row.reference, row);
+        continue;
+      }
       row.hazards = detail.hazards;
       row.distributionCountries = detail.distributionCountries;
       if (row.originCountries.length === 0) row.originCountries = detail.originCountries;
+      row.markFetched = true;
+      fetched++;
       rows.set(row.reference, row);
+    }
+    if (skipped.gone + skipped.invalid + skipped.transient > 0) {
+      console.warn(
+        `RASFF details skipped: ${skipped.gone} gone (404/410), ${skipped.invalid} invalid, ${skipped.transient} failed transiently and will be retried next run.`,
+      );
     }
 
     // Classify everything before writing; one bad record fails the run with nothing written.
     const written = [...rows.values()].map((row) => ({ row, ...classifyRasff(deps.rules, row, row.hazards) }));
 
+    const now = new Date();
     let rowsInserted = 0;
     let rowsUpdated = 0;
     let eventsEmitted = 0;
@@ -218,6 +267,7 @@ export async function syncRasff(
               commodityId,
               hazardIds,
               url: rasffPublicUrl(row.notifId),
+              detailsFetchedAt: row.markFetched ? now : null,
             })),
           )
           .onConflictDoUpdate({
@@ -235,10 +285,11 @@ export async function syncRasff(
               commodityId: sql`excluded.commodity_id`,
               hazardIds: sql`excluded.hazard_ids`,
               url: sql`excluded.url`,
+              detailsFetchedAt: sql`coalesce(excluded.details_fetched_at, ${rasffNotification.detailsFetchedAt})`,
             },
-            setWhere: sql`(${rasffNotification.notifiedOn}, ${rasffNotification.classification}, ${rasffNotification.riskDecision}, ${rasffNotification.notifyingCountry}, ${rasffNotification.originCountries}, ${rasffNotification.distributionCountries}, ${rasffNotification.productCategory}, ${rasffNotification.subject}, ${rasffNotification.hazards}, ${rasffNotification.commodityId}, ${rasffNotification.hazardIds}, ${rasffNotification.url})
+            setWhere: sql`(${rasffNotification.notifiedOn}, ${rasffNotification.classification}, ${rasffNotification.riskDecision}, ${rasffNotification.notifyingCountry}, ${rasffNotification.originCountries}, ${rasffNotification.distributionCountries}, ${rasffNotification.productCategory}, ${rasffNotification.subject}, ${rasffNotification.hazards}, ${rasffNotification.commodityId}, ${rasffNotification.hazardIds}, ${rasffNotification.url}, ${rasffNotification.detailsFetchedAt})
               is distinct from
-              (excluded.notified_on, excluded.classification, excluded.risk_decision, excluded.notifying_country, excluded.origin_countries, excluded.distribution_countries, excluded.product_category, excluded.subject, excluded.hazards, excluded.commodity_id, excluded.hazard_ids, excluded.url)`,
+              (excluded.notified_on, excluded.classification, excluded.risk_decision, excluded.notifying_country, excluded.origin_countries, excluded.distribution_countries, excluded.product_category, excluded.subject, excluded.hazards, excluded.commodity_id, excluded.hazard_ids, excluded.url, coalesce(excluded.details_fetched_at, ${rasffNotification.detailsFetchedAt}))`,
           })
           .returning({ inserted: sql<boolean>`(xmax = 0)` });
         for (const r of returned) {
@@ -287,4 +338,5 @@ export async function syncRasff(
     ctx.counts.rowsUpdated = rowsUpdated;
     ctx.counts.eventsEmitted = eventsEmitted;
   });
+  return { ...result, detailsFetched: fetched, detailsGone: skipped.gone, detailsInvalid: skipped.invalid, detailsTransient: skipped.transient };
 }

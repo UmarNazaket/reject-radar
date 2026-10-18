@@ -327,6 +327,8 @@ export const rasffNotification = pgTable(
     commodityId: integer('commodity_id').references(() => commodity.id),
     hazardIds: integer('hazard_ids').array().notNull().default(emptyIntArray),
     url: text('url'),
+    /** When the detail was last fetched successfully (or given up on); null means it still has to be fetched. */
+    detailsFetchedAt: timestamp('details_fetched_at', { withTimezone: true }),
   },
   (t) => [index('rasff_notification_notified_on_idx').on(t.notifiedOn)],
 );
