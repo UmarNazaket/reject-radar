@@ -2,8 +2,10 @@ import type { IngestEnv } from '@rejectradar/contracts';
 import { Command, InvalidArgumentError, Option } from 'commander';
 import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { openDb } from './core/db';
 import { loadIngestEnv } from './core/env';
 import { createFetcher } from './core/http';
+import { databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
 import { formatProbeReport, probePage } from './verify/probe-page';
 import { SOURCE_NAMES } from './verify/sources';
 import { verifySource } from './verify/verify-source';
@@ -60,6 +62,20 @@ program
     if (options.report) {
       await mkdir(path.dirname(options.report), { recursive: true });
       await appendFile(options.report, formatProbeReport(result), 'utf8');
+    }
+  });
+
+program
+  .command('db:size-check')
+  .description('Print the database size; exit 1 at or above the 900 MB limit (spec §6.3)')
+  .action(async () => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      const size = await databaseSizeBytes(db);
+      console.log(`Database size: ${toMegabytes(size)} MB (limit ${toMegabytes(SIZE_LIMIT_BYTES)} MB)`);
+      if (size >= SIZE_LIMIT_BYTES) process.exitCode = 1;
+    } finally {
+      await close();
     }
   });
 
