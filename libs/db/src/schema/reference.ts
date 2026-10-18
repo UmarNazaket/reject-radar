@@ -255,6 +255,8 @@ export const importAlertListingProduct = pgTable(
     description: text('description'),
     listedOn: date('listed_on'),
     notes: text('notes'),
+    /** Set when the code is missing from the page; cleared when it returns. The row is kept so a return is not a new product. */
+    removedOn: date('removed_on'),
   },
   (t) => [index('import_alert_listing_product_listing_idx').on(t.listingId)],
 );

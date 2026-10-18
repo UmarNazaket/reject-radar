@@ -64,6 +64,8 @@ async function parseOrSaveSample<T>(failureDir: string, name: string, parse: () 
 
 interface Crawl {
   indexSha256: string;
+  /** Every alert in the index, food or not. */
+  indexNumbers: Set<string>;
   /** Every food alert in the index, whether or not this run fetches it. */
   foodNumbers: Set<string>;
   alerts: { entry: AlertIndexEntry; alert: ParsedAlert }[];
@@ -96,7 +98,7 @@ async function crawl(deps: SyncDeps & { failureDir: string }, only: string[] | u
     });
     alerts.push({ entry, alert });
   }
-  return { indexSha256: index.sha256, foodNumbers: new Set(food.map((entry) => entry.number)), alerts };
+  return { indexSha256: index.sha256, indexNumbers: new Set(entries.map((entry) => entry.number)), foodNumbers: new Set(food.map((entry) => entry.number)), alerts };
 }
 
 interface PreparedListing {
@@ -115,30 +117,31 @@ function mergeProducts(a: ParsedListingProduct[], b: ParsedListingProduct[]): Pa
   return [...bySignature.values()];
 }
 
-/** One entry per listing key; if a firm block repeats, the products are merged and a Red List entry wins. */
+/**
+ * One entry per listing key. FDA repeats some firm blocks verbatim (merged, identical products kept once). When the
+ * blocks of one key disagree on the list, the Red List wins and the merged listing keeps only the red blocks' products,
+ * so a product that is only Green-listed never shows up as newly Red-listed.
+ */
 function prepareListings(rules: RuleSet, crawled: Crawl['alerts']): PreparedListing[] {
-  const byKey = new Map<string, PreparedListing>();
+  const groups = new Map<string, { entry: AlertIndexEntry; alert: ParsedAlert; blocks: ParsedListing[] }>();
   for (const { entry, alert } of crawled) {
     for (const listing of alert.listings) {
       const key = listingKey(alert.number, listing);
-      const previous = byKey.get(key);
-      const merged: ParsedListing = previous
-        ? { ...(previous.listing.list === 'red' || listing.list !== 'red' ? previous.listing : listing), products: mergeProducts(previous.listing.products, listing.products) }
-        : listing;
-      byKey.set(key, { key, alertNumber: alert.number, alertTitle: alert.title, alertUrl: entry.url, listing: merged, ...classifyListing(rules, alert, merged) });
+      const group = groups.get(key);
+      if (group) group.blocks.push(listing);
+      else groups.set(key, { entry, alert, blocks: [listing] });
     }
   }
-  return [...byKey.values()];
+  return [...groups.entries()].map(([key, { entry, alert, blocks }]) => {
+    const red = blocks.filter((block) => block.list === 'red');
+    const used = red.length > 0 ? red : blocks;
+    const listing: ParsedListing = { ...used[0], products: used.reduce<ParsedListingProduct[]>((all, block) => mergeProducts(all, block.products), []) };
+    return { key, alertNumber: alert.number, alertTitle: alert.title, alertUrl: entry.url, listing, ...classifyListing(rules, alert, listing) };
+  });
 }
 
 const productSignature = (p: Pick<ParsedListingProduct, 'productCode' | 'productName' | 'description' | 'listedOn' | 'notes'>): string =>
   JSON.stringify([p.productCode, p.productName, p.description, p.listedOn, p.notes]);
-
-const sameProducts = (a: readonly string[], b: readonly string[]): boolean => {
-  const left = [...a].sort();
-  const right = [...b].sort();
-  return left.length === right.length && left.every((value, i) => value === right[i]);
-};
 
 type ListingRow = typeof importAlertListing.$inferSelect;
 
@@ -151,29 +154,82 @@ interface EventDraft {
   fallback?: { commodityId: number; hazardIds: number[] };
 }
 
-async function loadExisting(tx: Tx, alertNumbers: string[]): Promise<{ rows: ListingRow[]; products: Map<number, string[]>; codes: Map<number, Set<string>> }> {
+type StoredProduct = Pick<typeof importAlertListingProduct.$inferSelect, 'id' | 'listingId' | 'productCode' | 'productName' | 'description' | 'listedOn' | 'notes' | 'removedOn'>;
+
+/** Products of one listing keyed by code (or name when there is no code) plus an ordinal for repeated codes. */
+function identify<T extends { productCode: string | null; productName: string | null }>(items: readonly T[]): Map<string, T> {
+  const seen = new Map<string, number>();
+  const out = new Map<string, T>();
+  for (const item of items) {
+    const base = item.productCode ?? `~${item.productName ?? ''}`;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    out.set(`${base}#${n}`, item);
+  }
+  return out;
+}
+
+async function loadExisting(
+  tx: Tx,
+  alertNumbers: string[],
+): Promise<{ rows: ListingRow[]; products: Map<number, StoredProduct[]>; codes: Map<number, Set<string>> }> {
   const rows: ListingRow[] = [];
-  const products = new Map<number, string[]>();
+  const products = new Map<number, StoredProduct[]>();
   const codes = new Map<number, Set<string>>();
   if (alertNumbers.length === 0) return { rows, products, codes };
   rows.push(...(await tx.select().from(importAlertListing).where(inArray(importAlertListing.alertNumber, alertNumbers))));
   const stored = await tx
     .select({
+      id: importAlertListingProduct.id,
       listingId: importAlertListingProduct.listingId,
       productCode: importAlertListingProduct.productCode,
       productName: importAlertListingProduct.productName,
       description: importAlertListingProduct.description,
       listedOn: importAlertListingProduct.listedOn,
       notes: importAlertListingProduct.notes,
+      removedOn: importAlertListingProduct.removedOn,
     })
     .from(importAlertListingProduct)
     .innerJoin(importAlertListing, eq(importAlertListing.id, importAlertListingProduct.listingId))
-    .where(inArray(importAlertListing.alertNumber, alertNumbers));
+    .where(inArray(importAlertListing.alertNumber, alertNumbers))
+    .orderBy(importAlertListingProduct.id);
   for (const p of stored) {
-    products.set(p.listingId, [...(products.get(p.listingId) ?? []), productSignature(p)]);
+    products.set(p.listingId, [...(products.get(p.listingId) ?? []), p]);
+    // A code that was ever stored for the listing is not "new" when it returns, whether or not it is currently removed.
     if (p.productCode) codes.set(p.listingId, (codes.get(p.listingId) ?? new Set()).add(p.productCode));
   }
   return { rows, products, codes };
+}
+
+interface ProductPlan {
+  inserts: ParsedListingProduct[];
+  updates: { id: number; set: Partial<StoredProduct> }[];
+  removals: number[];
+}
+
+/** Compares the page's products with the stored ones: new ones are inserted, changed or returning ones updated in place, vanished ones marked removed. */
+function planProducts(stored: readonly StoredProduct[], parsed: readonly ParsedListingProduct[]): ProductPlan {
+  const plan: ProductPlan = { inserts: [], updates: [], removals: [] };
+  const known = identify(stored);
+  const current = identify(parsed);
+  for (const [ident, p] of current) {
+    const row = known.get(ident);
+    if (!row) {
+      plan.inserts.push(p);
+      continue;
+    }
+    const set: Partial<StoredProduct> = {};
+    if (row.productName !== p.productName) set.productName = p.productName;
+    if (row.description !== p.description) set.description = p.description;
+    if (row.listedOn !== p.listedOn) set.listedOn = p.listedOn;
+    if (row.notes !== p.notes) set.notes = p.notes;
+    if (row.removedOn !== null) set.removedOn = null;
+    if (Object.keys(set).length > 0) plan.updates.push({ id: row.id, set });
+  }
+  for (const [ident, row] of known) {
+    if (!current.has(ident) && row.removedOn === null) plan.removals.push(row.id);
+  }
+  return plan;
 }
 
 /**
@@ -217,13 +273,16 @@ export async function syncImportAlerts(
         await tx.insert(importAlert).values({ number: alert.number, ...values }).onConflictDoUpdate({ target: importAlert.number, set: values });
       }
 
-      // Food alerts that have left the index: mark them removed; their open listings count as missing.
-      const absent = (
-        await tx
-          .select({ number: importAlert.number, removedAt: importAlert.removedAt })
-          .from(importAlert)
-          .where(and(eq(importAlert.isFood, true), notInArray(importAlert.number, [...crawled.foodNumbers])))
-      );
+      // Food alerts that have left the index are marked removed and their open listings count as missing. An alert
+      // that is still indexed but no longer passes the food filter is only flagged `is_food = false`: it is not
+      // removed and its listings are not counted as missed.
+      const notFood = await tx
+        .select({ number: importAlert.number, removedAt: importAlert.removedAt })
+        .from(importAlert)
+        .where(and(eq(importAlert.isFood, true), notInArray(importAlert.number, [...crawled.foodNumbers])));
+      const absent = notFood.filter((row) => !crawled.indexNumbers.has(row.number));
+      const flipped = notFood.filter((row) => crawled.indexNumbers.has(row.number)).map((row) => row.number);
+      if (flipped.length > 0) await tx.update(importAlert).set({ isFood: false }).where(inArray(importAlert.number, flipped));
       const newlyRemoved = absent.filter((row) => row.removedAt === null).map((row) => row.number);
       if (newlyRemoved.length > 0) await tx.update(importAlert).set({ removedAt: now }).where(inArray(importAlert.number, newlyRemoved));
 
@@ -232,14 +291,40 @@ export async function syncImportAlerts(
       const existingByKey = new Map(existing.rows.map((row) => [row.listingKey, row]));
       const seen = new Set(prepared.map((item) => item.key));
 
+      // A new key whose alert, normalised name and country match exactly one open, unseen listing (and no other new
+      // key does) is that listing with an edited address: re-key it instead of delisting one and listing another.
+      const identity = (alertNumber: string, nameNorm: string, countryCode: string | null) => JSON.stringify([alertNumber, nameNorm, countryCode ?? '']);
+      const newItems = new Map<string, PreparedListing[]>();
+      for (const item of prepared) {
+        if (existingByKey.has(item.key)) continue;
+        const id = identity(item.alertNumber, normalizeName(item.listing.firmName).primary, item.listing.countryCode);
+        newItems.set(id, [...(newItems.get(id) ?? []), item]);
+      }
+      const candidates = new Map<string, ListingRow[]>();
+      for (const row of existing.rows) {
+        if (row.removedOn !== null || seen.has(row.listingKey)) continue;
+        const id = identity(row.alertNumber, row.nameNorm, row.countryCode);
+        candidates.set(id, [...(candidates.get(id) ?? []), row]);
+      }
+      const rekeyed = new Map<string, ListingRow>();
+      for (const [id, items] of newItems) {
+        const rows = candidates.get(id) ?? [];
+        if (items.length === 1 && rows.length === 1) rekeyed.set(items[0].key, rows[0]);
+      }
+      const rekeyedIds = new Set([...rekeyed.values()].map((row) => row.id));
+
       const drafts: EventDraft[] = [];
       const inserts: PreparedListing[] = [];
       const touchOnly: number[] = [];
-      const changed: { id: number; item: PreparedListing; set: Partial<ListingRow>; productsChanged: boolean }[] = [];
+      const changed: { id: number; set: Partial<ListingRow> }[] = [];
+      const productInserts: { listingId: number; product: ParsedListingProduct }[] = [];
+      const productUpdates: ProductPlan['updates'] = [];
+      const productRemovals: number[] = [];
 
       for (const item of prepared) {
         const l = item.listing;
-        const row = existingByKey.get(item.key);
+        const isRekey = rekeyed.has(item.key);
+        const row = existingByKey.get(item.key) ?? rekeyed.get(item.key);
         const red = l.list === 'red';
         const fallback = { commodityId: item.commodityId, hazardIds: item.hazardIds };
         if (!row) {
@@ -249,6 +334,7 @@ export async function syncImportAlerts(
         }
 
         const set: Partial<ListingRow> = {
+          listingKey: item.key,
           list: l.list,
           firmName: l.firmName,
           nameNorm: normalizeName(l.firmName).primary,
@@ -260,10 +346,13 @@ export async function syncImportAlerts(
           missedRuns: 0,
           removedOn: null,
         };
-        const newSignatures = l.products.map(productSignature);
-        const productsChanged = !sameProducts(existing.products.get(row.id) ?? [], newSignatures);
+        const plan = planProducts(existing.products.get(row.id) ?? [], l.products);
+        const productsChanged = plan.inserts.length + plan.updates.length + plan.removals.length > 0;
+        productInserts.push(...plan.inserts.map((product) => ({ listingId: row.id, product })));
+        productUpdates.push(...plan.updates);
+        productRemovals.push(...plan.removals);
         const dirty = (Object.keys(set) as (keyof ListingRow)[]).some((column) => set[column] !== row[column]) || productsChanged;
-        if (dirty) changed.push({ id: row.id, item, set: { ...set, lastSeenOn: today }, productsChanged });
+        if (dirty) changed.push({ id: row.id, set: { ...set, lastSeenOn: today } });
         else if (row.lastSeenOn !== today) touchOnly.push(row.id);
 
         const wasRed = row.list === 'red';
@@ -274,7 +363,8 @@ export async function syncImportAlerts(
           drafts.push({ ...base, kind: 'import_alert_listed', payload: { alertNumber: item.alertNumber } });
         } else if (wasRed && !red) {
           drafts.push({ ...base, kind: 'import_alert_delisted', occurredOn: today, payload: { alertNumber: item.alertNumber, reason: 'moved to the Green List' } });
-        } else if (wasRed && red) {
+        } else if (wasRed && red && !isRekey) {
+          // Only a code never stored for this listing is new; one that dropped out and came back is not.
           const known = existing.codes.get(row.id) ?? new Set<string>();
           const newProducts = [...new Set(l.products.map((p) => p.productCode).filter((code): code is string => !!code && !known.has(code)))];
           if (newProducts.length > 0) drafts.push({ ...base, kind: 'import_alert_listed', payload: { alertNumber: item.alertNumber, newProducts } });
@@ -282,13 +372,18 @@ export async function syncImportAlerts(
       }
 
       // Open listings that were not seen in an alert this run read (or in an alert that left the index).
-      const missed = existing.rows.filter((row) => row.removedOn === null && !seen.has(row.listingKey));
+      const missed = existing.rows.filter((row) => row.removedOn === null && !seen.has(row.listingKey) && !rekeyedIds.has(row.id));
       const missedRemoved = missed.filter((row) => row.missedRuns + 1 >= MISSED_RUNS_TO_DELIST);
       const missedKept = missed.filter((row) => row.missedRuns + 1 < MISSED_RUNS_TO_DELIST);
       for (const row of missedRemoved) {
         if (row.list === 'red') {
           drafts.push({ key: row.listingKey, kind: 'import_alert_delisted', occurredOn: today, originCountry: row.countryCode, payload: { alertNumber: row.alertNumber, reason: 'missing from consecutive runs' } });
         }
+      }
+
+      // A re-keyed listing keeps its notice: move the notice to the new key before the notices are upserted.
+      for (const [newKey, row] of rekeyed) {
+        await tx.update(notice).set({ sourceKey: newKey }).where(and(eq(notice.source, 'import_alert'), eq(notice.sourceKey, row.listingKey)));
       }
 
       // Listings.
@@ -332,21 +427,19 @@ export async function syncImportAlerts(
         }
       }
 
-      // Products: replaced only where they changed.
-      const replaceIds = changed.filter((c) => c.productsChanged).map((c) => c.id);
-      for (const batch of chunks(replaceIds, KEY_CHUNK)) {
-        await tx.delete(importAlertListingProduct).where(inArray(importAlertListingProduct.listingId, batch));
+      // Products are never deleted: a vanished code gets `removed_on`, a returning one has it cleared, a code never stored is inserted.
+      for (const { id, set } of productUpdates) await tx.update(importAlertListingProduct).set(set).where(eq(importAlertListingProduct.id, id));
+      for (const batch of chunks(productRemovals, KEY_CHUNK)) {
+        await tx.update(importAlertListingProduct).set({ removedOn: today }).where(inArray(importAlertListingProduct.id, batch));
       }
       const productRows = [
-        ...inserts.map((item) => ({ listingId: insertedIds.get(item.key) as number, products: item.listing.products })),
-        ...changed.filter((c) => c.productsChanged).map((c) => ({ listingId: c.id, products: c.item.listing.products })),
-      ].flatMap(({ listingId, products }) =>
-        products.map((p) => ({ listingId, productCode: p.productCode, productName: p.productName, description: p.description, listedOn: p.listedOn, notes: p.notes })),
-      );
+        ...inserts.flatMap((item) => item.listing.products.map((product) => ({ listingId: insertedIds.get(item.key) as number, product }))),
+        ...productInserts,
+      ].map(({ listingId, product: p }) => ({ listingId, productCode: p.productCode, productName: p.productName, description: p.description, listedOn: p.listedOn, notes: p.notes }));
       for (const batch of chunks(productRows, BATCH_SIZE)) await tx.insert(importAlertListingProduct).values(batch);
 
       // Notices: one per Red List listing.
-      const firstSeen = new Map(existing.rows.map((row) => [row.listingKey, row.firstSeenOn]));
+      const firstSeen = new Map([...existing.rows.map((row) => [row.listingKey, row.firstSeenOn] as const), ...[...rekeyed].map(([key, row]) => [key, row.firstSeenOn] as const)]);
       const notices: NoticeInput[] = prepared
         .filter((item) => item.listing.list === 'red')
         .map((item) => {

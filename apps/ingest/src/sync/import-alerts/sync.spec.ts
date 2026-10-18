@@ -377,6 +377,156 @@ ${block}`));
     expect(await total(importAlertListing)).toBeGreaterThan(0);
   });
 
+  describe('fix round 1', () => {
+    const firstBlock = () => {
+      const block = /<div class="div-info">[\s\S]*?(?=\s*<hr\/>\s*<div class="center"><h4>ALBANIA)/.exec(ORIGINAL['99-19'])?.[0];
+      expect(block).toBeTruthy();
+      return block as string;
+    };
+    const fenugreek = () => {
+      const product = /\s*<div>\s*<div class="floatleft"><em>28&nbsp;A&nbsp;-&nbsp;-&nbsp;56 <\/em>[\s\S]*?<\/p>/.exec(firstBlock())?.[0];
+      expect(product).toBeTruthy();
+      return product as string;
+    };
+    const firstKey = () => keyOf('99-19', parsed('99-19').listings[0]);
+    const productsOf = async (key: string) =>
+      (
+        await handle.db
+          .select({ product: importAlertListingProduct })
+          .from(importAlertListingProduct)
+          .innerJoin(importAlertListing, eq(importAlertListing.id, importAlertListingProduct.listingId))
+          .where(eq(importAlertListing.listingKey, key))
+          .orderBy(importAlertListingProduct.id)
+      ).map((row) => row.product);
+
+    it('keeps only the red blocks products when a firm is on both lists', async () => {
+      const redOnly = withoutFenugreek(ORIGINAL['99-19']);
+      const info = /^[\s\S]*?(?=\s*<div>\s*<div class="floatleft">)/.exec(firstBlock())?.[0] as string;
+      const at = Math.max(...[...redOnly.matchAll(/<hr\/>\s*<div class="center"><h4>/g)].map((m) => m.index ?? -1));
+      const both =
+        `${redOnly.slice(0, at)}<hr/><div class="center"><a name="GreenFirm"></a><h4>Green List</h4></div>` +
+        `<hr/><div class="center"><h4>AFGHANISTAN</h4></div><hr/>${info}${fenugreek()}` +
+        `<hr/><div class="center"><a name="RedFirm"></a><h4>Red List</h4></div>${redOnly.slice(at)}`;
+
+      const page = parsed('99-19', both);
+      const mine = page.listings.filter((l) => keyOf('99-19', l) === firstKey());
+      expect(mine.map((l) => l.list).sort()).toEqual(['green', 'red']);
+
+      serve('99-19', redOnly);
+      await run();
+      serve('99-19', both);
+      const second = await run();
+      expect(second).toMatchObject({ eventsEmitted: 0, rowsUpdated: 0 });
+      const [row] = (await listings()).filter((r) => r.listingKey === firstKey());
+      expect(row.list).toBe('red');
+      const codes = (await productsOf(firstKey())).map((p) => p.productCode);
+      expect(codes).not.toContain('28A--56');
+      expect(codes).toHaveLength(4);
+      expect(JSON.stringify(await events())).not.toContain('28A--56');
+    });
+
+    it('does not call a product that dropped out and came back new, and keeps its row', async () => {
+      await run();
+      const before = await productsOf(firstKey());
+      const eventsBefore = await total(changeEvent);
+
+      serve('99-19', withoutFenugreek(ORIGINAL['99-19']));
+      const dropped = await run();
+      expect(dropped.eventsEmitted).toBe(0);
+      const after = await productsOf(firstKey());
+      expect(after).toHaveLength(before.length);
+      expect(after.find((p) => p.productCode === '28A--56')?.removedOn).toBe(TODAY);
+      expect(after.filter((p) => p.productCode !== '28A--56').every((p) => p.removedOn === null)).toBe(true);
+      expect(await total(changeEvent)).toBe(eventsBefore);
+
+      serve('99-19', ORIGINAL['99-19']);
+      const back = await run();
+      expect(back.eventsEmitted).toBe(0);
+      const restored = await productsOf(firstKey());
+      expect(restored.map((p) => p.id)).toEqual(before.map((p) => p.id));
+      expect(restored.every((p) => p.removedOn === null)).toBe(true);
+      expect(await total(changeEvent)).toBe(eventsBefore);
+    });
+
+    it('updates product fields in place', async () => {
+      await run();
+      const before = await productsOf(firstKey());
+      serve('99-19', ORIGINAL['99-19'].replace(firstBlock(), firstBlock().split('Fenugreek Leaves (Dried)').join('Fenugreek Leaves (Fresh)')));
+      const second = await run();
+      expect(second.eventsEmitted).toBe(0);
+      const after = await productsOf(firstKey());
+      expect(after.map((p) => p.id)).toEqual(before.map((p) => p.id));
+      expect(after.every((p) => p.description === 'Fenugreek Leaves (Fresh)')).toBe(true);
+    });
+
+    it('builds the notice product text from current products only', async () => {
+      await run();
+      serve('99-19', withoutFenugreek(ORIGINAL['99-19']));
+      await run();
+      const [n] = await handle.db.select().from(notice).where(eq(notice.sourceKey, firstKey()));
+      expect(n.productText).not.toContain('Fenugreek, Whole');
+      expect(n.productText).toContain('Leaf & Stem Vegetables');
+    });
+
+    it('re-keys a listing whose address was edited instead of delisting and listing', async () => {
+      await run();
+      const [old] = (await listings()).filter((r) => r.listingKey === firstKey());
+      const [oldNotice] = await handle.db.select().from(notice).where(eq(notice.sourceKey, firstKey()));
+      const eventsBefore = await total(changeEvent);
+      const noticesBefore = await total(notice);
+      const edited = ORIGINAL['99-19'].replace('Bazaar Kandharyellow Carvansera', 'Bazaar Kandhar Yellow Carvansera Road 9');
+      expect(edited).not.toBe(ORIGINAL['99-19']);
+      const newKey = keyOf('99-19', parsed('99-19', edited).listings[0]);
+      expect(newKey).not.toBe(firstKey());
+      serve('99-19', edited);
+      const second = await run();
+
+      expect(second).toMatchObject({ eventsEmitted: 0, rowsInserted: 0 });
+      expect(await total(changeEvent)).toBe(eventsBefore);
+      expect(await total(notice)).toBe(noticesBefore);
+      const rows = await listings();
+      const moved = rows.find((r) => r.id === old.id);
+      expect(moved).toMatchObject({ listingKey: newKey, missedRuns: 0, removedOn: null, firstSeenOn: TODAY });
+      expect(moved?.addressRaw).toContain('Yellow Carvansera Road 9');
+      expect(rows.filter((r) => r.alertNumber === '99-19')).toHaveLength(parsed('99-19').listings.length);
+      const [movedNotice] = await handle.db.select().from(notice).where(eq(notice.sourceKey, newKey));
+      expect(movedNotice.id).toBe(oldNotice.id);
+      expect(await handle.db.select().from(notice).where(eq(notice.sourceKey, firstKey()))).toHaveLength(0);
+      expect((await run()).rowsUpdated).toBe(0);
+    });
+
+    it('does not re-key when the match is ambiguous', async () => {
+      await run();
+      // Two new keys for one name and country: both listings are new, the old one is missed.
+      const block = firstBlock();
+      const one = block.replace('Bazaar Kandharyellow Carvansera', 'Alpha Road 1');
+      const two = block.replace('Bazaar Kandharyellow Carvansera', 'Beta Road 2');
+      serve('99-19', ORIGINAL['99-19'].replace(block, `${one}\n${two}`));
+      const second = await run();
+      expect(second.rowsInserted).toBe(2);
+      const [old] = (await listings()).filter((r) => r.listingKey === firstKey());
+      expect(old).toMatchObject({ missedRuns: 1, removedOn: null });
+    });
+
+    it('flags an alert that stops passing the food filter without removing it or missing its listings', async () => {
+      await run();
+      const eventsBefore = await total(changeEvent);
+      index = INDEX.replace(/(<td>99-08<\/td>[\s\S]*?<a [^>]*>)/, '$1Drug ');
+      expect(index).not.toBe(INDEX);
+      const second = await run();
+
+      const [alert] = await handle.db.select().from(importAlert).where(eq(importAlert.number, '99-08'));
+      expect(alert).toMatchObject({ isFood: false, removedAt: null });
+      expect((await listings()).filter((r) => r.alertNumber === '99-08').every((r) => r.missedRuns === 0 && r.removedOn === null)).toBe(true);
+      expect(second.eventsEmitted).toBe(0);
+      expect(await total(changeEvent)).toBe(eventsBefore);
+      expect(requested.filter((u) => u === URLS['99-08'])).toHaveLength(1); // fetched in run 1 only
+
+      // Still a non-food alert on the next run: nothing changes.
+      expect((await run()).rowsUpdated).toBe(0);
+    });
+  });
+
   it('writes no sample file for a successful run', async () => {
     await run();
     expect(existsSync(failureDir) ? readdirSync(failureDir) : []).toEqual([]);
