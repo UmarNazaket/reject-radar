@@ -20,6 +20,7 @@
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "cheerio": "^1.2.0",
     "commander": "^15.0.0",
     "csv-parse": "^7.0.3",
     "drizzle-orm": "^0.45.4",

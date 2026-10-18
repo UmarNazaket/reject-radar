@@ -1,4 +1,4 @@
-import { apiEnvSchema, EnvValidationError, parseEnv } from './env';
+import { apiEnvSchema, EnvValidationError, ingestEnvSchema, parseEnv } from './env';
 
 const SECRET = 'qL8vT2nX5rW9yB3mK7pD1sF6hJ4gZ0cA2eR8tY5uI3o'; // 43 chars, like `npm run secret`
 
@@ -71,5 +71,58 @@ describe('apiEnvSchema', () => {
 
   it('ignores ingest-only variables such as FDA_API_KEY', () => {
     expect(() => parseEnv(apiEnvSchema, { ...valid, FDA_API_KEY: '' })).not.toThrow();
+  });
+});
+
+describe('ingestEnvSchema', () => {
+  const ingestValid: Record<string, string | undefined> = {
+    DATABASE_URL: 'postgres://rejectradar:rejectradar@localhost:5432/rejectradar',
+    INGEST_CONTACT_EMAIL: 'ops@example.com',
+  };
+
+  function ingestError(overrides: Record<string, string | undefined>): EnvValidationError {
+    try {
+      parseEnv(ingestEnvSchema, { ...ingestValid, ...overrides });
+    } catch (error) {
+      if (error instanceof EnvValidationError) return error;
+      throw error;
+    }
+    throw new Error('expected parseEnv to throw');
+  }
+
+  it('parses a minimal environment and defaults INGEST_FAILURE_DIR', () => {
+    const env = parseEnv(ingestEnvSchema, ingestValid);
+    expect(env.INGEST_FAILURE_DIR).toBe('tmp/ingest-failures');
+    expect(env.FDA_API_USER).toBeUndefined();
+    expect(env.FDA_API_KEY).toBeUndefined();
+  });
+
+  it('rejects a missing INGEST_CONTACT_EMAIL', () => {
+    expect(ingestError({ INGEST_CONTACT_EMAIL: undefined }).message).toContain('INGEST_CONTACT_EMAIL');
+  });
+
+  it('rejects INGEST_CONTACT_EMAIL that is not an email address', () => {
+    expect(ingestError({ INGEST_CONTACT_EMAIL: 'not-an-email' }).message).toContain('INGEST_CONTACT_EMAIL');
+  });
+
+  it('rejects a non-postgres DATABASE_URL', () => {
+    expect(ingestError({ DATABASE_URL: 'mysql://user@host/db' }).message).toContain('DATABASE_URL');
+  });
+
+  it('rejects a placeholder FDA_API_KEY', () => {
+    expect(ingestError({ FDA_API_KEY: 'changeme' }).message).toContain('FDA_API_KEY');
+  });
+
+  it('treats empty FDA credentials as not set and trims real ones', () => {
+    const empty = parseEnv(ingestEnvSchema, { ...ingestValid, FDA_API_USER: '', FDA_API_KEY: '  ' });
+    expect(empty.FDA_API_USER).toBeUndefined();
+    expect(empty.FDA_API_KEY).toBeUndefined();
+    const set = parseEnv(ingestEnvSchema, { ...ingestValid, FDA_API_USER: ' u@example.com ', FDA_API_KEY: ' k3y ' });
+    expect(set.FDA_API_USER).toBe('u@example.com');
+    expect(set.FDA_API_KEY).toBe('k3y');
+  });
+
+  it('accepts an INGEST_FAILURE_DIR override', () => {
+    expect(parseEnv(ingestEnvSchema, { ...ingestValid, INGEST_FAILURE_DIR: 'var/failures' }).INGEST_FAILURE_DIR).toBe('var/failures');
   });
 });

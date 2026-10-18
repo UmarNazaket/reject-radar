@@ -1,27 +1,17 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import unzipper from 'unzipper';
+import type { Expect, Fetcher } from '../core/http';
 
-/** Spec §6.3 rule 5: every request names RejectRadar and carries a contact address. */
-export function userAgent(): string {
-  const contact = process.env['INGEST_CONTACT_EMAIL']?.trim();
-  if (!contact) throw new Error('Set INGEST_CONTACT_EMAIL in .env: every request must carry a contact address (spec §6.3)');
-  return `RejectRadar data verification (${contact})`;
-}
-
-export async function downloadFile(url: string, dir: string): Promise<string> {
+/** Downloads through the shared fetcher (allow-list, User-Agent, timeout, retries) and saves the body under the URL's file name. */
+export async function downloadFile(fetcher: Fetcher, url: string, dir: string, expect: Expect = 'any'): Promise<string> {
   await mkdir(dir, { recursive: true });
-  const response = await fetch(url, { headers: { 'user-agent': userAgent() } });
-  if (!response.ok || !response.body) {
-    throw new Error(`Download failed: HTTP ${response.status} ${response.statusText} for ${url}`);
-  }
-  const target = path.join(dir, path.basename(new URL(url).pathname) || 'download.bin');
-  await pipeline(Readable.fromWeb(response.body as WebReadableStream), createWriteStream(target));
+  const response = await fetcher(url, { expect });
+  const target = path.join(dir, path.basename(new URL(response.url).pathname) || 'download.bin');
+  await writeFile(target, response.bytes);
   return target;
 }
 

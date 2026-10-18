@@ -1,6 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { Fetcher } from '../core/http';
 import { FDA_REFUSALS_URL, fetchRefusalsPage } from './fda-api';
 import { downloadFile, ensureCsv, sha256File, sha256Text } from './fetch-file';
 import { checkFields } from './field-check';
@@ -21,7 +22,8 @@ export interface VerifyOptions {
   report?: string;
   workDir?: string;
   env?: Record<string, string | undefined>;
-  fetchImpl?: typeof fetch;
+  /** Required for anything fetched over the network (--url and fda_refusals). */
+  fetcher?: Fetcher;
 }
 
 export interface VerifyResult {
@@ -82,7 +84,8 @@ async function loadFda(options: VerifyOptions, fillRate: readonly string[]): Pro
   const key = env['FDA_API_KEY']?.trim();
   if (!user || !key) throw new Error('Set FDA_API_USER and FDA_API_KEY in .env (see .env.example and account check A9)');
   if (!options.from || !options.to) throw new Error('Pass --from and --to (YYYY-MM-DD) for fda_refusals');
-  const page = await fetchRefusalsPage({ user, key }, { from: options.from, to: options.to, countTotal: true }, options.fetchImpl);
+  if (!options.fetcher) throw new Error('verifySource needs a fetcher to call the FDA API');
+  const page = await fetchRefusalsPage(options.fetcher, { user, key }, { from: options.from, to: options.to, countTotal: true });
   const summary = summarizeRecords(page.records, fillRate);
   return {
     origin: `${FDA_REFUSALS_URL} (RefusalDate ${options.from} to ${options.to}, first page)`,
@@ -99,7 +102,10 @@ async function loadFile(options: VerifyOptions, spec: SourceSpec, fillRate: read
   const workDir = options.workDir ?? path.resolve('tmp/verify');
   let downloaded: string;
   if (options.file) downloaded = options.file;
-  else if (options.url) downloaded = await downloadFile(options.url, workDir);
+  else if (options.url) {
+    if (!options.fetcher) throw new Error('verifySource needs a fetcher to download --url');
+    downloaded = await downloadFile(options.fetcher, options.url, workDir, spec.kind === 'json' ? 'json' : 'csv');
+  }
   else throw new Error('Pass --url <download url> or --file <local file>');
   const origin = options.url ?? downloaded;
   const sha256 = await sha256File(downloaded);

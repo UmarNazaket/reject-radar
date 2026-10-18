@@ -1,4 +1,8 @@
-import { formatProbeReport, probeText, toPlainText } from './probe-page';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fakeFetcher, fetchResult } from '../core/test-fetcher';
+import { formatProbeReport, probePage, probeText, toPlainText } from './probe-page';
 
 const PAGE =
   '<h2>Red List</h2>' +
@@ -34,5 +38,24 @@ describe('formatProbeReport', () => {
     expect(text).toContain('- Size: 846,835 bytes');
     expect(text).toContain('- Matches: `Red List` 1');
     expect(text).toContain('  - FEI# 1');
+  });
+});
+
+describe('probePage', () => {
+  it('downloads the page through the fetcher expecting HTML', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'probe-page-'));
+    try {
+      const { fetcher, calls } = fakeFetcher(() => fetchResult(PAGE, { contentType: 'text/html' }));
+      const result = await probePage({ url: 'https://www.accessdata.fda.gov/cms_ia/ialist.html', count: ['Date Published'], workDir: dir }, fetcher);
+      expect(result.counts).toEqual({ 'Date Published': 2 });
+      expect(result.bytes).toBe(Buffer.byteLength(PAGE));
+      expect(calls[0].options).toEqual({ expect: 'html' });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('asks for a fetcher when given a URL', async () => {
+    await expect(probePage({ url: 'https://www.accessdata.fda.gov/x' })).rejects.toThrow('fetcher');
   });
 });

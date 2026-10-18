@@ -21,19 +21,44 @@ const origin = z
     message: 'must be an origin such as https://app.example.com (no path)',
   });
 
+const databaseUrl = z
+  .string()
+  .trim()
+  .regex(/^postgres(ql)?:\/\/\S+$/, 'must be a postgres:// connection string');
+
 export const apiEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(['silent', 'fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  DATABASE_URL: z
-    .string()
-    .trim()
-    .regex(/^postgres(ql)?:\/\/\S+$/, 'must be a postgres:// connection string'),
+  DATABASE_URL: databaseUrl,
   JWT_SECRET: strongSecret('JWT_SECRET'),
   APP_ORIGIN: origin,
 });
 
 export type ApiEnv = z.output<typeof apiEnvSchema>;
+
+/** An optional credential: unset or blank means "not provided"; a value must not be a known placeholder. */
+function optionalCredential(name: string) {
+  return z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .refine((value) => value === undefined || !PLACEHOLDER.test(value), {
+      message: `${name} looks like a placeholder; use the credential FDA issued or leave it empty`,
+    });
+}
+
+export const ingestEnvSchema = z.object({
+  DATABASE_URL: databaseUrl,
+  /** Goes into the User-Agent of every request so source operators can reach us (spec §6.3 rule 5). */
+  INGEST_CONTACT_EMAIL: z.string().trim().pipe(z.email()),
+  FDA_API_USER: optionalCredential('FDA_API_USER'),
+  FDA_API_KEY: optionalCredential('FDA_API_KEY'),
+  INGEST_FAILURE_DIR: z.string().trim().min(1).default('tmp/ingest-failures'),
+});
+
+export type IngestEnv = z.output<typeof ingestEnvSchema>;
 
 export class EnvValidationError extends Error {
   constructor(readonly issues: string[]) {

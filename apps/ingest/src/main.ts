@@ -1,12 +1,12 @@
+import type { IngestEnv } from '@rejectradar/contracts';
 import { Command, InvalidArgumentError, Option } from 'commander';
-import { existsSync } from 'node:fs';
 import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { loadIngestEnv } from './core/env';
+import { createFetcher } from './core/http';
 import { formatProbeReport, probePage } from './verify/probe-page';
 import { SOURCE_NAMES } from './verify/sources';
 import { verifySource } from './verify/verify-source';
-
-if (existsSync('.env')) process.loadEnvFile('.env');
 
 const list = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
 const collect = (value: string, previous: string[]) => [...previous, value];
@@ -14,6 +14,9 @@ const positiveInt = (value: string): number => {
   if (!/^[1-9]\d*$/.test(value)) throw new InvalidArgumentError('Must be a positive integer.');
   return Number.parseInt(value, 10);
 };
+
+/** The polite fetcher every command uses; its contact address comes from the validated environment. */
+const fetcherFor = (env: IngestEnv) => createFetcher({ contact: env.INGEST_CONTACT_EMAIL });
 
 const program = new Command().name('rejectradar-ingest').description('RejectRadar data ingestion CLI');
 
@@ -30,7 +33,13 @@ program
   .option('--unique <fields>', 'comma-separated fields that should form a unique key (json sources)', list)
   .option('--report <path>', 'markdown file to append the result to')
   .action(async (options) => {
-    const result = await verifySource(options);
+    // A local --file needs no network, so it needs no environment either.
+    const env = options.file ? undefined : loadIngestEnv();
+    const result = await verifySource({
+      ...options,
+      env: { FDA_API_USER: env?.FDA_API_USER, FDA_API_KEY: env?.FDA_API_KEY },
+      fetcher: env && fetcherFor(env),
+    });
     console.log(JSON.stringify({ ...result, sample: result.sample ? '(first record in the report)' : null }, null, 2));
     if (result.missing.length > 0) process.exitCode = 2;
   });
@@ -45,7 +54,8 @@ program
   .option('--sample-count <n>', 'how many samples to show', positiveInt, 3)
   .option('--report <path>', 'markdown file to append the result to')
   .action(async (options) => {
-    const result = await probePage(options);
+    const env = options.file ? undefined : loadIngestEnv();
+    const result = await probePage(options, env && fetcherFor(env));
     console.log(JSON.stringify(result, null, 2));
     if (options.report) {
       await mkdir(path.dirname(options.report), { recursive: true });

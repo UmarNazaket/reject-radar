@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { Fetcher } from '../core/http';
 import { downloadFile } from './fetch-file';
 
 export interface ProbeResult {
@@ -48,10 +49,13 @@ export function probeText(
   return { counts, samples };
 }
 
-export async function probePage(options: ProbeOptions): Promise<ProbeResult> {
+export async function probePage(options: ProbeOptions, fetcher?: Fetcher): Promise<ProbeResult> {
   let filePath: string;
   if (options.file) filePath = options.file;
-  else if (options.url) filePath = await downloadFile(options.url, options.workDir ?? path.resolve('tmp/probe'));
+  else if (options.url) {
+    if (!fetcher) throw new Error('probePage needs a fetcher to download --url');
+    filePath = await downloadFile(fetcher, options.url, options.workDir ?? path.resolve('tmp/probe'), 'html');
+  }
   else throw new Error('Pass --url <page url> or --file <saved page>');
   const buffer = await readFile(filePath);
   const { counts, samples } = probeText(buffer.toString('utf8'), options.count ?? [], options.sample, options.sampleCount);
