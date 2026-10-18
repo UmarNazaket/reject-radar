@@ -26,16 +26,12 @@ concurrency:
   group: ingest-db
   cancel-in-progress: false
 
+# Secrets are given only to the steps that run the CLI, never to npm ci or the build.
 jobs:
   fda:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: ${{ github.event.schedule == '0 6 * * 5' || inputs.job == 'all' || inputs.job == 'fda' }}
-    env:
-      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
-      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
-      FDA_API_USER: ${{ secrets.FDA_API_USER }}
-      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -45,10 +41,21 @@ jobs:
       - run: npm ci
       - run: npx nx build ingest
       - name: Check database size
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js db:size-check
       - name: sync:fda-charge-codes
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:fda-charge-codes
       - name: sync:fda-refusals
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+          FDA_API_USER: ${{ secrets.FDA_API_USER }}
+          FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
         run: node dist/apps/ingest/main.js sync:fda-refusals
       # P3: entities:link
       # P5: alerts:run
@@ -58,9 +65,6 @@ jobs:
     timeout-minutes: 30
     needs: fda
     if: ${{ !cancelled() && (github.event.schedule == '30 6 * * 1' || inputs.job == 'all' || inputs.job == 'uk-bn') }}
-    env:
-      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
-      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -70,8 +74,14 @@ jobs:
       - run: npm ci
       - run: npx nx build ingest
       - name: Check database size
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js db:size-check
       - name: sync:uk-bn
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:uk-bn
       # P3: entities:link
       # P5: alerts:run
@@ -81,9 +91,6 @@ jobs:
     timeout-minutes: 30
     needs: uk-bn
     if: ${{ !cancelled() && (github.event.schedule == '30 6 * * 1' || inputs.job == 'all' || inputs.job == 'au-ifis') }}
-    env:
-      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
-      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -93,8 +100,14 @@ jobs:
       - run: npm ci
       - run: npx nx build ingest
       - name: Check database size
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js db:size-check
       - name: sync:au-ifis
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:au-ifis
       # P3: entities:link
       # P5: alerts:run

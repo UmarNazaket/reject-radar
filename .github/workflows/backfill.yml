@@ -21,6 +21,11 @@ on:
         type: string
         required: false
         default: ''
+      details_limit:
+        description: "Most RASFF notification details to fetch in this run (rasff only). About 6000 fit the 350-minute timeout at 1 request a second; run again for the rest."
+        type: string
+        required: false
+        default: '6000'
 
 permissions:
   contents: read
@@ -30,15 +35,11 @@ concurrency:
   group: ingest-db
   cancel-in-progress: false
 
+# Secrets are given only to the steps that run the CLI, never to npm ci or the build.
 jobs:
   backfill:
     runs-on: ubuntu-latest
     timeout-minutes: 350
-    env:
-      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
-      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
-      FDA_API_USER: ${{ secrets.FDA_API_USER }}
-      FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -48,28 +49,49 @@ jobs:
       - run: npm ci
       - run: npx nx build ingest
       - name: Check database size
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js db:size-check
       - name: Run the sync
         env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+          FDA_API_USER: ${{ secrets.FDA_API_USER }}
+          FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
           SOURCE: ${{ inputs.source }}
           FROM: ${{ inputs.from }}
+          DETAILS_LIMIT: ${{ inputs.details_limit }}
         run: |
           set -euo pipefail
           if [ -n "$FROM" ] && ! printf '%s' "$FROM" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
             echo "from must be YYYY-MM-DD, got: $FROM" >&2
             exit 1
           fi
+          if ! printf '%s' "$DETAILS_LIMIT" | grep -Eq '^[1-9][0-9]*$'; then
+            echo "details_limit must be a positive whole number, got: $DETAILS_LIMIT" >&2
+            exit 1
+          fi
           from_args=()
           if [ -n "$FROM" ]; then from_args=(--from "$FROM"); fi
           cli=(node dist/apps/ingest/main.js)
           case "$SOURCE" in
-            fda_charge_codes) "${cli[@]}" sync:fda-charge-codes ;;
+            fda_charge_codes) "${cli[@]}" sync:fda-charge-codes --no-events ;;
             fda_refusals)     "${cli[@]}" sync:fda-refusals "${from_args[@]}" --no-events ;;
             import_alerts)    "${cli[@]}" sync:import-alerts --no-events ;;
-            rasff)            "${cli[@]}" sync:rasff "${from_args[@]}" --details-limit 15000 --no-events ;;
+            rasff)            "${cli[@]}" sync:rasff "${from_args[@]}" --details-limit "$DETAILS_LIMIT" --no-events ;;
             uk_bn)            "${cli[@]}" sync:uk-bn --no-events ;;
             au_ifis)          "${cli[@]}" sync:au-ifis --no-events ;;
-            eu_mrl)           "${cli[@]}" sync:eu-mrl ;;
+            eu_mrl)           "${cli[@]}" sync:eu-mrl --no-events ;;
             taxonomy_remap)   "${cli[@]}" taxonomy:remap ;;
             *) echo "unknown source: $SOURCE" >&2; exit 1 ;;
           esac
+      # A page-structure failure saves the page under INGEST_FAILURE_DIR (default tmp/ingest-failures).
+      - name: Upload the page that failed to parse
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingest-failures-backfill-${{ github.run_id }}-${{ github.run_attempt }}
+          path: tmp/ingest-failures
+          if-no-files-found: ignore
+          retention-days: 30

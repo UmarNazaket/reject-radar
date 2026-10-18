@@ -24,14 +24,12 @@ concurrency:
   group: ingest-db
   cancel-in-progress: false
 
+# Secrets are given only to the steps that run the CLI, never to npm ci or the build.
 jobs:
   import-alerts:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     if: ${{ github.event.schedule == '0 4 * * *' || inputs.job == 'all' || inputs.job == 'import-alerts' }}
-    env:
-      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
-      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -41,9 +39,24 @@ jobs:
       - run: npm ci
       - run: npx nx build ingest
       - name: Check database size
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js db:size-check
       - name: sync:import-alerts
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:import-alerts
+      # A page-structure failure saves the page under INGEST_FAILURE_DIR (default tmp/ingest-failures).
+      - name: Upload the page that failed to parse
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingest-failures-import-alerts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: tmp/ingest-failures
+          if-no-files-found: ignore
+          retention-days: 30
       # P3: entities:link
       # P5: alerts:run
 
@@ -52,9 +65,6 @@ jobs:
     timeout-minutes: 60
     needs: import-alerts
     if: ${{ !cancelled() && (github.event.schedule == '0 4 * * *' || inputs.job == 'all' || inputs.job == 'rasff') }}
-    env:
-      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
-      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -64,8 +74,14 @@ jobs:
       - run: npm ci
       - run: npx nx build ingest
       - name: Check database size
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js db:size-check
       - name: sync:rasff --details-limit 200
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:rasff --details-limit 200
       # P3: entities:link
       # P5: alerts:run

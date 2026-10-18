@@ -92,6 +92,7 @@ program
 program
   .command('sync:fda-charge-codes')
   .description('Load FDA charge codes (the reference file behind RefusalCharges) with their hazards')
+  .option('--no-events', 'accepted so every sync:* takes it; this reference sync never emits change events (P2-D6)')
   .action(async () => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncChargeCodes(deps));
@@ -103,7 +104,7 @@ program
   .description('Sync FDA import refusals of food and feed (default: the last 120 days)')
   .option('--from <date>', 'first RefusalDate, YYYY-MM-DD', isoDate)
   .option('--to <date>', 'last RefusalDate, YYYY-MM-DD', isoDate)
-  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .option('--no-events', 'write the rows but emit no change events (backfills; a first load suppresses them by itself)')
   .action(async (options: { from?: string; to?: string; events: boolean }) => {
     const env = loadIngestEnv();
     if (!env.FDA_API_USER || !env.FDA_API_KEY) {
@@ -117,7 +118,7 @@ program
 program
   .command('sync:import-alerts')
   .description('Sync FDA Import Alerts (food alerts only): the Red and Green Lists, with the two-run delisting rule')
-  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .option('--no-events', 'write the rows but emit no change events (backfills; a first load suppresses them by itself)')
   .option('--only <numbers>', 'comma-separated alert numbers to crawl, e.g. 99-19,16-131 (manual checks)', list)
   .action(async (options: { events: boolean; only?: string[] }) => {
     const env = loadIngestEnv();
@@ -130,7 +131,7 @@ program
   .description('Sync EU RASFF notifications of food and feed from the RASFF Window, with hazard details')
   .option('--from <date>', 'oldest notification date to read, YYYY-MM-DD (default: 30 days before the newest stored one)', isoDate)
   .option('--details-limit <n>', 'most notification details to fetch in this run', positiveInt, DEFAULT_DETAILS_LIMIT)
-  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .option('--no-events', 'write the rows but emit no change events (backfills; a first load suppresses them by itself)')
   .action(async (options: { from?: string; detailsLimit: number; events: boolean }) => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncRasff(deps, options));
@@ -140,7 +141,7 @@ program
 program
   .command('sync:uk-bn')
   .description('Sync UK FSA border notifications: the monthly CSV files listed on data.gov.uk, loading new or changed files by SHA-256')
-  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .option('--no-events', 'write the rows but emit no change events (backfills; a first load suppresses them by itself)')
   .action(async (options: { events: boolean }) => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncUkBn(deps, options));
@@ -150,7 +151,7 @@ program
 program
   .command('sync:au-ifis')
   .description('Sync Australian Imported Food Inspection Scheme failing-food reports: the monthly CSV files listed on data.gov.au, loading new or changed files by SHA-256')
-  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .option('--no-events', 'write the rows but emit no change events (backfills; a first load suppresses them by itself)')
   .action(async (options: { events: boolean }) => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncAuIfis(deps, options));
@@ -160,6 +161,7 @@ program
 program
   .command('sync:eu-mrl')
   .description('Refresh the EU pesticide maximum residue limits from the 8 XML files of the EU Pesticides Database (full replace, no events)')
+  .option('--no-events', 'accepted so every sync:* takes it; this reference sync never emits change events (P2-D6)')
   .action(async () => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncEuMrl(deps));

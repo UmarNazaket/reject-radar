@@ -23,14 +23,12 @@ concurrency:
   group: ingest-db
   cancel-in-progress: false
 
+# Secrets are given only to the steps that run the CLI, never to npm ci or the build.
 jobs:
   eu-mrl:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: ${{ github.event.schedule == '30 3 1 * *' || inputs.job == 'all' || inputs.job == 'eu-mrl' }}
-    env:
-      DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
-      INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -40,8 +38,14 @@ jobs:
       - run: npm ci
       - run: npx nx build ingest
       - name: Check database size
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js db:size-check
       - name: sync:eu-mrl
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:eu-mrl
       # P3: entities:link
       # P5: alerts:run
