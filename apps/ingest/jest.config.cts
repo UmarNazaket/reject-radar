@@ -2,9 +2,9 @@ module.exports = {
   displayName: 'ingest',
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
-  // Jest applies this to hooks as well as tests. Most spec files rebuild a database in beforeAll
-  // (create, wipe, apply every migration), and with all of them starting at once on a cold ts-jest
-  // cache that took 3-8 s against Jest's 5 s default. 60 s still fails a genuine hang.
+  // Jest applies this to hooks as well as tests. About half the suites (11 of 21) rebuild a database in
+  // beforeAll (create, wipe, apply every migration); started together on a cold ts-jest cache that took
+  // 4-10 s against Jest's 5 s default. 60 s still fails a genuine hang.
   testTimeout: 60_000,
   transform: {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }],
