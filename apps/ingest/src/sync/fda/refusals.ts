@@ -122,27 +122,57 @@ export function classifyRefusal(
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const BATCH_SIZE = 500;
 
-function daysBefore(date: string, days: number): string {
+function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - days);
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
-/** Reads every page of the window; a page shorter than the maximum is the last one. */
-async function fetchAll(deps: SyncDeps, creds: FdaCredentials, from: string, to: string): Promise<Record<string, unknown>[]> {
+/** Most pages one calendar-month slice may take; a month of food refusals is about one page, so more means something is wrong. */
+export const MAX_PAGES_PER_SLICE = 20;
+
+const lastDayOfMonth = (date: string): string => {
+  const d = new Date(`${date.slice(0, 7)}-01T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + 1, 0);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * Splits [from, to] into calendar-month slices: from `from` to the end of its month, whole months, then up to `to`.
+ * The API pages on `RefusalDate`, which is not unique, so a slice must fit one page or paging can skip or repeat rows.
+ */
+export function monthSlices(from: string, to: string): { from: string; to: string }[] {
+  const slices: { from: string; to: string }[] = [];
+  for (let start = from; start <= to; ) {
+    const monthEnd = lastDayOfMonth(start);
+    slices.push({ from: start, to: monthEnd < to ? monthEnd : to });
+    start = addDays(monthEnd, 1);
+  }
+  return slices;
+}
+
+/** Reads every page of one slice; a page shorter than the maximum is the last one. */
+async function fetchSlice(deps: SyncDeps, creds: FdaCredentials, from: string, to: string): Promise<Record<string, unknown>[]> {
   const records: Record<string, unknown>[] = [];
-  for (let start = 1; ; start += FDA_MAX_ROWS) {
-    const page = await fetchRefusalsPage(deps.fetcher, creds, {
+  for (let page = 0; page < MAX_PAGES_PER_SLICE; page++) {
+    const result = await fetchRefusalsPage(deps.fetcher, creds, {
       from,
       to,
-      start,
+      start: page * FDA_MAX_ROWS + 1,
       rows: FDA_MAX_ROWS,
       productCategories: FDA_FOOD_CATEGORIES,
       sort: 'RefusalDate',
     });
-    records.push(...page.records);
-    if (page.records.length < FDA_MAX_ROWS) return records;
+    records.push(...result.records);
+    if (result.records.length < FDA_MAX_ROWS) return records;
   }
+  throw new Error(`FDA refusals for ${from} to ${to} exceeded ${MAX_PAGES_PER_SLICE} pages of ${FDA_MAX_ROWS} rows; stopping.`);
+}
+
+async function fetchAll(deps: SyncDeps, creds: FdaCredentials, from: string, to: string): Promise<Record<string, unknown>[]> {
+  const records: Record<string, unknown>[] = [];
+  for (const slice of monthSlices(from, to)) records.push(...(await fetchSlice(deps, creds, slice.from, slice.to)));
+  return records;
 }
 
 /**
@@ -154,7 +184,7 @@ export async function syncFdaRefusals(
   options: { from?: string; to?: string; events: boolean },
 ): Promise<SyncRunResult> {
   const to = options.to ?? deps.today();
-  const from = options.from ?? daysBefore(to, DEFAULT_WINDOW_DAYS);
+  const from = options.from ?? addDays(to, -DEFAULT_WINDOW_DAYS);
   for (const value of [from, to]) {
     if (!DATE_ONLY.test(value)) throw new Error(`Invalid date "${value}"; use YYYY-MM-DD`);
   }

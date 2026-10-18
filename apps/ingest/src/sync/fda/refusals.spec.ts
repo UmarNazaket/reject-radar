@@ -8,7 +8,7 @@ import { SourceFetchError, type FetchOptions } from '../../core/http';
 import { loadRuleSet } from '../../core/rules';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
 import { parseChargeCodes, syncChargeCodes } from './charge-codes';
-import { classifyRefusal, parseRefusal, syncFdaRefusals, type RefusalRecord } from './refusals';
+import { classifyRefusal, monthSlices, parseRefusal, syncFdaRefusals, type RefusalRecord } from './refusals';
 
 const fixture = (name: string) => readFileSync(path.join(__dirname, '__fixtures__', name), 'utf8');
 const PAGE1 = fixture('refusals-page1.json');
@@ -73,6 +73,7 @@ describe('parseRefusal and parseChargeCodes', () => {
 describe('FDA refusals sync', () => {
   let handle: ReturnType<typeof openDb>;
   let deps: SyncDeps;
+  let warn: jest.SpyInstance;
 
   beforeAll(async () => {
     handle = openDb(await prepareTestDatabase('ingest_fda'));
@@ -81,6 +82,7 @@ describe('FDA refusals sync', () => {
     await handle.close();
   });
   beforeEach(async () => {
+    warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     await handle.db.delete(changeEvent);
     await handle.db.delete(notice);
     await handle.db.delete(fdaRefusal);
@@ -88,6 +90,10 @@ describe('FDA refusals sync', () => {
     await handle.db.delete(sourceSyncRun);
     const rules = await loadRuleSet(handle.db);
     deps = { db: handle.db, rules, today: () => TODAY, fetcher: fakeFetcher(() => fetchResult('')).fetcher };
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
   });
 
   const api = (respond: (body: Record<string, unknown>) => string, status = 200) =>
@@ -133,6 +139,13 @@ describe('FDA refusals sync', () => {
     expect(events).toHaveLength(120);
     expect(events.every((e) => e.kind === 'fda_refusal' && e.severity === 'high' && e.requiresFirm && e.firmId === null)).toBe(true);
     expect(await lastRun()).toMatchObject({ source: 'fda_refusals', status: 'succeeded', rowsRead: 120, rowsInserted: 120, eventsEmitted: 120 });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('warns once when the charge codes are not loaded', async () => {
+    await syncFdaRefusals(withApi(api(() => PAGE1)), { ...options, events: false });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('sync:fda-charge-codes'));
   });
 
   it('sends the food filter, sort and date window to the API', async () => {
@@ -175,13 +188,56 @@ describe('FDA refusals sync', () => {
     expect(await total(changeEvent)).toBe(0);
   });
 
-  it('re-reads the last 120 days by default', async () => {
+  const windows = (fake: ReturnType<typeof api>) =>
+    fake.calls.map((c) => {
+      const filters = JSON.parse(c.options?.body ?? '{}').filters;
+      return `${filters.RefusalDateFrom[0]}/${filters.RefusalDateTo[0]}`;
+    });
+
+  it('re-reads the last 120 days by default, one calendar month at a time', async () => {
     const fake = api(() => PAGE1);
-    await syncFdaRefusals(withApi(fake), { events: false });
-    const filters = JSON.parse(fake.calls[0].options?.body ?? '{}').filters;
-    expect(filters.RefusalDateFrom).toEqual(['2026-06-20']);
-    expect(filters.RefusalDateTo).toEqual(['2026-10-18']);
+    const result = await syncFdaRefusals(withApi(fake), { events: false });
+    expect(windows(fake)).toEqual([
+      '2026-06-20/2026-06-30',
+      '2026-07-01/2026-07-31',
+      '2026-08-01/2026-08-31',
+      '2026-09-01/2026-09-30',
+      '2026-10-01/2026-10-18',
+    ]);
+    expect(result.rowsRead).toBe(600);
+    expect(await total(fdaRefusal)).toBe(120);
   });
+
+  it('splits a window into calendar-month slices', async () => {
+    const fake = api(() => PAGE1);
+    await syncFdaRefusals(withApi(fake), { from: '2026-08-15', to: '2026-09-30', events: false });
+    expect(windows(fake)).toEqual(['2026-08-15/2026-08-31', '2026-09-01/2026-09-30']);
+  });
+
+  it('slices across year ends, leap Februaries and single days', () => {
+    expect(monthSlices('2023-12-30', '2024-03-01')).toEqual([
+      { from: '2023-12-30', to: '2023-12-31' },
+      { from: '2024-01-01', to: '2024-01-31' },
+      { from: '2024-02-01', to: '2024-02-29' },
+      { from: '2024-03-01', to: '2024-03-01' },
+    ]);
+    expect(monthSlices('2026-09-10', '2026-09-10')).toEqual([{ from: '2026-09-10', to: '2026-09-10' }]);
+    expect(monthSlices('2026-09-11', '2026-09-10')).toEqual([]);
+  });
+
+  it('fails when a slice exceeds 20 pages', async () => {
+    const template = JSON.parse(PAGE1).result[0];
+    const full = JSON.stringify({
+      statuscode: 400,
+      message: 'Success.',
+      result: Array.from({ length: 5000 }, (_, i) => ({ ...template, ShipmentID: `F-${i}` })),
+    });
+    const fake = api(() => full);
+    await expect(syncFdaRefusals(withApi(fake), { ...options, events: false })).rejects.toThrow('exceeded 20 pages of 5000 rows');
+    expect(fake.calls).toHaveLength(20);
+    expect(await total(fdaRefusal)).toBe(0);
+    expect(await lastRun()).toMatchObject({ status: 'failed', error: expect.stringContaining('exceeded 20 pages of 5000 rows') });
+  }, 60_000);
 
   it('pages until a short page', async () => {
     const template = JSON.parse(PAGE1).result[0];
