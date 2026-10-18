@@ -1,8 +1,21 @@
+import {
+  DESTINATIONS,
+  EVENT_KINDS,
+  LISTS,
+  NOTICE_SOURCES,
+  NOTICE_TYPES,
+  RULE_MATCH_TYPES,
+  RULE_SOURCES,
+  SEVERITIES,
+  SYNC_SOURCES,
+  SYNC_STATUSES,
+} from '@rejectradar/contracts';
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
   bigint,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -20,6 +33,10 @@ import {
 const emptyTextArray = sql`'{}'::text[]`;
 const emptyIntArray = sql`'{}'::int[]`;
 const emptyObject = sql`'{}'::jsonb`;
+
+/** `column in ('a', 'b')` built from a contracts union, so the database enforces the same values as the code. */
+const oneOf = (column: string, values: readonly string[]) =>
+  sql.raw(`${column} in (${values.map((value) => `'${value}'`).join(', ')})`);
 
 // ── Taxonomy (fixed IDs, seeded in phase 2) ─────────────────────────────────
 
@@ -50,7 +67,11 @@ export const commodityRule = pgTable(
     createdBy: uuid('created_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('commodity_rule_source_idx').on(t.source, t.field)],
+  (t) => [
+    index('commodity_rule_source_idx').on(t.source, t.field),
+    check('commodity_rule_source_ck', oneOf('source', RULE_SOURCES)),
+    check('commodity_rule_match_type_ck', oneOf('match_type', RULE_MATCH_TYPES)),
+  ],
 );
 
 export const hazard = pgTable(
@@ -77,7 +98,11 @@ export const hazardRule = pgTable(
     createdBy: uuid('created_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('hazard_rule_source_idx').on(t.source, t.field)],
+  (t) => [
+    index('hazard_rule_source_idx').on(t.source, t.field),
+    check('hazard_rule_source_ck', oneOf('source', RULE_SOURCES)),
+    check('hazard_rule_match_type_ck', oneOf('match_type', RULE_MATCH_TYPES)),
+  ],
 );
 
 // ── Firms ───────────────────────────────────────────────────────────────────
@@ -214,6 +239,7 @@ export const importAlertListing = pgTable(
     index('import_alert_listing_name_trgm_idx').using('gin', t.nameNorm.op('gin_trgm_ops')),
     index('import_alert_listing_firm_idx').on(t.firmId),
     index('import_alert_listing_alert_idx').on(t.alertNumber),
+    check('import_alert_listing_list_ck', oneOf('list', LISTS)),
   ],
 );
 
@@ -385,6 +411,9 @@ export const notice = pgTable(
     index('notice_firm_idx').on(t.firmId),
     index('notice_hazard_ids_idx').using('gin', t.hazardIds),
     index('notice_product_trgm_idx').using('gin', t.productText.op('gin_trgm_ops')),
+    check('notice_source_ck', oneOf('source', NOTICE_SOURCES)),
+    check('notice_destination_ck', oneOf('destination', DESTINATIONS)),
+    check('notice_notice_type_ck', oneOf('notice_type', NOTICE_TYPES)),
   ],
 );
 
@@ -410,6 +439,10 @@ export const changeEvent = pgTable(
   (t) => [
     index('change_event_firm_idx').on(t.firmId),
     index('change_event_source_key_idx').on(t.source, t.sourceKey),
+    check('change_event_source_ck', oneOf('source', NOTICE_SOURCES)),
+    check('change_event_kind_ck', oneOf('kind', EVENT_KINDS)),
+    check('change_event_severity_ck', oneOf('severity', SEVERITIES)),
+    check('change_event_destination_ck', oneOf('destination', DESTINATIONS)),
   ],
 );
 
@@ -449,7 +482,23 @@ export const sourceSyncRun = pgTable(
     eventsEmitted: integer('events_emitted').notNull().default(0),
     error: text('error'),
   },
-  (t) => [index('source_sync_run_source_started_idx').on(t.source, t.startedAt)],
+  (t) => [
+    index('source_sync_run_source_started_idx').on(t.source, t.startedAt),
+    check('source_sync_run_source_ck', oneOf('source', SYNC_SOURCES)),
+    check('source_sync_run_status_ck', oneOf('status', SYNC_STATUSES)),
+  ],
+);
+
+export const sourceFile = pgTable(
+  'source_file',
+  {
+    source: text('source').notNull(),
+    url: text('url').notNull(),
+    sha256: text('sha256').notNull(),
+    rows: integer('rows').notNull().default(0),
+    loadedAt: timestamp('loaded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.source, t.url] }), check('source_file_source_ck', oneOf('source', SYNC_SOURCES))],
 );
 
 export const jobCursor = pgTable('job_cursor', {
