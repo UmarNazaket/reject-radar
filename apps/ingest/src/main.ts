@@ -9,6 +9,7 @@ import { createFetcher } from './core/http';
 import { databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
 import { syncChargeCodes } from './sync/fda/charge-codes';
 import { syncAuIfis } from './sync/au-ifis/sync';
+import { syncEuMrl } from './sync/eu-mrl/sync';
 import { syncFdaRefusals } from './sync/fda/refusals';
 import { syncImportAlerts } from './sync/import-alerts/sync';
 import { DEFAULT_DETAILS_LIMIT, syncRasff } from './sync/rasff/sync';
@@ -152,6 +153,15 @@ program
   .action(async (options: { events: boolean }) => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncAuIfis(deps, options));
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('sync:eu-mrl')
+  .description('Refresh the EU pesticide maximum residue limits from the 8 XML files of the EU Pesticides Database (full replace, no events)')
+  .action(async () => {
+    const env = loadIngestEnv();
+    const result = await withDeps(env, (deps) => syncEuMrl(deps));
     console.log(JSON.stringify(result, null, 2));
   });
 
