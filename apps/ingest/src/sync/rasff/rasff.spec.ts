@@ -67,9 +67,17 @@ describe('RASFF parsing', () => {
     expect(text).not.toContain('Panagiota');
   });
 
-  it('rejects a detail without a hazards list', () => {
+  it('reads a detail without a hazards list (2019-20 notifications) as having no hazards', () => {
+    const old = JSON.parse(DETAIL);
+    delete old.product.hazards;
+    const detail = parseDetail(old);
+    expect(detail.hazards).toEqual([]);
+    expect(detail.originCountries).toEqual(parseDetail(JSON.parse(DETAIL)).originCountries);
+  });
+
+  it('rejects a detail whose hazards are not a list', () => {
     const broken = JSON.parse(DETAIL);
-    delete broken.product.hazards;
+    broken.product.hazards = 'Salmonella';
     expect(() => parseDetail(broken)).toThrow(/product\.hazards/);
   });
 

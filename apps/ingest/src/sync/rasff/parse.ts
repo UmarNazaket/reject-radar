@@ -99,7 +99,9 @@ const detailSchema = z.object({
         maxPermittedLvl: optionalText,
         hazardCategory: description,
       }),
-    ),
+    )
+    // Notifications of 2019-20 have no hazards list (only a free-text risk.hazardObserved): no hazards.
+    .optional(),
   }),
   organizationFlags: z.array(
     z.object({
@@ -153,7 +155,7 @@ export function parseDetail(json: unknown): RasffDetail {
   return {
     distributionCountries: countriesFlagged('DISTRIBUTION'),
     originCountries: countriesFlagged('ORIGIN'),
-    hazards: result.data.product.hazards.map((h) => ({
+    hazards: (result.data.product.hazards ?? []).map((h) => ({
       name: h.name,
       category: h.hazardCategory,
       analyticalResult: h.analyticalResult,
