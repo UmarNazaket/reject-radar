@@ -15,8 +15,7 @@ describe('notice and event writers', () => {
   beforeEach(async () => {
     await handle.db.delete(changeEvent);
     await handle.db.delete(notice);
-    await handle.db.delete(commodity);
-    await handle.db.insert(commodity).values({ id: 1, slug: 'apples', name: 'Apples' });
+    await handle.db.insert(commodity).values({ id: 1, slug: 'apples', name: 'Apples' }).onConflictDoNothing();
   });
 
   const make = (key: string, overrides: Partial<NoticeInput> = {}): NoticeInput => ({
