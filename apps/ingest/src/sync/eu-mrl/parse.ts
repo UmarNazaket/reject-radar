@@ -23,7 +23,8 @@ export interface MrlParse {
 }
 
 const PRODUCT_CODE = /^\d{7}$/;
-const NUMBER = /^\d+(?:\.\d+)?$/;
+/** Fits the `numeric(12,4)` column exactly, so Postgres never rounds or overflows a value. */
+const NUMBER = /^\d{1,8}(?:\.\d{1,4})?$/;
 
 const squash = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
@@ -50,7 +51,7 @@ function parseLimit(text: string, where: string): { mrlMgKg: string | null; isLo
   if (text.toLowerCase() === 'no mrl required') return { mrlMgKg: null, isLod: false };
   const isLod = text.endsWith('*');
   const number = isLod ? text.slice(0, -1).trim() : text;
-  if (!NUMBER.test(number)) throw new Error(`MRL value "${text}" of ${where} is neither a number nor "No MRL Required"`);
+  if (!NUMBER.test(number)) throw new Error(`MRL value "${text}" of ${where} is neither a number of at most 8 integer and 4 decimal digits nor "No MRL Required"`);
   return { mrlMgKg: number, isLod };
 }
 

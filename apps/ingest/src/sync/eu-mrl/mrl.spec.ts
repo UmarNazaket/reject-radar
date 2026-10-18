@@ -78,6 +78,16 @@ describe('EU MRL parsing', () => {
     expect([...parsed.products.keys()]).toEqual(['0200030', '0200040']);
   });
 
+  it('rejects values the numeric(12,4) column cannot hold exactly', () => {
+    const one = (value: string) => parseMrlXml(wrap(substance('9', 'Zeta', product('0200010', 'Cabbage', `<MRL>${value}</MRL>`))));
+    expect(() => one('0.00005')).toThrow(/"0\.00005".*Zeta.*0200010/);
+    expect(() => one('123456789')).toThrow(/"123456789".*Zeta.*0200010/);
+    expect(one('0.0001*').mrls).toEqual([
+      { productCode: '0200010', residueId: '9', mrlMgKg: '0.0001', isLod: true, legalRef: 'Reg. (EU) 2020/1', applicableFrom: '2020-01-01' },
+    ]);
+    expect(one('12345678.1234').mrls[0].mrlMgKg).toBe('12345678.1234');
+  });
+
   it('rejects an unreadable MRL, naming the value, substance and product', () => {
     expect(() => parseMrlXml(wrap(substance('9', 'Zeta', product('0200010', 'Cabbage', '<MRL>banana</MRL>'))))).toThrow(/"banana".*Zeta.*0200010/);
   });
