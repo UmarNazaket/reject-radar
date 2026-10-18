@@ -11,6 +11,7 @@ import { syncChargeCodes } from './sync/fda/charge-codes';
 import { syncFdaRefusals } from './sync/fda/refusals';
 import { syncImportAlerts } from './sync/import-alerts/sync';
 import { DEFAULT_DETAILS_LIMIT, syncRasff } from './sync/rasff/sync';
+import { syncUkBn } from './sync/uk-bn/sync';
 import { formatProbeReport, probePage } from './verify/probe-page';
 import { SOURCE_NAMES } from './verify/sources';
 import { verifySource } from './verify/verify-source';
@@ -130,6 +131,16 @@ program
   .action(async (options: { from?: string; detailsLimit: number; events: boolean }) => {
     const env = loadIngestEnv();
     const result = await withDeps(env, (deps) => syncRasff(deps, options));
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command('sync:uk-bn')
+  .description('Sync UK FSA border notifications: the monthly CSV files listed on data.gov.uk, loading new or changed files by SHA-256')
+  .option('--no-events', 'write the rows but emit no change events (first loads and backfills)')
+  .action(async (options: { events: boolean }) => {
+    const env = loadIngestEnv();
+    const result = await withDeps(env, (deps) => syncUkBn(deps, options));
     console.log(JSON.stringify(result, null, 2));
   });
 
