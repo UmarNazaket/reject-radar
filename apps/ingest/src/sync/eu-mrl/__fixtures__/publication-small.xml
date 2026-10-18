@@ -247,4 +247,28 @@
                         <Product_name>Figs</Product_name>
                         <Product_code>0161020</Product_code>
                         <MRL>0.03*</MRL>    
-                        <ApplicationDate>11/07/2019</ApplicationDate></Product></Substances></Pesticides>
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product></Substances><Substances>
+            <Name>Calcium carbide</Name>
+            <Pest_res_id>2423</Pest_res_id>
+            <entry_force>13/04/2016</entry_force>
+            <directive>Reg. (EU) 2016/439</directive><Product>
+                        <Product_name>FRUITS, FRESH or FROZEN; TREE NUTS</Product_name>
+                        <Product_code>0100000</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product><Product>
+                        <Product_name>Citrus fruits</Product_name>
+                        <Product_code>0110000</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product><Product>
+                        <Product_name>Grapefruits</Product_name>
+                        <Product_code>0110010</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product><Product>
+                        <Product_name>Oranges</Product_name>
+                        <Product_code>0110020</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product><Product>
+                        <Product_name>Lemons</Product_name>
+                        <Product_code>0110030</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product></Substances></Pesticides>

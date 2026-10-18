@@ -49,29 +49,37 @@ describe('EU MRL parsing', () => {
 
   it('keeps group products without MRL rows', () => {
     const parsed = parseMrlXml(SMALL);
-    // 60 product rows (30 per substance); five Captan group rows have an empty <MRL/>.
-    expect(parsed.mrls).toHaveLength(55);
+    // 65 product rows; five Captan group rows have an empty <MRL/>.
+    expect(parsed.mrls).toHaveLength(60);
     const withRows = new Set(parsed.mrls.map((m) => m.productCode));
     const groups = [...parsed.products.keys()].filter((code) => !withRows.has(code));
     expect(groups.length).toBeGreaterThan(0);
   });
 
-  it('falls back to the entry-into-force date and ignores non-numeric limits', () => {
-    const parsed = parseMrlXml(
-      wrap(
-        substance(
-          '9',
-          'Zeta',
-          product('0200010', 'Cabbage', '<MRL>2.5</MRL>', '<ApplicationDate/>') +
-            product('0200020', 'Kale', '<MRL>No MRL Required</MRL>') +
-            product('0200030', 'Leek', '<MRL></MRL>'),
-        ),
-      ),
-    );
+  it('falls back to the entry-into-force date', () => {
+    const parsed = parseMrlXml(wrap(substance('9', 'Zeta', product('0200010', 'Cabbage', '<MRL>2.5</MRL>', '<ApplicationDate/>'))));
     expect(parsed.mrls).toEqual([
       { productCode: '0200010', residueId: '9', mrlMgKg: '2.5', isLod: false, legalRef: 'Reg. (EU) 2020/1', applicableFrom: '2020-01-01' },
     ]);
-    expect([...parsed.products.keys()]).toEqual(['0200010', '0200020', '0200030']);
+  });
+
+  it('stores No MRL Required as a NULL limit', () => {
+    const fromFixture = parseMrlXml(SMALL).mrls.find((m) => m.productCode === '0110010' && m.residueId !== '2275' && m.residueId !== '36');
+    expect(fromFixture).toMatchObject({ mrlMgKg: null, isLod: false, legalRef: 'Reg. (EU) 2016/439', applicableFrom: '2016-04-13' });
+    const parsed = parseMrlXml(wrap(substance('9', 'Zeta', product('0200020', 'Kale', '<MRL> no mrl required </MRL>'))));
+    expect(parsed.mrls).toEqual([
+      { productCode: '0200020', residueId: '9', mrlMgKg: null, isLod: false, legalRef: 'Reg. (EU) 2020/1', applicableFrom: '2020-01-01' },
+    ]);
+  });
+
+  it('gives an empty MRL a product but no row', () => {
+    const parsed = parseMrlXml(wrap(substance('9', 'Zeta', product('0200030', 'Leek', '<MRL></MRL>') + product('0200040', 'Chard', ''))));
+    expect(parsed.mrls).toEqual([]);
+    expect([...parsed.products.keys()]).toEqual(['0200030', '0200040']);
+  });
+
+  it('rejects an unreadable MRL, naming the value, substance and product', () => {
+    expect(() => parseMrlXml(wrap(substance('9', 'Zeta', product('0200010', 'Cabbage', '<MRL>banana</MRL>'))))).toThrow(/"banana".*Zeta.*0200010/);
   });
 
   it('derives parent codes', () => {
@@ -129,26 +137,26 @@ describe('EU MRL sync', () => {
     const b = serving((i) => files[i]);
     const result = await syncEuMrl(b);
     expect(b.calls.map((c) => c.url)).toEqual([...EU_MRL_FILES]);
-    expect(result).toMatchObject({ status: 'succeeded', rowsInserted: 56, rowsDeleted: 0, rowsUpdated: 0, eventsEmitted: 0 });
-    expect(result.rowsRead).toBe(55 * 7 + 1);
-    expect(await total(euMrl)).toBe(56);
-    expect(await total(euPesticideResidue)).toBe(3);
+    expect(result).toMatchObject({ status: 'succeeded', rowsInserted: 61, rowsDeleted: 0, rowsUpdated: 0, eventsEmitted: 0 });
+    expect(result.rowsRead).toBe(60 * 7 + 1);
+    expect(await total(euMrl)).toBe(61);
+    expect(await total(euPesticideResidue)).toBe(4);
     const [grapefruit] = await handle.db.select().from(euMrlProduct).where(eq(euMrlProduct.code, '0110010'));
     expect(grapefruit).toEqual({ code: '0110010', name: 'Grapefruits', parentCode: '0110000' });
     const [top] = await handle.db.select().from(euMrlProduct).where(eq(euMrlProduct.code, '0100000'));
     expect(top.parentCode).toBeNull();
     const [run] = await handle.db.select().from(sourceSyncRun).orderBy(desc(sourceSyncRun.id)).limit(1);
-    expect(run).toMatchObject({ source: 'eu_mrl', status: 'succeeded', origin: EU_MRL_FILES[0], rowsInserted: 56 });
+    expect(run).toMatchObject({ source: 'eu_mrl', status: 'succeeded', origin: EU_MRL_FILES[0], rowsInserted: 61 });
     expect(run.contentSha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('full refresh replaces everything', async () => {
     await syncEuMrl(serving(() => SMALL));
-    expect(await total(euPesticideResidue)).toBe(2);
+    expect(await total(euPesticideResidue)).toBe(3);
 
     const second = wrap(substance('9', 'Zeta', product('0200010', 'Cabbage', '<MRL>2.5</MRL>') + product('0200000', 'Leaf vegetables', '<MRL/>')));
     const result = await syncEuMrl(serving(() => second));
-    expect(result).toMatchObject({ status: 'succeeded', rowsRead: 8, rowsInserted: 1, rowsDeleted: 55, eventsEmitted: 0 });
+    expect(result).toMatchObject({ status: 'succeeded', rowsRead: 8, rowsInserted: 1, rowsDeleted: 60, eventsEmitted: 0 });
     expect((await handle.db.select().from(euPesticideResidue)).map((r) => r.id)).toEqual(['9']);
     expect((await handle.db.select().from(euMrlProduct)).map((p) => p.code).sort()).toEqual(['0200000', '0200010']);
     const rows = await handle.db.select().from(euMrl);
@@ -160,7 +168,7 @@ describe('EU MRL sync', () => {
     await syncEuMrl(serving(() => SMALL));
     const bad = serving((i) => (i === 5 ? fixture('no-substances.xml') : SMALL));
     await expect(syncEuMrl(bad)).rejects.toThrow(/Publication6\.xml.*Substances/);
-    expect(await total(euMrl)).toBe(55);
+    expect(await total(euMrl)).toBe(60);
     const [run] = await handle.db.select().from(sourceSyncRun).orderBy(desc(sourceSyncRun.id)).limit(1);
     expect(run.status).toBe('failed');
   });

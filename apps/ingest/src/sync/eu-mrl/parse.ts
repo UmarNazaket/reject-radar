@@ -12,7 +12,7 @@ export interface MrlParse {
   mrls: {
     productCode: string;
     residueId: string;
-    /** Decimal text, e.g. `0.01`. */
+    /** Decimal text, e.g. `0.01`; `null` means "no MRL required" (a limit is not needed). */
     mrlMgKg: string | null;
     /** True for a limit written `0.01*`: the limit of analytical determination. */
     isLod: boolean;
@@ -40,18 +40,23 @@ function isoDate(text: string, what: string): string | null {
 }
 
 /**
- * A limit value: `0.5` is a limit, `0.01*` is a limit at the limit of determination. Text that holds no number
- * (`No MRL Required`) has no numeric limit and gives no row.
+ * A limit value: `0.5` is a limit, `0.01*` is a limit at the limit of determination, `No MRL Required` (any case) is
+ * a substance that needs no limit. Empty text means no limit information and gives `null` (no row). Any other text
+ * throws, so a new notation never drops data silently.
  */
-function parseLimit(text: string): { mrlMgKg: string; isLod: boolean } | null {
+function parseLimit(text: string, where: string): { mrlMgKg: string | null; isLod: boolean } | null {
+  if (text === '') return null;
+  // A NULL limit means "no MRL required", which differs from "no limit set" (no row at all).
+  if (text.toLowerCase() === 'no mrl required') return { mrlMgKg: null, isLod: false };
   const isLod = text.endsWith('*');
   const number = isLod ? text.slice(0, -1).trim() : text;
-  return NUMBER.test(number) ? { mrlMgKg: number, isLod } : null;
+  if (!NUMBER.test(number)) throw new Error(`MRL value "${text}" of ${where} is neither a number nor "No MRL Required"`);
+  return { mrlMgKg: number, isLod };
 }
 
 /**
  * Parses one EU Pesticides Database MRL export (`Publication<n>.xml`): `Pesticides` holds repeated `Substances`,
- * each with its `Product` rows. Every product is kept; only products with a numeric `MRL` get an `mrls` row.
+ * each with its `Product` rows. Every product is kept; products with an `MRL` (a number or `No MRL Required`) get an `mrls` row.
  */
 export function parseMrlXml(xml: string): MrlParse {
   const $ = cheerio.load(xml, { xml: true });
@@ -79,7 +84,7 @@ export function parseMrlXml(xml: string): MrlParse {
       const code = text(row, 'Product_code');
       if (!PRODUCT_CODE.test(code)) throw new Error(`Product_code "${code}" of ${name} is not 7 digits`);
       if (!products.has(code)) products.set(code, text(row, 'Product_name'));
-      const limit = parseLimit(text(row, 'MRL'));
+      const limit = parseLimit(text(row, 'MRL'), `${name} / product ${code}`);
       if (limit === null) return;
       mrls.push({
         productCode: code,
