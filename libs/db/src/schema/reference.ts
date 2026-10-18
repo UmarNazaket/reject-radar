@@ -226,6 +226,8 @@ export const importAlertListing = pgTable(
     city: text('city'),
     region: text('region'),
     countryCode: text('country_code'),
+    /** The country heading as the page writes it; with the raw firm name it identifies a listing for re-keying. */
+    countryName: text('country_name'),
     listedOn: date('listed_on'),
     firstSeenOn: date('first_seen_on').notNull(),
     lastSeenOn: date('last_seen_on').notNull(),
@@ -419,6 +421,7 @@ export const notice = pgTable(
     index('notice_firm_idx').on(t.firmId),
     index('notice_hazard_ids_idx').using('gin', t.hazardIds),
     index('notice_product_trgm_idx').using('gin', t.productText.op('gin_trgm_ops')),
+    index('notice_url_idx').on(t.url),
     check('notice_source_ck', oneOf('source', NOTICE_SOURCES)),
     check('notice_destination_ck', oneOf('destination', DESTINATIONS)),
     check('notice_notice_type_ck', oneOf('notice_type', NOTICE_TYPES)),
@@ -447,6 +450,7 @@ export const changeEvent = pgTable(
   (t) => [
     index('change_event_firm_idx').on(t.firmId),
     index('change_event_source_key_idx').on(t.source, t.sourceKey),
+    index('change_event_notice_idx').on(t.noticeId),
     check('change_event_source_ck', oneOf('source', NOTICE_SOURCES)),
     check('change_event_kind_ck', oneOf('kind', EVENT_KINDS)),
     check('change_event_severity_ck', oneOf('severity', SEVERITIES)),

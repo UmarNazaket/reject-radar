@@ -125,9 +125,19 @@ describe('Import Alert sync', () => {
       expect(listingKey('99-19', { ...first })).toBe(key);
       expect(listingKey('99-08', first)).not.toBe(key);
       expect(listingKey('99-19', { ...first, firmName: 'Someone Else Ltd' })).not.toBe(key);
-      expect(listingKey('99-19', { ...first, countryCode: 'ZZ' })).not.toBe(key);
+      expect(listingKey('99-19', { ...first, countryName: 'Elsewhere' })).not.toBe(key);
       expect(listingKey('99-19', { ...first, addressRaw: '1 Other Road' })).not.toBe(key);
       expect(listingKey('99-19', { ...first, firmName: first.firmName.toUpperCase() })).toBe(key);
+    });
+
+    it('does not depend on the country code or the matching normalisers', () => {
+      const key = listingKey('99-19', first);
+      // A heading normalizeCountry does not know today (null) and maps after a later alias is added (or maps differently).
+      expect(listingKey('99-19', { ...first, countryCode: null })).toBe(key);
+      expect(listingKey('99-19', { ...first, countryCode: 'ZZ' })).toBe(key);
+      // Only the raw text counts, after accents, case and punctuation are dropped.
+      expect(listingKey('99-19', { ...first, firmName: `  ${first.firmName.toLowerCase()}. ` })).toBe(key);
+      expect(listingKey('99-19', { ...first, countryName: first.countryName.toLowerCase() })).toBe(key);
     });
 
     it('classifies from the first product and the alert title', async () => {
@@ -548,6 +558,22 @@ ${block}`));
       expect(movedNotice.id).toBe(oldNotice.id);
       expect(await handle.db.select().from(notice).where(eq(notice.sourceKey, firstKey()))).toHaveLength(0);
       expect((await run()).rowsUpdated).toBe(0);
+    });
+
+    it('re-keys on the raw name and country heading, not on the stored normalised name or country code', async () => {
+      await run();
+      // As if the matching normalisers changed after the listings were stored.
+      await handle.db.update(importAlertListing).set({ nameNorm: 'renormalised', countryCode: 'ZZ' });
+      const [old] = (await listings()).filter((r) => r.listingKey === firstKey());
+      expect(old.countryName).toBe(parsed('99-19').listings[0].countryName);
+      const eventsBefore = await total(changeEvent);
+      const edited = ORIGINAL['99-19'].replace('Bazaar Kandharyellow Carvansera', 'Bazaar Kandhar Yellow Carvansera Road 9');
+      const newKey = keyOf('99-19', parsed('99-19', edited).listings[0]);
+      serve('99-19', edited);
+      const second = await run();
+      expect(second).toMatchObject({ eventsEmitted: 0, rowsInserted: 0 });
+      expect(await total(changeEvent)).toBe(eventsBefore);
+      expect((await listings()).find((r) => r.id === old.id)).toMatchObject({ listingKey: newKey, missedRuns: 0, removedOn: null });
     });
 
     it('does not re-key when the match is ambiguous', async () => {

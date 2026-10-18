@@ -1,6 +1,6 @@
 import type { AlertList, EventKind } from '@rejectradar/contracts';
 import { importAlert, importAlertListing, importAlertListingProduct, notice } from '@rejectradar/db';
-import { normalizeAddressLine, normalizeName } from '@rejectradar/matching';
+import { normalizeName } from '@rejectradar/matching';
 import { classifyCommodity, classifyHazards, UNCLASSIFIED_ID, type RuleSet } from '@rejectradar/taxonomy';
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
@@ -9,6 +9,7 @@ import path from 'node:path';
 import type { SyncDeps } from '../../core/deps';
 import { insertEvents, upsertNotices, type EventInput, type NoticeInput } from '../../core/notices';
 import { eventsForRun, runSync, type SyncRunResult, type Tx } from '../../core/sync-run';
+import { canonical } from './identity';
 import { isFoodAlert, parseAlertIndex, type AlertIndexEntry } from './parse-index';
 import { PageStructureError, parseAlertPage, type ParsedAlert, type ParsedListing, type ParsedListingProduct } from './parse-page';
 
@@ -20,11 +21,19 @@ export const MISSED_RUNS_TO_DELIST = 2;
 const BATCH_SIZE = 500;
 const KEY_CHUNK = 5000;
 
-/** Identity of a listing: the alert, the normalised firm name, the country and the normalised address. */
+/**
+ * Identity of a listing: the alert, the firm name, the country heading and the address, each as raw page text in its
+ * frozen {@link canonical} form. It never uses `@rejectradar/matching` (the stored `name_norm` and `country_code` are for
+ * linking and may change with it), so a better normaliser can never change a key.
+ */
 export function listingKey(alertNumber: string, l: ParsedListing): string {
-  const parts = [alertNumber, normalizeName(l.firmName).primary, l.countryCode ?? '', normalizeAddressLine(l.addressRaw) ?? ''];
+  const parts = [alertNumber, canonical(l.firmName), canonical(l.countryName), canonical(l.addressRaw ?? '')];
   return createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 40);
 }
+
+/** The re-key identity: the alert, the canonical raw firm name and the canonical raw country heading. */
+const rekeyIdentity = (alertNumber: string, firmName: string, countryName: string | null): string =>
+  JSON.stringify([alertNumber, canonical(firmName), canonical(countryName ?? '')]);
 
 /** Commodity from the first product's industry code and all product names; hazards from the alert title and product problems. */
 export function classifyListing(rules: RuleSet, alert: Pick<ParsedAlert, 'title'>, l: ParsedListing): { commodityId: number; hazardIds: number[] } {
@@ -298,19 +307,19 @@ export async function syncImportAlerts(
       const existingByKey = new Map(existing.rows.map((row) => [row.listingKey, row]));
       const seen = new Set(prepared.map((item) => item.key));
 
-      // A new key whose alert, normalised name and country match exactly one open, unseen listing (and no other new
-      // key does) is that listing with an edited address: re-key it instead of delisting one and listing another.
-      const identity = (alertNumber: string, nameNorm: string, countryCode: string | null) => JSON.stringify([alertNumber, nameNorm, countryCode ?? '']);
+      // A new key whose alert, raw firm name and raw country heading (canonical forms) match exactly one open, unseen
+      // listing (and no other new key does) is that listing with an edited address: re-key it instead of delisting one
+      // and listing another. Stored `name_norm` / `country_code` are not used, so normaliser changes cannot break this.
       const newItems = new Map<string, PreparedListing[]>();
       for (const item of prepared) {
         if (existingByKey.has(item.key)) continue;
-        const id = identity(item.alertNumber, normalizeName(item.listing.firmName).primary, item.listing.countryCode);
+        const id = rekeyIdentity(item.alertNumber, item.listing.firmName, item.listing.countryName);
         newItems.set(id, [...(newItems.get(id) ?? []), item]);
       }
       const candidates = new Map<string, ListingRow[]>();
       for (const row of existing.rows) {
         if (row.removedOn !== null || seen.has(row.listingKey)) continue;
-        const id = identity(row.alertNumber, row.nameNorm, row.countryCode);
+        const id = rekeyIdentity(row.alertNumber, row.firmName, row.countryName);
         candidates.set(id, [...(candidates.get(id) ?? []), row]);
       }
       const rekeyed = new Map<string, ListingRow>();
@@ -349,6 +358,7 @@ export async function syncImportAlerts(
           city: l.city,
           region: l.region,
           countryCode: l.countryCode,
+          countryName: l.countryName,
           listedOn: l.listedOn,
           missedRuns: 0,
           removedOn: null,
@@ -410,6 +420,7 @@ export async function syncImportAlerts(
               city: l.city,
               region: l.region,
               countryCode: l.countryCode,
+              countryName: l.countryName,
               listedOn: l.listedOn,
               firstSeenOn: today,
               lastSeenOn: today,

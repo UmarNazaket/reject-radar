@@ -43,6 +43,13 @@
       "when": 1792315721789,
       "tag": "0005_listing_product_problems_position",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792337234796,
+      "tag": "0006_listing_country_name_and_indexes",
+      "breakpoints": true
     }
   ]
 }
