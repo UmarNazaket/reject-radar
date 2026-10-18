@@ -154,7 +154,7 @@ interface EventDraft {
   fallback?: { commodityId: number; hazardIds: number[] };
 }
 
-type StoredProduct = Pick<typeof importAlertListingProduct.$inferSelect, 'id' | 'listingId' | 'productCode' | 'productName' | 'description' | 'listedOn' | 'notes' | 'removedOn'>;
+type StoredProduct = Pick<typeof importAlertListingProduct.$inferSelect, 'id' | 'listingId' | 'productCode' | 'productName' | 'description' | 'listedOn' | 'notes' | 'problems' | 'position' | 'removedOn'>;
 
 /** Products of one listing keyed by code (or name when there is no code) plus an ordinal for repeated codes. */
 function identify<T extends { productCode: string | null; productName: string | null }>(items: readonly T[]): Map<string, T> {
@@ -187,6 +187,8 @@ async function loadExisting(
       description: importAlertListingProduct.description,
       listedOn: importAlertListingProduct.listedOn,
       notes: importAlertListingProduct.notes,
+      problems: importAlertListingProduct.problems,
+      position: importAlertListingProduct.position,
       removedOn: importAlertListingProduct.removedOn,
     })
     .from(importAlertListingProduct)
@@ -202,7 +204,7 @@ async function loadExisting(
 }
 
 interface ProductPlan {
-  inserts: ParsedListingProduct[];
+  inserts: { product: ParsedListingProduct; position: number }[];
   updates: { id: number; set: Partial<StoredProduct> }[];
   removals: number[];
 }
@@ -212,10 +214,12 @@ function planProducts(stored: readonly StoredProduct[], parsed: readonly ParsedL
   const plan: ProductPlan = { inserts: [], updates: [], removals: [] };
   const known = identify(stored);
   const current = identify(parsed);
+  const positionOf = new Map(parsed.map((p, i) => [p, i]));
   for (const [ident, p] of current) {
+    const position = positionOf.get(p) as number;
     const row = known.get(ident);
     if (!row) {
-      plan.inserts.push(p);
+      plan.inserts.push({ product: p, position });
       continue;
     }
     const set: Partial<StoredProduct> = {};
@@ -223,6 +227,8 @@ function planProducts(stored: readonly StoredProduct[], parsed: readonly ParsedL
     if (row.description !== p.description) set.description = p.description;
     if (row.listedOn !== p.listedOn) set.listedOn = p.listedOn;
     if (row.notes !== p.notes) set.notes = p.notes;
+    if (row.problems.length !== p.problems.length || row.problems.some((problem, i) => problem !== p.problems[i])) set.problems = p.problems;
+    if (row.position !== position) set.position = position;
     if (row.removedOn !== null) set.removedOn = null;
     if (Object.keys(set).length > 0) plan.updates.push({ id: row.id, set });
   }
@@ -317,7 +323,7 @@ export async function syncImportAlerts(
       const inserts: PreparedListing[] = [];
       const touchOnly: number[] = [];
       const changed: { id: number; set: Partial<ListingRow> }[] = [];
-      const productInserts: { listingId: number; product: ParsedListingProduct }[] = [];
+      const productInserts: { listingId: number; product: ParsedListingProduct; position: number }[] = [];
       const productUpdates: ProductPlan['updates'] = [];
       const productRemovals: number[] = [];
 
@@ -348,7 +354,7 @@ export async function syncImportAlerts(
         };
         const plan = planProducts(existing.products.get(row.id) ?? [], l.products);
         const productsChanged = plan.inserts.length + plan.updates.length + plan.removals.length > 0;
-        productInserts.push(...plan.inserts.map((product) => ({ listingId: row.id, product })));
+        productInserts.push(...plan.inserts.map(({ product, position }) => ({ listingId: row.id, product, position })));
         productUpdates.push(...plan.updates);
         productRemovals.push(...plan.removals);
         const dirty = (Object.keys(set) as (keyof ListingRow)[]).some((column) => set[column] !== row[column]) || productsChanged;
@@ -433,9 +439,18 @@ export async function syncImportAlerts(
         await tx.update(importAlertListingProduct).set({ removedOn: today }).where(inArray(importAlertListingProduct.id, batch));
       }
       const productRows = [
-        ...inserts.flatMap((item) => item.listing.products.map((product) => ({ listingId: insertedIds.get(item.key) as number, product }))),
+        ...inserts.flatMap((item) => item.listing.products.map((product, position) => ({ listingId: insertedIds.get(item.key) as number, product, position }))),
         ...productInserts,
-      ].map(({ listingId, product: p }) => ({ listingId, productCode: p.productCode, productName: p.productName, description: p.description, listedOn: p.listedOn, notes: p.notes }));
+      ].map(({ listingId, product: p, position }) => ({
+        listingId,
+        productCode: p.productCode,
+        productName: p.productName,
+        description: p.description,
+        listedOn: p.listedOn,
+        notes: p.notes,
+        problems: p.problems,
+        position,
+      }));
       for (const batch of chunks(productRows, BATCH_SIZE)) await tx.insert(importAlertListingProduct).values(batch);
 
       // Notices: one per Red List listing.

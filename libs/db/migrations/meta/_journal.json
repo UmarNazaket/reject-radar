@@ -36,6 +36,13 @@
       "when": 1792311322766,
       "tag": "0004_rasff_details_fetched_at",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792315721789,
+      "tag": "0005_listing_product_problems_position",
+      "breakpoints": true
     }
   ]
 }

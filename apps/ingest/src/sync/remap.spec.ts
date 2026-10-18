@@ -31,7 +31,7 @@ import { syncFdaRefusals } from './fda/refusals';
 import { IMPORT_ALERT_INDEX_URL, syncImportAlerts } from './import-alerts/sync';
 import { RASFF_SEARCH_URL } from './rasff/parse';
 import { syncRasff } from './rasff/sync';
-import { problemsFromNotes, remapTaxonomy } from './remap';
+import { remapTaxonomy } from './remap';
 import { UK_HEADERS, UK_PACKAGE_URL } from './uk-bn/parse';
 import { syncUkBn } from './uk-bn/sync';
 
@@ -48,7 +48,7 @@ const UK_BASE = 'https://fsaopendata.blob.core.windows.net/opendatacatalog/';
 const UK_DECEMBER_2024 = [UK_HEADERS.join(','), '05/12/2024,India,0910,100 kg,Herbs and spices,Turmeric Powder,Yes,FNAO,Mycotoxins,Mycotoxins,Physical', ''].join(String.fromCharCode(13, 10));
 
 const IA_BASE = 'https://www.accessdata.fda.gov/cms_ia/';
-const IA_PAGES: Record<string, string> = {
+const IA_ORIGINAL: Record<string, string> = {
   [`${IA_BASE}importalert_33.html`]: text('import-alerts', '16-131.html'),
   [`${IA_BASE}importalert_259.html`]: text('import-alerts', '99-08.html'),
   [`${IA_BASE}importalert_263.html`]: text('import-alerts', '99-19.html'),
@@ -69,25 +69,12 @@ const RASFF_PAGE = JSON.parse(text('rasff', 'search-page1.json')) as { notificat
 /** A page whose rows are all moved back so far that it ends the paging. */
 const RASFF_OLD_PAGE = { ...RASFF_PAGE, notifications: RASFF_PAGE.notifications.map((n) => ({ ...n, ecValidationDate: '01-01-2026 10:00:00' })) };
 
-describe('problemsFromNotes', () => {
-  it('reads the list after the last "Problems:" label', () => {
-    expect(problemsFromNotes('7/14/05 | Problems: SALMONELLA;')).toEqual(['SALMONELLA']);
-    expect(problemsFromNotes('Problems: FENITROTHION; CHLORPYRIFOS')).toEqual(['FENITROTHION', 'CHLORPYRIFOS']);
-    expect(problemsFromNotes('a note | another | Problems: A; B;')).toEqual(['A', 'B']);
-  });
-
-  it('gives nothing when there are no problems', () => {
-    expect(problemsFromNotes(null)).toEqual([]);
-    expect(problemsFromNotes('7/14/05')).toEqual([]);
-    expect(problemsFromNotes('Problems:')).toEqual([]);
-  });
-});
-
 describe('taxonomy remap', () => {
   let handle: ReturnType<typeof openDb>;
   let deps: SyncDeps;
   let failureDir: string;
   let ukFiles: Record<string, string | Buffer>;
+  let iaPages: Record<string, string>;
   let firstCommodityRuleId: number;
   let firstHazardRuleId: number;
 
@@ -101,7 +88,7 @@ describe('taxonomy remap', () => {
       if (url === FDA_CHARGE_CODES_URL) return csv(text('fda', 'charges.csv'));
       if (url === FDA_REFUSALS_URL) return json(text('fda', 'refusals-page1.json'));
       if (url === IMPORT_ALERT_INDEX_URL) return fetchResult(smallIndex(), { contentType: 'text/html', url });
-      if (IA_PAGES[url] !== undefined) return fetchResult(IA_PAGES[url], { contentType: 'text/html', url });
+      if (iaPages[url] !== undefined) return fetchResult(iaPages[url], { contentType: 'text/html', url });
       if (url === RASFF_SEARCH_URL) return json(JSON.stringify(RASFF_OLD_PAGE));
       if (url.includes('/view/id/')) return json(text('rasff', 'detail-880124.json'));
       if (url === UK_PACKAGE_URL) return json(ukPackage);
@@ -126,6 +113,7 @@ describe('taxonomy remap', () => {
     for (const table of [changeEvent, notice, fdaRefusal, fdaChargeCode, importAlert, rasffNotification, ukBorderNotification, auFailingFood, sourceFile, sourceSyncRun]) {
       await handle.db.delete(table);
     }
+    iaPages = { ...IA_ORIGINAL };
     failureDir = mkdtempSync(path.join(tmpdir(), 'remap-failures-'));
     ukFiles = {
       [`${UK_BASE}April-2026.csv`]: bytes('uk-bn', 'April-2026.csv'),
@@ -225,14 +213,15 @@ describe('taxonomy remap', () => {
     expect((await remapTaxonomy(handle.db)).updated).toEqual(zero);
   });
 
-  it('reads the problems of a product back from its stored notes', async () => {
+  it('reads problems from the stored column, not from the cut-off notes', async () => {
+    const withSalmonella = () =>
+      handle.db
+        .select({ key: importAlertListing.listingKey })
+        .from(importAlertListingProduct)
+        .innerJoin(importAlertListing, eq(importAlertListing.id, importAlertListingProduct.listingId))
+        .where(and(eq(importAlertListing.list, 'red'), sql`'SALMONELLA' = any(${importAlertListingProduct.problems})`));
     await syncImportAlerts({ ...deps, failureDir }, { events: false });
-    const withSalmonella = await handle.db
-      .select({ key: importAlertListing.listingKey })
-      .from(importAlertListingProduct)
-      .innerJoin(importAlertListing, eq(importAlertListing.id, importAlertListingProduct.listingId))
-      .where(and(eq(importAlertListing.list, 'red'), ilike(importAlertListingProduct.notes, '%Problems: SALMONELLA%')));
-    const keys = [...new Set(withSalmonella.map((r) => r.key))];
+    const keys = [...new Set((await withSalmonella()).map((r) => r.key))];
     expect(keys.length).toBeGreaterThan(0);
 
     await handle.db.insert(hazardRule).values({ source: 'import_alert', field: 'problem', matchType: 'exact', pattern: 'SALMONELLA', hazardId: 700, priority: 1 });
@@ -242,6 +231,65 @@ describe('taxonomy remap', () => {
     expect(result.updated.import_alert).toBeGreaterThan(0);
     const notices = await handle.db.select().from(notice).where(eq(notice.source, 'import_alert'));
     for (const n of notices) expect(n.hazardIds.includes(700)).toBe(keys.includes(n.sourceKey));
+    expect((await remapTaxonomy(handle.db)).updated).toEqual(zero);
+  });
+
+  /** The first firm's block of alert 99-19: five products, the first of them 24 T (industry code 24). */
+  const PAGE_99_19 = `${IA_BASE}importalert_263.html`;
+  const firstBlock = () => {
+    const block = /<div class="div-info">[\s\S]*?(?=\s*<hr\/>\s*<div class="center"><h4>ALBANIA)/.exec(IA_ORIGINAL[PAGE_99_19])?.[0];
+    expect(block).toBeTruthy();
+    return block as string;
+  };
+  const vegetables = () => {
+    const product = /\s*<div>\s*<div class="floatleft"><em>24&nbsp;T&nbsp;-&nbsp;-&nbsp;99 <\/em>[\s\S]*?<\/p>/.exec(firstBlock())?.[0];
+    expect(product).toBeTruthy();
+    return product as string;
+  };
+  const withBlock = (block: string) => IA_ORIGINAL[PAGE_99_19].replace(firstBlock(), block);
+
+  it('keeps a problem that lies past the 1,000-character cut of the notes', async () => {
+    const long = vegetables().replace('</p>', `<div>Notes: ${'x'.repeat(1100)}</div><div class="small">Problems: ${'y'.repeat(50)}; LISTERIA;</div></p>`);
+    iaPages[PAGE_99_19] = withBlock(firstBlock().replace(vegetables(), long));
+
+    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+    const [product] = await handle.db.select().from(importAlertListingProduct).where(sql`'LISTERIA' = any(${importAlertListingProduct.problems})`);
+    expect(product.notes).toHaveLength(1000);
+    expect(product.notes).not.toContain('LISTERIA');
+    const [listing] = await handle.db.select().from(importAlertListing).where(eq(importAlertListing.id, product.listingId));
+    const [n] = await handle.db.select().from(notice).where(eq(notice.sourceKey, listing.listingKey));
+    expect(n.hazardIds).toContain(401);
+
+    expect((await remapTaxonomy(handle.db)).updated).toEqual(zero);
+    const [after] = await handle.db.select().from(notice).where(eq(notice.sourceKey, listing.listingKey));
+    expect(after.hazardIds).toEqual(n.hazardIds);
+  });
+
+  it('uses the page order of products, also for one that reappeared with an old low id', async () => {
+    const without = firstBlock().replace(vegetables(), '');
+    const lastEnd = without.lastIndexOf('</p>') + '</p>'.length;
+    const moved = `${without.slice(0, lastEnd)}${vegetables()}${without.slice(lastEnd)}`;
+    expect(moved).not.toBe(firstBlock());
+
+    // Only a listing whose first product has industry code 24 gets this commodity, so a wrong "first product" shows.
+    await handle.db.insert(commodityRule).values({ source: 'import_alert', field: 'industry_code', matchType: 'exact', pattern: '24', commodityId: 1300, priority: 1 });
+    deps = { ...deps, rules: await loadRuleSet(handle.db) };
+
+    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+    iaPages[PAGE_99_19] = withBlock(without);
+    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+    iaPages[PAGE_99_19] = withBlock(moved);
+    await syncImportAlerts({ ...deps, failureDir }, { events: false });
+
+    const [product] = await handle.db.select().from(importAlertListingProduct).where(eq(importAlertListingProduct.productCode, '24T--99'));
+    expect(product.removedOn).toBeNull();
+    expect(product.position).toBe(4);
+    const others = await handle.db.select().from(importAlertListingProduct).where(and(eq(importAlertListingProduct.listingId, product.listingId), sql`${importAlertListingProduct.id} > ${product.id}`));
+    expect(others.length).toBeGreaterThan(0);
+    const [listing] = await handle.db.select().from(importAlertListing).where(eq(importAlertListing.id, product.listingId));
+    const [n] = await handle.db.select().from(notice).where(eq(notice.sourceKey, listing.listingKey));
+    expect(n.commodityId).not.toBe(1300);
+
     expect((await remapTaxonomy(handle.db)).updated).toEqual(zero);
   });
 

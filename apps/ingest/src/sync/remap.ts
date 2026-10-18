@@ -110,18 +110,6 @@ async function remapChargeCodes(db: Database, rules: Awaited<ReturnType<typeof l
   }
 }
 
-/** Matches `Problems: a; b` at the end of the stored notes, which the sync built as `<notes> | Problems: <a; b>`. */
-const PROBLEMS_AT_END = /(?:^|\|)\s*Problems:\s*([^|]*)$/i;
-
-/** The problems the page listed for a product, recovered from its stored notes. */
-export function problemsFromNotes(notes: string | null): string[] {
-  const match = notes === null ? null : PROBLEMS_AT_END.exec(notes);
-  return (match?.[1] ?? '')
-    .split(';')
-    .map((item) => item.trim())
-    .filter((item) => item !== '');
-}
-
 type ListingRow = {
   id: number;
   listingKey: string;
@@ -138,7 +126,7 @@ type ListingRow = {
   products: ParsedListingProduct[];
 };
 
-/** Reads the listings that have a notice (the Red List) with their current products, as the sync saw them on the page. */
+/** Reads the listings that have a notice (the Red List) with their current products in page order, as the sync saw them. */
 async function readListings(tx: Tx, after: number | null, limit: number): Promise<ListingRow[]> {
   const listings = await tx
     .select({
@@ -175,7 +163,7 @@ async function readListings(tx: Tx, after: number | null, limit: number): Promis
         isNull(importAlertListingProduct.removedOn),
       ),
     )
-    .orderBy(asc(importAlertListingProduct.id));
+    .orderBy(asc(importAlertListingProduct.position), asc(importAlertListingProduct.id));
   const byListing = new Map<number, ParsedListingProduct[]>();
   for (const p of products) {
     const list = byListing.get(p.listingId) ?? [];
@@ -186,7 +174,7 @@ async function readListings(tx: Tx, after: number | null, limit: number): Promis
       description: p.description,
       listedOn: p.listedOn,
       notes: p.notes,
-      problems: problemsFromNotes(p.notes),
+      problems: p.problems,
     });
     byListing.set(p.listingId, list);
   }

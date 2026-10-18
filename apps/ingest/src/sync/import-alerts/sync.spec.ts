@@ -7,7 +7,7 @@ import type { SyncDeps } from '../../core/deps';
 import { openDb } from '../../core/db';
 import { loadRuleSet } from '../../core/rules';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
-import { parseAlertPage } from './parse-page';
+import { parseAlertPage, type ParsedListing } from './parse-page';
 import { classifyListing, IMPORT_ALERT_INDEX_URL, listingKey, syncImportAlerts } from './sync';
 
 const fixture = (name: string) => readFileSync(path.join(__dirname, '__fixtures__', name), 'utf8');
@@ -445,6 +445,39 @@ ${block}`));
       const restored = await productsOf(firstKey());
       expect(restored.map((p) => p.id)).toEqual(before.map((p) => p.id));
       expect(restored.every((p) => p.removedOn === null)).toBe(true);
+      expect(await total(changeEvent)).toBe(eventsBefore);
+    });
+
+    it('stores the full problems and its page position, and stays idempotent', async () => {
+      await run();
+      const page = parsed('99-19').listings.find((l) => keyOf('99-19', l) === firstKey()) as ParsedListing;
+      const stored = await productsOf(firstKey());
+      expect(stored.map((p) => p.position)).toEqual(page.products.map((_, i) => i));
+      const alb = parsed('99-19').listings.find((l) => l.products.some((p) => p.problems.length > 0)) as ParsedListing;
+      const albStored = await productsOf(keyOf('99-19', alb));
+      expect(albStored.map((p) => p.problems)).toEqual(alb.products.map((p) => p.problems));
+      expect(albStored.some((p) => p.problems.length > 0)).toBe(true);
+
+      const again = await run();
+      expect(again).toMatchObject({ rowsUpdated: 0, eventsEmitted: 0 });
+    });
+
+    it('moves the position of a product that reappears later on the page without an event', async () => {
+      await run();
+      const eventsBefore = await total(changeEvent);
+      const without = firstBlock().replace(/\s*<div>\s*<div class="floatleft"><em>24&nbsp;T&nbsp;-&nbsp;-&nbsp;99 <\/em>[\s\S]*?<\/p>/, '');
+      const veg = /\s*<div>\s*<div class="floatleft"><em>24&nbsp;T&nbsp;-&nbsp;-&nbsp;99 <\/em>[\s\S]*?<\/p>/.exec(firstBlock())?.[0] as string;
+      const end = without.lastIndexOf('</p>') + 4;
+      serve('99-19', ORIGINAL['99-19'].replace(firstBlock(), without));
+      await run();
+      serve('99-19', ORIGINAL['99-19'].replace(firstBlock(), `${without.slice(0, end)}${veg}${without.slice(end)}`));
+      const back = await run();
+      expect(back.eventsEmitted).toBe(0);
+      const rows = await productsOf(firstKey());
+      const moved = rows.find((p) => p.productCode === '24T--99');
+      expect(moved?.removedOn).toBeNull();
+      expect(moved?.position).toBe(4);
+      expect(rows.filter((p) => p.productCode !== '24T--99').map((p) => p.position).sort()).toEqual([0, 1, 2, 3]);
       expect(await total(changeEvent)).toBe(eventsBefore);
     });
 

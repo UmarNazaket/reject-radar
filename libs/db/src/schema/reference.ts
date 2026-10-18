@@ -255,6 +255,10 @@ export const importAlertListingProduct = pgTable(
     description: text('description'),
     listedOn: date('listed_on'),
     notes: text('notes'),
+    /** The problems the page lists for the product, in full (`notes` is cut at 1,000 characters); the taxonomy classifies on these. */
+    problems: text('problems').array().notNull().default(emptyTextArray),
+    /** 0-based place of the product among its listing's products on the page at the last sync; null until a sync has stored it. */
+    position: smallint('position'),
     /** Set when the code is missing from the page; cleared when it returns. The row is kept so a return is not a new product. */
     removedOn: date('removed_on'),
   },
