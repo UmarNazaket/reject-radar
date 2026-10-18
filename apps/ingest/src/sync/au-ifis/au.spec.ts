@@ -108,7 +108,11 @@ describe('Australian failing-food parsing', () => {
     const may = parseAuCsv(fixture('may-2026.csv'), '2026-05-01');
     expect(may.find((r) => r.productDesc === 'Frozen strawberries')).toMatchObject({ scheme: 'risk', holdingOrderMatch: true });
     const june = parseAuCsv(fixture('june-2026.csv'), '2026-06-01');
-    expect(june.find((r) => r.productDesc === 'Super c sweets strawberry')).toMatchObject({ scheme: null, holdingOrderMatch: null });
+    // June 2026 writes a bare `HOM` (holding-order match) with no scheme.
+    expect(june.find((r) => r.productDesc === 'Super c sweets strawberry')).toMatchObject({ scheme: null, holdingOrderMatch: true });
+    expect(june.filter((r) => r.productDesc === 'Jackfruit')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ scheme: null, holdingOrderMatch: true }), expect.objectContaining({ scheme: 'surveillance', holdingOrderMatch: true })]),
+    );
   });
 
   it('gives identical-looking records different keys, and the same keys every time', () => {

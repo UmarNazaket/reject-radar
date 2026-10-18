@@ -98,7 +98,8 @@ function columnIndexes(header: readonly string[]): Map<AuField, number> {
   return indexes;
 }
 
-const HOLDING_ORDER = /\bHO\b|holding order/i;
+/** `HO match 20158`, `HO number 20561`, the 2026 June files' bare `HOM` (holding-order match) or the words. */
+const HOLDING_ORDER = /\bHOM?\b|holding order/i;
 
 function schemeOf(category: string): AuRecord['scheme'] {
   const text = category.toLowerCase();
