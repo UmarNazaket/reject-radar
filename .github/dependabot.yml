@@ -13,9 +13,12 @@ updates:
       nestjs:
         patterns: ['@nestjs/*']
     ignore:
-      # @nx/webpack 23 accepts only webpack-dev-server ^5; npm 10 (Cloudflare Pages) refuses to install 6.
+      # @nx/webpack 23 accepts only webpack-dev-server ^5; the npm 11.8 in Cloudflare Pages and Render refuses 6.
       # Remove once @nx/webpack's peer range includes 6.
       - dependency-name: webpack-dev-server
+        update-types: ['version-update:semver-major']
+      # @nx/nest 23 accepts only @nestjs/common and @nestjs/core <12. Remove once Nx 24 is stable.
+      - dependency-name: '@nestjs/*'
         update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /

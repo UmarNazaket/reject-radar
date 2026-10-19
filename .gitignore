@@ -67,6 +67,11 @@ desktop.ini
 # ── Local Claude Code settings ──────────────────────────────────────────────
 .claude/settings.local.json
 
+# ── Locally installed agent skills (e.g. Neon's) ────────────────────────────
+.agents/
+.claude/skills/
+skills-lock.json
+
 # ── From the Nx generator ───────────────────────────────────────────────────
 .nx/migrate-runs
 .claude/worktrees

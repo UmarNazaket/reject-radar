@@ -1,0 +1,7 @@
+# Cloudflare Pages response headers. Keep staging and *.pages.dev out of search results;
+# the production host (rejectradar.umarnazaket.com) is not listed, so it stays indexable.
+https://rejectradar-staging.umarnazaket.com/*
+  X-Robots-Tag: noindex
+
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
