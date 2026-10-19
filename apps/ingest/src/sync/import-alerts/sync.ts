@@ -280,6 +280,8 @@ export async function syncImportAlerts(
   options: { events: boolean; only?: string[]; forceHours?: boolean },
 ): Promise<SyncRunResult> {
   assertVisitingHours((deps.now ?? (() => new Date()))(), options);
+  // A run limited by `only` is partial: the full crawl after it is still the first load.
+  const runOptions = { partial: options.only !== undefined };
   return runSync(deps.db, 'import_alerts', async (ctx) => {
     const emitEvents = await eventsForRun(deps.db, 'import_alerts', options.events);
     const crawled = await crawl(deps, options.only);
@@ -540,5 +542,5 @@ export async function syncImportAlerts(
       return { rowsInserted, rowsUpdated: changed.length + missed.length, eventsEmitted };
     });
     Object.assign(ctx.counts, counts);
-  });
+  }, runOptions);
 }

@@ -215,6 +215,24 @@ describe('Import Alert sync', () => {
     }
   });
 
+  it('does not count a run limited by --only as the first load', async () => {
+    await handle.db.delete(sourceSyncRun);
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const partial = await run({ only: ['99-19'] });
+      expect(partial).toMatchObject({ status: 'succeeded', eventsEmitted: 0 });
+      expect(await lastRun()).toMatchObject({ status: 'succeeded', partial: true });
+      const full = await run();
+      expect(full.rowsInserted).toBeGreaterThan(0);
+      expect(full.eventsEmitted).toBe(0);
+      expect(await total(changeEvent)).toBe(0);
+      expect(await lastRun()).toMatchObject({ status: 'succeeded', partial: false });
+      expect(warn.mock.calls.filter(([message]) => message === 'first load of import_alerts: events suppressed')).toHaveLength(2);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   describe('visiting hours (03:00-09:00 UTC)', () => {
     const at = (iso: string) => () => new Date(iso);
     const runAt = (iso: string, options: { only?: string[]; forceHours?: boolean } = {}) =>

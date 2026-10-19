@@ -493,6 +493,8 @@ export const sourceSyncRun = pgTable(
     rowsDeleted: integer('rows_deleted').notNull().default(0),
     eventsEmitted: integer('events_emitted').notNull().default(0),
     error: text('error'),
+    /** True for a run limited to part of the source (`sync:import-alerts --only`); it never counts as a first load. */
+    partial: boolean('partial').notNull().default(false),
   },
   (t) => [
     index('source_sync_run_source_started_idx').on(t.source, t.startedAt),

@@ -142,6 +142,16 @@ describe('runSync', () => {
       expect(warn).toHaveBeenCalledTimes(1);
     });
 
+    it('a succeeded partial run does not count as a load', async () => {
+      await runSync(handle.db, 'import_alerts', async () => undefined, { partial: true });
+      expect(await lastRun()).toMatchObject({ status: 'succeeded', partial: true });
+      expect(await lastSucceededRun(handle.db, 'import_alerts')).toBeNull();
+      expect(await eventsForRun(handle.db, 'import_alerts', true)).toBe(false);
+      await runSync(handle.db, 'import_alerts', async () => undefined);
+      expect(await lastRun()).toMatchObject({ partial: false });
+      expect(await eventsForRun(handle.db, 'import_alerts', true)).toBe(true);
+    });
+
     it('never turns events on when the caller asked for none', async () => {
       expect(await eventsForRun(handle.db, 'uk_bn', false)).toBe(false);
       await runSync(handle.db, 'uk_bn', async () => undefined);

@@ -33,15 +33,19 @@ const errorText = (error: unknown): string =>
 /**
  * Runs one sync (spec §6.3): size check, a `source_sync_run` row, the work, then the final status.
  * The work does its live-table writes in one transaction of its own, so a failure leaves them unchanged.
+ * `partial` marks a run limited to part of the source, which does not count as its first load (see `eventsForRun`).
  */
 export async function runSync(
   db: Database,
   source: SyncSource,
   work: (ctx: SyncContext) => Promise<void>,
-  options: { sizeLimitBytes?: number } = {},
+  options: { sizeLimitBytes?: number; partial?: boolean } = {},
 ): Promise<SyncRunResult> {
   const limit = options.sizeLimitBytes ?? SIZE_LIMIT_BYTES;
-  const [run] = await db.insert(sourceSyncRun).values({ source, status: 'running' }).returning({ id: sourceSyncRun.id });
+  const [run] = await db
+    .insert(sourceSyncRun)
+    .values({ source, status: 'running', partial: options.partial ?? false })
+    .returning({ id: sourceSyncRun.id });
   const counts: SyncCounts = { rowsRead: 0, rowsInserted: 0, rowsUpdated: 0, rowsDeleted: 0, eventsEmitted: 0 };
   let origin: string | null = null;
   let contentSha256: string | null = null;
@@ -75,20 +79,22 @@ export async function runSync(
   }
 }
 
+/** The last succeeded run of the whole source; a partial run does not count. */
 export async function lastSucceededRun(db: Database, source: SyncSource): Promise<{ id: number; startedAt: Date } | null> {
   const [row] = await db
     .select({ id: sourceSyncRun.id, startedAt: sourceSyncRun.startedAt })
     .from(sourceSyncRun)
-    .where(and(eq(sourceSyncRun.source, source), eq(sourceSyncRun.status, 'succeeded')))
+    .where(and(eq(sourceSyncRun.source, source), eq(sourceSyncRun.status, 'succeeded'), eq(sourceSyncRun.partial, false)))
     .orderBy(desc(sourceSyncRun.startedAt), desc(sourceSyncRun.id))
     .limit(1);
   return row ?? null;
 }
 
 /**
- * Whether this run may emit change events (P2-D6). A source with no succeeded run yet is on its first load, which would
- * otherwise emit one event per stored record (thousands for most sources), so its events are suppressed with a warning,
- * even when `--no-events` was forgotten or a schedule fires before the manual backfill.
+ * Whether this run may emit change events (P2-D6). A source with no succeeded run of the whole source yet is on its first
+ * load, which would otherwise emit one event per stored record (thousands for most sources), so its events are
+ * suppressed with a warning, even when `--no-events` was forgotten or a schedule fires before the manual backfill. A
+ * partial run (`--only`) loads too little to end the first load: the full crawl after it still suppresses its events.
  */
 export async function eventsForRun(db: Database, source: SyncSource, requested: boolean): Promise<boolean> {
   if (!requested) return false;
