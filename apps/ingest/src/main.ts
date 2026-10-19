@@ -196,7 +196,9 @@ program
     }
   });
 
+// The exit code is set rather than exiting at once: sockets still closing when `process.exit` runs trip a libuv
+// assertion on Windows, which turns exit code 1 into 127.
 program.parseAsync(process.argv).catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
+  process.exitCode = 1;
 });
