@@ -2,7 +2,10 @@ name: Sync weekly
 
 on:
   schedule:
-    - cron: '0 6 * * 5' # FDA charge codes and refusals; the day will move to FDA's measured refresh day
+    # FDA charge codes and refusals. Daily for the first week, to find the day FDA publishes new refusals
+    # (rows_inserted in source_sync_run); then weekly, on the day after it. By 08:00 the daily 04:00 run and
+    # Monday's 06:30 run have ended even at their job timeouts, so this one never waits as a pending run.
+    - cron: '0 8 * * *'
     - cron: '30 6 * * 1' # UK border notifications, then Australian IFIS
   workflow_dispatch:
     inputs:
@@ -31,7 +34,7 @@ jobs:
   fda:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: ${{ github.event.schedule == '0 6 * * 5' || inputs.job == 'all' || inputs.job == 'fda' }}
+    if: ${{ github.event.schedule == '0 8 * * *' || inputs.job == 'all' || inputs.job == 'fda' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
