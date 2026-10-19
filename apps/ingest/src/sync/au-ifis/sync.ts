@@ -2,12 +2,13 @@ import { auFailingFood } from '@rejectradar/db';
 import type { SyncDeps } from '../../core/deps';
 import { syncMonthlyFiles, type MonthlyFileSource } from '../../core/monthly-files';
 import type { SyncRunResult } from '../../core/sync-run';
-import { AU_PACKAGE_URL, classifyAu, decodeAuCsv, parseAuCsv, testsOf, type AuRecord } from './parse';
+import { AU_PACKAGE_URL, classifyAu, decodeAuCsv, parseAuCsv, reasonsOf, type AuRecord } from './parse';
 
 export { AU_PACKAGE_URL };
 
+/** Titled by the first reason for fail: older files test for "Composition", the reason names the additive. */
 const noticeTitle = (r: AuRecord): string => {
-  const [first] = testsOf(r);
+  const [first] = reasonsOf(r);
   return first === undefined ? `${r.productDesc} failed` : `${r.productDesc} failed: ${first}`;
 };
 

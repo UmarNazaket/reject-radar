@@ -1,0 +1,49 @@
+Risk food tests,,,,,,,,,
+Date of fail,Product description,Country of origin,Producer name,Reason for fail,Result/s,Units,Reference,,
+8/07/2020,Cooked crawfish tail,China,Guolian Yiyang Food Co Ltd,Listeria monocytogenes ,Detected ,/125g,CRU 03/2019,,
+,,,,,,,,,
+8/07/2020,Cooked crawfish tail,China,Guolian Yiyang Food Co Ltd,Standard plate count,"400 000, 260 000, 290 000, 290 000, 400 000",cfu/g,CRU 03/2019,,
+8/07/2020, Sheep milk cured cheese ,Portugal,Lacticinios Do Paiva Sa,Listeria monocytogenes ,Detected,/125g,CHE 07/2018,,
+,,,,,,,,,
+10/07/2020,Salted anchovies,Philippines,P.O.P Export Trading,Histamine,350,mg/kg,HIS 12/2016,,
+15/07/2020,Keeramin,Sri Lanka,St Anne’s Enterprises (Sri Lanka),Histamine,470,mg/kg,HIS 12/2016,,
+,(dried fish),,,,,,,,
+16/07/2020,Roasted bhujia (roasted peanuts),India,Jay Keshav Exports Pvt Ltd,Aflatoxin,0.052,mg/kg,NUT 11/2018,,
+30/07/2020,Kashmiri chilli powder,India,Synthite Industries Ltd,Salmonella,Detected,/125,SPI 06/2019,,
+30/07/2020,Tapioca chips,India,Bakemill Foods Intl,Hydrocyanic Acid,15,mg/kg,CAS 09/2016,,
+30/07/2020,Tapioca chips,India,Bakemill Foods Intl,Hydrocyanic Acid,21,mg/kg,CAS 09/2016,,
+,,,,,,,,,
+,,,,,,,,,
+Surveillance food tests,,,,,,,,,
+Date of fail,Product description,Country of origin,Producer name,Test applied ,Reason for fail,Result/s,Units,Reference,Holding order number
+1/07/2020,Door dal ,India,Batra Enterprises,Fruit and vegetable residue screen,Chlorpyrifos,0.013,mg/kg,,16117
+,(peas),,,,,,,FSC 1.4.2,
+1/07/2020,Moong dhuli (lentils),India,Batra Enterprises,Fruit and vegetable residue screen,Chlorpyrifos,0.121,mg/kg,FSC 1.4.2,16116
+1/07/2020,Frozen vegetable tindora,India,Parayil Food Products,Fruit and vegetable residue screen,Acephate  ,0.174,mg/kg,FSC 1.4.2,16084
+,,,,,,,,,
+1/07/2020,Frozen vegetable tindora,India,Parayil Food Products,Fruit and vegetable residue screen,Monocrotophos,0.21,mg/kg,FSC 1.4.2,16084
+2/07/2020,Betel nut,India,Jay Keshav Exports Pvt Ltd,Composition,Areca catechu,Prohibited plant,n/a,FSC 1.4.4,16079
+,,,,, (Betel nut),,,,
+6/07/2020,Cocoa powder ,Japan,Ajigen Co.Ltd,Composition,"Calcium, Calcium Carbonate, Ferric Pyrophosphate, Niacin, Vitamin B1, A,  B2, D",Not permitted in this food,n/a,FSC 1.3.2,16078
+6/07/2020,Cocoa powder,Japan,Morinaga Co Ltd (Japan),Composition,"Calcium, Calcium Carbonate, Ferric Pyrophosphate, Niacin, Vitamin B1,  A, B2 , D",Not permitted in this food,n/a,FSC 1.3.2,16120
+8/07/2020,Gluten free corn flakes,Italy,Dr Schar Ag/Spa,Composition,"Pantothenic Acid, Biotin and Vitamin B12",Not permitted in this food,n/a,FSC 1.3.2,16081
+8/07/2020,Roasted split betel nut,Thailand,"Mae Khem.,Ltd",Composition,Areca catechu (Betel Nut),Prohibited plant,n/a,FSC 1.4.4,16083
+8/07/2020,Pickled plum,Japan,Nagayama Foods Factory Co Ltd,Composition,Vitamin B1,Not permitted in this food,n/a,FSC 1.3.2,HO match
+,(Shiso Zuke Ume) ,,,,,,,,
+,,,,,,,,,
+9/07/2020,Blackberry juice concentrate organic,Germany,Dohler Neuenkirche N Gmbh,Fruit and vegetable residue screen,Paclobutrazol,0.017,mg/kg,FSC 1.4.2,16088
+10/07/2020,Blackeye beans,United States of America,Kirsten Company Llc,Fruit and vegetable residue screen,Chlorpyrifos,0.12,mg/kg,FSC 1.4.2,HO match
+10/07/2020,Coconut candy,China,"Baoding City Jiakang Food Co., Ltd",Composition,Vitamin C,Not permitted in this food,n/a,FSC 1.3.2,16089
+10/07/2020,Canned yellow peach ,China,"Baoding City Jiakang Food Co., Ltd",Composition,Vitamin C,Not permitted in this food,n/a,FSC 1.3.2,16092
+10/07/2020, Canned coconut,China,,Composition,Vitamin C,Not permitted in this food,n/a,FSC 1.3.2,16092
+,,,"Baoding City Jiakang Food Co., Ltd",,,,,,
+,,,,,,,,,
+10/07/2020,Calorie bar,Korea Republic of,Haitai Pacific Corp,Composition,Vitamin C & B5 (Pantothenic acid),Not permitted in this food,n/a,FSC 1.3.2,16094
+13/07/2020,Betel nut,Papua New Guinea,,Composition,Areca catechu,Prohibited plant,n/a,FSC 1.4.4,HO match
+,,,Magdaline Maino,, (Betel nut),,,,
+,,,,,,,,,
+,,,,,,,,,
+17/07/2020,Candy,Taiwan,Gelking Laboratories Inc,Composition,Food colour additive 165,Not permitted in this food ,n/a,FSC 1.3.1,16124
+21/07/2020,Formulated supplementary sports drink,,,Composition,Methylliberine – Unapproved Novel Food, Not permitted in this food,n/a,FSC 1.5.1,16135
+,,United States of America,Simpson Laboratories,,,,,,
+23/07/2020,Fermented bean curd,China,,Bacillus cereus,Bacillus cereus,"6200, 5900, 5700, >15000, >15000",cfu/g,Imported Food Control Act section 3(2),16138

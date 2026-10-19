@@ -19,6 +19,10 @@ const TODAY = '2026-10-18';
 const URL_MAY = 'https://data.gov.au/data/dataset/e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5/resource/202d9e34-4e6d-4f6b-bacd-5731aa59e30d/download/may-2026-ifis-failing-food-report.csv';
 const URL_JUNE = 'https://data.gov.au/data/dataset/e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5/resource/b0950e17-c23b-4d8e-8122-4397459b4cec/download/failing-food-report-june-2026.csv';
 const URL_JULY = 'https://data.gov.au/data/dataset/e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5/resource/a75154c8-1913-4a90-a498-ac78b02379c0/download/july-2026-ifis-failing-food-report.csv';
+const URL_JUNE_2019 =
+  'https://data.gov.au/data/dataset/e56bcf6a-7bfb-4cb5-8c65-8ec18bd4b7d5/resource/736e1585-c05f-4ff6-8e50-569ea094ce6d/download/imported-food-inspection-scheme-june-2019-failing-food-report-data.csv';
+/** The live listing's entry for June 2019, the oldest file and the first in the several-tables layout. */
+const PACKAGE_2019 = { result: { resources: [{ format: '.csv', name: 'Imported Food Inspection Scheme - June 2019 failing food report data.csv', url: URL_JUNE_2019 }] } };
 const HEADER = 'Date of fail,Product description,County of origin,Producer Name,Test applied / reason for fail,Results / Units,Reference criteria,Food category';
 
 const record = (overrides: Partial<AuRecord> = {}): AuRecord => ({
@@ -166,6 +170,185 @@ describe('Australian failing-food parsing', () => {
     expect(decodeAuCsv(Buffer.from('Café – x', 'utf8'))).toBe('Café – x');
     expect(decodeAuCsv(Buffer.from([0x56, 0x96, 0x20, 0xe9]))).toBe('V– é');
   });
+
+  it('keeps the keys of records in the single-table layout', () => {
+    const keys = (file: string, month: string) => parseAuCsv(fixture(file), month).map((r) => r.sourceKey);
+    expect(keys('may-2026.csv', '2026-05-01')).toEqual(expect.arrayContaining(['2e1875bb87fbbd235f98326c25f99bfecdde010f', 'c77a05760f70c77687fdacd6b463a0d7584a71ab']));
+    expect(keys('june-2026.csv', '2026-06-01')).toEqual(expect.arrayContaining(['fc6b146986486a08a901b58970b5dc234a66bad4', 'f924451b62148e17432db70e1d4dc684775f30b1']));
+    expect(keys('july-2026.csv', '2026-07-01')).toEqual(expect.arrayContaining(['10f0e8d68e5ac836a3f1853e395c1ba377927f46', '37b98a6f97a3e8817eccc626551967769b5d343e']));
+  });
+});
+
+describe('Australian failing-food parsing, 2019-2022 layouts', () => {
+  const schemes = (records: AuRecord[]) => records.map((r) => r.scheme);
+  const byProduct = (records: AuRecord[], product: string) => records.filter((r) => r.productDesc === product);
+
+  it('reads every table of a June 2019 file, taking the scheme from its title', () => {
+    const records = parseAuCsv(fixture('june-2019.csv'), '2019-06-01');
+    expect(records).toHaveLength(34);
+    // "Risk microbiological and allergen fails" (10), "Risk chemical/contaminant/ toxin test results" (6),
+    // "Surveillance catergory food fails" (18).
+    expect(schemes(records)).toEqual([...Array<string>(16).fill('risk'), ...Array<string>(18).fill('surveillance')]);
+    expect(records[0]).toMatchObject({
+      reportMonth: '2019-06-01',
+      failedOn: '2019-06-05',
+      productDesc: 'Kashmiri chilli powder',
+      countryCode: 'IN',
+      producerName: 'Anna Aluminium Co Pvt Ltd',
+      testApplied: 'Salmonella',
+      reason: 'Salmonella',
+      resultText: 'Detected/125g',
+      holdingOrderMatch: null,
+    });
+    expect(byProduct(records, 'Frozen cooked prawns')[0].resultText).toBe('700 000, 10 000, 6 000, 110 000, 140 000 cfu/g');
+    expect(byProduct(records, 'Cassava chips')[0]).toMatchObject({ scheme: 'risk', testApplied: 'Hydrocyanic acid', reason: 'Hydrocyanic acid', resultText: '11 mg/kg' });
+  });
+
+  it('reads the surveillance rows of June 2019, which carry a test column their header lacks', () => {
+    const records = parseAuCsv(fixture('june-2019.csv'), '2019-06-01');
+    expect(byProduct(records, 'Mung dhal')[0]).toMatchObject({
+      scheme: 'surveillance',
+      testApplied: 'Fruit and vegetable residue screen',
+      reason: 'Chlorpyrifos',
+      resultText: '0.03 mg/kg',
+    });
+    expect(byProduct(records, 'Frozen seasoned flying fish roe')[0]).toMatchObject({
+      testApplied: 'Composition',
+      reason: 'Additive E127 (erythrosine)',
+      resultText: 'Not permitted in this food',
+    });
+    expect(byProduct(records, 'Pilchards in hot chilli sauce')[0]).toMatchObject({ failedOn: '2019-05-31', reason: 'Irradiated cayenne pepper' });
+  });
+
+  it('keys a record of a file with separate test and reason columns on both', () => {
+    const header = 'Date of fail,Product description,Country of origin,Producer name,Test applied,Reason for fail,Result/s,Units,Reference';
+    const line = (reason: string) => `5/06/2019,Mung dhal,Myanmar,Ays Mfg Co Ltd,Fruit and vegetable residue screen,${reason},0.03,mg/kg,FSC 1.4.2`;
+    const [a, b] = parseAuCsv(`${header}\n${line('Chlorpyrifos')}\n${line('Profenofos')}\n`, '2019-06-01');
+    expect(a.sourceKey).not.toBe(b.sourceKey);
+    expect(parseAuCsv(`${header}\n${line('Profenofos')}\n`, '2019-06-01')[0].sourceKey).toBe(b.sourceKey);
+  });
+
+  it('reads holding order numbers, a continuation row and a footnote of March 2020', () => {
+    const records = parseAuCsv(fixture('march-2020.csv'), '2020-03-01');
+    expect(records).toHaveLength(31);
+    expect(schemes(records)).toEqual([...Array<string>(10).fill('risk'), ...Array<string>(21).fill('surveillance')]);
+    expect(byProduct(records, 'Peanut candy bar')[0]).toMatchObject({
+      reason: 'Aflatoxin',
+      resultText: '0.012 mg/kg; (product contains 75% peanut, therefore the calculated maximum level is 0.011)',
+      holdingOrderMatch: null,
+    });
+    expect(byProduct(records, 'Dried elberta peaches halves')[0]).toMatchObject({
+      testApplied: 'Fruit and vegetable residue screen',
+      reason: 'Thiabendazole',
+      resultText: '0.046 mg/kg',
+      holdingOrderMatch: true,
+    });
+    expect(byProduct(records, 'Frozen dried longan').map((r) => r.holdingOrderMatch)).toEqual([true, true]);
+    // "n/a" units are left out; "n/a*" (no holding order, see the footnote) is not a holding order.
+    expect(byProduct(records, 'Pan masala')[0]).toMatchObject({ reason: 'Areca catechu', resultText: 'Prohibited plant', holdingOrderMatch: true });
+    expect(byProduct(records, 'Sardines in tomato sauce with chilli')[0]).toMatchObject({ holdingOrderMatch: null });
+    expect(byProduct(records, 'Dietary supplement')[0].reason).toBe('St John’s wort extract (Hypericum perforatum)');
+  });
+
+  it('completes a record whose product, country or producer runs on into the row below it (July 2020)', () => {
+    const records = parseAuCsv(fixture('july-2020.csv'), '2020-07-01');
+    expect(records).toHaveLength(29);
+    expect(schemes(records)).toEqual([...Array<string>(9).fill('risk'), ...Array<string>(20).fill('surveillance')]);
+    expect(records.filter((r) => r.failedOn === null || r.productDesc.startsWith('('))).toEqual([]);
+    expect(records.map((r) => r.productDesc)).toEqual(expect.arrayContaining(['Keeramin (dried fish)', 'Door dal (peas)', 'Pickled plum (Shiso Zuke Ume)']));
+    expect(byProduct(records, 'Canned coconut')[0]).toMatchObject({ countryCode: 'CN', producerName: 'Baoding City Jiakang Food Co., Ltd' });
+    expect(byProduct(records, 'Formulated supplementary sports drink')[0]).toMatchObject({ countryCode: 'US', producerName: 'Simpson Laboratories' });
+    expect(byProduct(records, 'Betel nut')[1]).toMatchObject({ countryCode: 'PG', producerName: 'Magdaline Maino', testApplied: 'Composition', reason: 'Areca catechu; (Betel nut)' });
+  });
+
+  it('keeps a row with no date but a product, country and producer as a record of its own', () => {
+    const records = parseAuCsv(`${HEADER}\n5/07/2026,Chilli powder,India,Mr Agro,Salmonella detected,,,\n,Chilli flakes,India,Mr Agro,Salmonella detected,,,\n`, '2026-07-01');
+    expect(records.map((r) => [r.failedOn, r.productDesc])).toEqual([
+      ['2026-07-05', 'Chilli powder'],
+      [null, 'Chilli flakes'],
+    ]);
+  });
+
+  it('reads a D.M.YYYY date (September 2020)', () => {
+    expect(parseAuCsv(`${HEADER}\n31.8.2020,Fermented bean curd,Vietnam,Tyh Import Export Service,Bacillus cereus,,,\n`, '2020-09-01')[0].failedOn).toBe('2020-08-31');
+  });
+
+  it('reads the numbered table titles of December 2021', () => {
+    const records = parseAuCsv(fixture('december-2021.csv'), '2021-12-01');
+    expect(records).toHaveLength(22);
+    expect(schemes(records)).toEqual([...Array<string>(5).fill('risk'), ...Array<string>(17).fill('surveillance')]);
+  });
+
+  it('reads the Category column of January 2022', () => {
+    const records = parseAuCsv(fixture('january-2022.csv'), '2022-01-01');
+    expect(records).toHaveLength(23);
+    expect(records[0]).toMatchObject({
+      failedOn: '2022-01-04',
+      productDesc: 'Sesame seed',
+      scheme: 'risk',
+      testApplied: 'Salmonella',
+      reason: 'Salmonella detected.',
+      resultText: 'Detected/125g',
+      holdingOrderMatch: null,
+    });
+    expect(records[1]).toMatchObject({
+      productDesc: 'Cream crackers',
+      scheme: 'surveillance',
+      testApplied: 'Composition',
+      reason: 'Vitamin B12 and Iodine not permitted in this food.',
+      resultText: 'N/A',
+      holdingOrderMatch: true,
+    });
+    expect(byProduct(records, 'Mussels')[0].resultText).toBe('>110, <2.3, >110, 46, 2.3 MPN/g');
+    expect(byProduct(records, 'Soybeans')[0]).toMatchObject({ scheme: 'surveillance', holdingOrderMatch: true });
+  });
+
+  it('reads October 2022, whose test column is headed "Results / Units" like the results column', () => {
+    const records = parseAuCsv(fixture('october-2022.csv'), '2022-10-01');
+    expect(records).toHaveLength(17);
+    expect(records[0]).toMatchObject({
+      productDesc: 'Dragon fruit',
+      testApplied: 'Fruit & vegetable residue screen - Permethrin detected in excess of MRL',
+      reason: 'Fruit & vegetable residue screen - Permethrin detected in excess of MRL',
+      resultText: '0.11 mg/kg',
+      scheme: 'surveillance',
+      holdingOrderMatch: true,
+    });
+  });
+
+  it('reads February 2025, which has no header row and Excel serial dates', () => {
+    const records = parseAuCsv(fixture('february-2025.csv'), '2025-02-01');
+    expect(records).toHaveLength(27);
+    expect(records[0]).toMatchObject({
+      failedOn: '2025-01-30',
+      productDesc: 'Processed pistachios',
+      countryCode: 'CN',
+      producerName: 'Sun Wing Nuts & Food Co. Ltd.',
+      testApplied: 'Aflatoxin detected in excess of level permitted',
+      resultText: '0.25 mg/kg, 0.055 mg/kg',
+      scheme: 'risk',
+    });
+    expect(records[26]).toMatchObject({ failedOn: '2025-02-28', productDesc: 'Marinated sardines' });
+    expect(records.filter((r) => r.holdingOrderMatch)).toHaveLength(13);
+  });
+
+  it('rejects a title that no header follows, and text that is neither a title, a footnote nor a record', () => {
+    expect(() => parseAuCsv(`Risk food tests\n5/07/2026,Chilli powder,India,Mr Agro,Salmonella detected,,,\n`, '2026-07-01')).toThrow(/row 2.*"Risk food tests"/);
+    expect(() => parseAuCsv(`${HEADER}\n5/07/2026,Chilli powder,India,Mr Agro,Salmonella detected,,,\nSee the notes below\n`, '2026-07-01')).toThrow(
+      /row 3.*"See the notes below"/,
+    );
+    expect(() => parseAuCsv(`${HEADER}\nRisk food tests\n`, '2026-07-01')).toThrow(/row 2.*"Risk food tests".*no header/);
+  });
+
+  it('rejects a value under no header, unless the table lacks the test column the value belongs to', () => {
+    expect(() => parseAuCsv(`${HEADER}\n5/07/2026,Chilli powder,India,Mr Agro,Salmonella detected,Detected/125g,FSC 1.6.1,Risk,Extra\n`, '2026-07-01')).toThrow(
+      /row 2 has a value under no header: "Extra"/,
+    );
+  });
+
+  it('rejects a file whose first row is neither a header, a title nor a record', () => {
+    expect(() => parseAuCsv(`Chilli powder,India,Mr Agro\n`, '2026-07-01')).toThrow(/no header row/);
+  });
 });
 
 describe('Australian classification', () => {
@@ -187,6 +370,10 @@ describe('Australian classification', () => {
     expect(
       classifyAu(rules, record({ productDesc: 'Peanut brittle', testApplied: 'Aflatoxin detected in excess of level permitted; Carbendazim not permitted in this food' })),
     ).toEqual({ commodityId: 302, hazardIds: [100, 300] });
+  });
+
+  it('classifies the reason for fail as well as the test applied', () => {
+    expect(classifyAu(rules, record({ productDesc: 'Mung dhal', testApplied: 'Fruit and vegetable residue screen', reason: 'Chlorpyrifos' })).hazardIds).toEqual([100]);
   });
 
   it('falls back to unclassified', () => {
@@ -216,18 +403,19 @@ describe('Australian sync', () => {
     deps = { db: handle.db, rules, today: () => TODAY, fetcher: fakeFetcher(() => fetchResult('')).fetcher };
   });
 
-  /** Serves the package list and the three monthly files; `files` replaces any of them. */
-  const backend = (files: Record<string, string | Buffer> = {}, failing: string[] = []) => {
+  /** Serves the package list (`listing`) and the monthly files it may name; `files` replaces any of them. */
+  const backend = (files: Record<string, string | Buffer> = {}, failing: string[] = [], listing: unknown = PACKAGE) => {
     const served: Record<string, string | Buffer> = {
       [URL_MAY]: fixtureBytes('may-2026.csv'),
       [URL_JUNE]: fixtureBytes('june-2026.csv'),
       [URL_JULY]: fixtureBytes('july-2026.csv'),
+      [URL_JUNE_2019]: fixtureBytes('june-2019.csv'),
       ...files,
     };
     const fake = fakeFetcher((url, options) => {
       if (url === AU_PACKAGE_URL) {
         expect(options?.expect).toBe('json');
-        return fetchResult(JSON.stringify(PACKAGE), { contentType: 'application/json', url });
+        return fetchResult(JSON.stringify(listing), { contentType: 'application/json', url });
       }
       expect(options?.expect).toBe('csv');
       if (failing.includes(url)) throw new Error(`download failed: ${url}`);
@@ -404,6 +592,26 @@ describe('Australian sync', () => {
     await syncAuIfis(backend(), options);
     const result = await syncAuIfis(backend({ [URL_JULY]: editedJuly(',Latteria Moro Di Moro Sergio,', ',Another Dairy,') }), options);
     expect(result).toMatchObject({ rowsInserted: 1, rowsUpdated: 0, rowsDeleted: 1, eventsEmitted: 1 });
+  });
+
+  it('loads a June 2019 file, titling a record by its reason, and updates a corrected record of it in place', async () => {
+    const first = await syncAuIfis(backend({}, [], PACKAGE_2019), options);
+    expect(first).toMatchObject({ status: 'succeeded', rowsRead: 34, rowsInserted: 34, eventsEmitted: 34 });
+    const [mung] = await handle.db.select().from(notice).where(eq(notice.productText, 'Mung dhal'));
+    expect(mung).toMatchObject({ title: 'Mung dhal failed: Chlorpyrifos', noticeOn: '2019-06-05', originCountry: 'MM', url: URL_JUNE_2019 });
+    const [typed] = await handle.db.select().from(auFailingFood).where(eq(auFailingFood.sourceKey, mung.sourceKey));
+    expect(typed).toMatchObject({ reportMonth: '2019-06-01', testApplied: 'Fruit and vegetable residue screen', reason: 'Chlorpyrifos', resultText: '0.03 mg/kg', scheme: 'surveillance' });
+    expect(typed.hazardIds).toEqual([100]);
+
+    const line = '5/06/2019,Mung dhal,Myanmar,Ays Mfg Co Ltd,Fruit and vegetable residue screen,Chlorpyrifos,0.03,mg/kg,FSC 1.4.2';
+    const original = fixture('june-2019.csv');
+    expect(original).toContain(line);
+    const corrected = original.replace(line, line.replace(',Chlorpyrifos,', ',Chlorpyrifos detected in excess of MRL,'));
+    const second = await syncAuIfis(backend({ [URL_JUNE_2019]: corrected }, [], PACKAGE_2019), options);
+    expect(second).toMatchObject({ rowsRead: 34, rowsInserted: 0, rowsUpdated: 1, rowsDeleted: 0, eventsEmitted: 0 });
+    const [moved] = await handle.db.select().from(notice).where(eq(notice.productText, 'Mung dhal'));
+    expect(moved).toMatchObject({ id: mung.id, title: 'Mung dhal failed: Chlorpyrifos detected in excess of MRL' });
+    expect(moved.sourceKey).not.toBe(mung.sourceKey);
   });
 
   it('writes nothing when a file lacks a required column', async () => {
