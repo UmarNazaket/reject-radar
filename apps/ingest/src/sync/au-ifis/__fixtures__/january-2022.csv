@@ -1,0 +1,24 @@
+﻿Category   ,Date of fail,Product description,Country of origin,Producer name,Test applied,Reason for fail,Result/s,Units,Reference,Holding order number
+Risk,4/01/2022,Sesame seed,India,Pramukh Food Exports Pvt Ltd,Salmonella,Salmonella detected.,Detected,/125g,SES 05/2014,N/A
+Surveillance,5/01/2022,Cream crackers,Malaysia,Mondelez Malaysia Sales Snd Bhd,Composition,Vitamin B12 and Iodine not permitted in this food.,N/A,N/A,FSC 1.3.2,HO match 17378
+Risk,6/01/2022,Dried herring,Philippines,Yang Yang Food Products,Histamine,Histamine detected in excess of level permitted.,513,mg/kg,HIS 12/2016,N/A
+Risk,7/01/2022,Dried seaweed,China,Tesana Trading Ltd (Hong Kong),Iodine,Iodine detected in excess of level permitted.,3440,mg/kg,BSW 12/2016,N/A
+Risk,10/01/2022,Roasted sesame seed,Nepal,Sagoon Export Nepal Pvt Ltd,Visual,The food is not suitable for its reasonable intended use - insect infestation.,N/A,N/A,Imported Food Control Act Section 3(2) ,N/A
+Risk,13/01/2022,Mussels,Fiji,Green Isle Exporters Fiji,Escherichia coli (E. coli),E. coli detected in excess of levels permitted.,">110, <2.3, >110, 46, 2.3",MPN/g,MOL 12/2021,N/A
+Surveillance,14/01/2022,Soybeans,Taiwan,Fu Hong Foods Enterprise Co Ltd,Fruit and vegetable residue screen,Indoxacarb detected in excess of maximum residue limit.,0.06,mg/kg,FSC 1.4.2,17582
+Risk,14/01/2022,"Bracken fern, Pteridium aquilinum",Korea Republic of,Yong In Yu Tong,Composition,Prohibited plant - Pteridium aquilinum,N/A,N/A,FSC 1.4.4,N/A
+Risk,17/01/2022,Pistachio kernel,Iran Islamic Republic of,Ratin Khosh Co,Aflatoxin,Aflatoxin detected in excess of level permitted.,0.027,mg/kg,NUT 11/2018,N/A
+Surveillance,17/01/2022,Frozen soft shell crab,Myanmar,Mef International Company Limited,Nitrofurans,Nitrofurazone  not permitted in this food.,0.002,mg/kg,FSC 1.4.2,HO match 17414
+Risk,18/01/2022,Seasoned seaweed,Japan,Kurakon Foods Corporation,Iodine,Iodine detected in excess of level permitted.,4800,mg/kg,BSW 12/2016,N/A
+Surveillance,19/01/2022,Apple juice drink & guyabano juice drink,Philippines,Harman Foods Phils Inc,Composition,Zinc not permitted in this food.,N/A,N/A,FSC 1.3.2,17592
+Surveillance,19/01/2022,Chocolate milk drink,Philippines,Nestle,Composition,Zinc not permitted in this food.,N/A,N/A,FSC 1.3.2,17593
+Surveillance,19/01/2022,Chocolate milk drink,Philippines,Nestle,Composition,Vitamin B1 not permitted in this food.,N/A,N/A,FSC 1.3.2,17593
+Risk,19/01/2022,Parched peanut powder,Taiwan,Sunright Foods Corporation,Aflatoxin,Aflatoxin detected in excess of level permitted.,"0.011 (product contains 42% peanut, therefore the calculated maximum level is 0.006)",mg/kg,NUT 11/2018,N/A
+Surveillance,20/01/2022,Pickled sliced turnip,Lebanon,Jean Raad for Industries and Trade,Composition,Additive E123 not permitted in this food.,N/A,N/A,FSC 1.3.1,HO match 15969
+Risk,24/01/2022,Kashmir chilli powder mild,India,Desai Brothers,Salmonella,Salmonella detected.,Detected,/125g,SPI 06/2019,N/A
+Risk,25/01/2022,Tapioca chips - salsa masala flavour & classic salt flavour,India,Kvr Traders,Hydrocyanic acid,Hydrocyanic acid detected in excess of level permitted.,"11, 18",mg/kg,CAS 09/2016,N/A
+Risk,25/01/2022,Salted roasted peanuts,China,Chaofeng Food Pty,Aflatoxin,Aflatoxin detected in excess of level permitted.,0.17,mg/kg,NUT 11/2018,N/A
+Risk,27/01/2022,Salty peanuts,China,Dongguan City Shaerge Food Co Ltd,Aflatoxin,Aflatoxin detected in excess of level permitted. ,0.018,mg/kg,NUT 11/2018,N/A
+Risk,27/01/2022,Chilli powder,India,Miltop Exports (India),Salmonella,Salmonella detected.,Detected,/125g,SPI 06/2019,N/A
+Risk,27/01/2022,Roasted peanuts - fermented bean curd flavour,China,Foshan City Shunde District Ronggui Guangjilong Foodstuff Co Ltd,Aflatoxin,Aflatoxin detected in excess of level permitted.,0.26,mg/kg,NUT 11/2018,N/A
+Surveillance,31/01/2022,Red grapefruit,United States,Johnston Farms,Fruit and vegetable residue screen,Carbaryl detected in excess of maximum residue limit.,0.64,mg/kg,FSC 1.4.2,17616

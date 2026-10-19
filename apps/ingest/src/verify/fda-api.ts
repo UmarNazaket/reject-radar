@@ -1,4 +1,4 @@
-import { userAgent } from './fetch-file';
+import { SourceFetchError, type Fetcher } from '../core/http';
 
 export const FDA_REFUSALS_URL = 'https://api-datadashboard.fda.gov/v1/import_refusals';
 export const FDA_MAX_ROWS = 5000;
@@ -17,6 +17,10 @@ export interface FdaPageRequest {
   start?: number;
   rows?: number;
   countTotal?: boolean;
+  /** Only these ProductCategory values; the filter is left out when empty or unset. */
+  productCategories?: readonly string[];
+  /** Column to sort by (ascending); unsorted when unset. */
+  sort?: string;
 }
 
 export interface FdaPage {
@@ -35,10 +39,12 @@ export interface FdaResponse {
 
 /** Required keys are always sent; optional keys only when used (https://datadashboard.fda.gov/oii/api/index.htm). */
 export function buildRefusalsBody(req: FdaPageRequest): Record<string, unknown> {
+  const filters: Record<string, unknown> = { RefusalDateFrom: [req.from], RefusalDateTo: [req.to] };
+  if (req.productCategories && req.productCategories.length > 0) filters['ProductCategory'] = [...req.productCategories];
   const body: Record<string, unknown> = {
     columns: [],
-    filters: { RefusalDateFrom: [req.from], RefusalDateTo: [req.to] },
-    sort: '',
+    filters,
+    sort: req.sort ?? '',
     sortorder: 'asc',
     rows: Math.min(req.rows ?? FDA_MAX_ROWS, FDA_MAX_ROWS),
     start: req.start ?? 1,
@@ -63,27 +69,29 @@ export function interpretFdaResponse(body: FdaResponse): FdaPage {
   throw new Error(`FDA API error ${body.statuscode ?? 'unknown'}: ${body.message ?? 'no message'}${details ? ` (${details})` : ''}`);
 }
 
-export async function fetchRefusalsPage(
-  creds: FdaCredentials,
-  req: FdaPageRequest,
-  fetchImpl: typeof fetch = fetch,
-): Promise<FdaPage> {
-  const response = await fetchImpl(FDA_REFUSALS_URL, {
+export async function fetchRefusalsPage(fetcher: Fetcher, creds: FdaCredentials, req: FdaPageRequest): Promise<FdaPage> {
+  // The Data Dashboard reports its own errors as JSON with a 4xx status, so let those through and interpret the body.
+  const response = await fetcher(FDA_REFUSALS_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization-User': creds.user,
       'Authorization-Key': creds.key,
-      'User-Agent': userAgent(),
     },
     body: JSON.stringify(buildRefusalsBody(req)),
+    expect: 'json',
+    acceptClientErrors: true,
   });
-  const text = await response.text();
+  const text = response.text();
   let body: FdaResponse;
   try {
     body = JSON.parse(text) as FdaResponse;
   } catch {
-    throw new Error(`FDA API returned HTTP ${response.status} with a body that is not JSON: ${text.slice(0, 200)}`);
+    throw new SourceFetchError(`FDA API returned HTTP ${response.status} with a body that is not JSON: ${text.slice(0, 200)}`, response.status, FDA_REFUSALS_URL);
   }
-  return interpretFdaResponse(body);
+  try {
+    return interpretFdaResponse(body);
+  } catch (error) {
+    throw new SourceFetchError(error instanceof Error ? error.message : String(error), response.status, FDA_REFUSALS_URL);
+  }
 }

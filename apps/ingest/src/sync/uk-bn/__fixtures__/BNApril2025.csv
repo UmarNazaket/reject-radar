@@ -1,0 +1,74 @@
+DateBNRaised,Country,Commodity,NetWeight,ProductCategory,ProductName,ControlledByLegislationYOrN,TypeOfConsignment,HazardCategory,TypeOfFailure,ReasonForFailure
+10/04/2025,"	Argentina","	12024200","	25170 kg",Feed materials,Groundnuts,Yes,FNAO,Mycotoxins,Mycotoxins,Physical
+01/04/2025,Poland,20713,3580 kg,Poultry meat & poultry meat products,Chicken Leg Meat Boneless/Skin on,Yes,POAO,Mycrobiological ,Mycrobiological ,Physical 
+01/04/2025,India,9092100,513 kg,Herbs & spices,"	Coriander Seeds",Yes,FNAO,"	Pesticide residues",Pesticide residues ,Physical 
+01/04/2025,Italy,2101950,129.98 kg,Meat & meat products,Salumi - Speck,Yes,FNAO,Documentary Checks,Documentary ,Documentary
+03/04/2025,"	Romania",2089030,33 kg,Meat & meat products,"	Frozen Venison Mince",Yes,POAO,Documentary Checks,Documentary ,Documentary
+03/04/2025,United Arab Emirates,,"	3600 kg",Non-alcoholic beverages,Mountain Dew,No,FNAO,Composition,Composition,Physical 
+03/04/2025,United Arab Emirates,,7200 kg,Non-alcoholic beverages,Mirinda Soft Drink,No,FNAO,Composition,Composition,Physical
+04/04/2025,India,09093200,30 kg,Herbs & spices,Cumin seeds,Yes,FNAO,Documentary,Documentary,Documentary
+04/04/2025,Ghana ,305,955 kg,Fish & fish products,"	Smoked, salted,dried fish",Yes,POAO,Documentary Checks,Documentary ,Documentary
+04/04/2025,India,12024200 ,25000 kg,Feed materials,Indian HPS Groundnut Kernels - Animal Feed,Yes,FNAO,Mycotoxins,Mycotoxins,Physical
+07/04/2025,"	Greece","	03052000 ","	7 kg",Fish & fish products,"	Fish. Mullet Eggs",Yes,POAO,"	Documentary Checks",Documentary ,Documentary
+07/04/2025,Turkey,2008199320 ,810 kg,"	Nuts, nut products & seeds","	Pistachios Roasted and Salted",Yes,FNAO,"	Mycotoxins",Mycotoxins,Physical
+07/04/2025,Italy,"	1502109090 ","	16738 kg","	Meat & meat products","	GRASSO OVINO CONG SF",Yes,POAO,"	Documentary Checks",Documentary ,Documentary
+08/04/2025,USA,190490,1989kg,Cereals & bakery products,Trix Fruity shapes cereal and Trix Fruity shpaes mini's cereal,No,POAO,Food additives & flavourings,,
+08/04/2025,Sri Lanka,0709999035,90kg,Fruits & vegetables,Mukunuwenna,Yes,FNAO,Pesticide residues,Pesticide residues,Physcial
+08/04/2025,India,0708200010,40kg,Fruits & vegetables,Yard Long Beans,Yes,FNAO,Pesticide residues,Pesticide residues,Physcial
+09/04/2025,India,12024200,25000kg,Feed materials,Shelled Groundnuts,Yes,FNAO,Mycotoxins,Aflatoxins,Physcial
+10/04/2025,France,02061098,40.51kg,Meat & meat products (other than poultry),"Foie De Veau Francais, Langue De Veau, Rognon De Veau Piece- Veal",Yes,POAO,Documentary checks,Documentary checks,Documentary
+10/04/2025,France,"	02102090","	41.6 kg",Meat & meat products (other than poultry),"Foie De Veau Francais, Langue De Veau, Rognon De Veau Piece- Veal",Yes,POAO,Documentary checks,Documentary checks,Documentary
+10/04/2025,Taiwan,"	jelly confectionery",462 kg,"	Confectionery",Coffee Jelly,No,FNAO,Food additives and flavourings ,Physical check,Physical
+10/04/2025,Turkey,08042090 ,1771.2 kg,"	Fruits & vegetables",Figues Lerida,Yes,FNAO,"	Mycotoxins",Documentary,Documentary
+10/04/2025,Egypt,80510,24960 kg,Fruits & vegetables,Fresh Oranges,Yes,FNAO,Pesticide residues,Pesticide residues,Physical
+10/04/2025,"	Nigeria","	07133500","	480 kg",,Cow Peas,Yes,FNAO,"	Documentary Checks",Documentary Checks,Documentary Checks
+10/04/2025,Nigeria,,600 kg,Non-alcoholic beverages,Teem Bitter Lemon Flavoured Sweetened Carbonated Beverage,No ,FNAO,Food additives ,Food additives & flavourings,Physical
+11/04/2025,Pakistan,9109190,941.04 kg,Herbs & spices,"Various mixed spices.
+Cumin, Masala, Fenugreek etc. ",Yes,FNAO,Documentary checks,Documentary Checks,Documentary Checks
+12/04/2025,Hungary,160100,22.5 kg,Meat & meat products,Füstölt tarjafilé (Cured turkey meat),Yes,POAO,Documentary checks,Documentary Checks,Documentary Checks
+12/04/2025,Hungary,2101981,112.9 kg,Meat & meat products,Füstölt hátsó csülök (Smoked ham hock),Yes,POAO,Documentary checks,Documentary Checks,Documentary Checks
+12/04/2025,Germany,02064900,16945.5kg,Meat & meat products,Porcine raw meat,Yes,POAO,Documentary checks,Documentary Checks,Documentary Checks
+12/04/2025,Ghana,03053990,49kg,Fish & fish products,Fish,Yes,POAO,Parasitic infestation,Physcial checks,Physcial
+12/04/2025,Vietnam,0810902010,2kg,Fruits & vegetables,Dragon Fruit,Yes,FNAO,Documentary checks,Documentary Checks,Documentary Checks
+12/04/2025,Ghana,12024200,84.5kg,Fruits & vegetables,Groundnuts,Yes,FNAO,Identity Checks,Documentary Checks,Documentary Checks
+12/04/2025,Vietnam,0709609920,14kg,Fruits & vegetables,Chillies,Yes,FNAO,Documentary checks,Documentary Checks,Documentary Checks
+12/04/2025,Ghana,15119099,38kg,Other food product/mixed,Palm oil,Yes,FNAO,Not determined / other,Physcial checks,Physcial checks
+12/04/2025,Vietnam,0709609920,8.5kg,Fruits & vegetables,Chilles,Yes,FNAO,Documentary checks,Documentary Checks,Documentary Checks
+12/04/2025,Vietnam,0709609920,5.26kg,Fruits & vegetables,Chilles,Yes,FNAO,Documentary checks,Documentary Checks,Documentary Checks
+14/04/2025,Kenya,,305kg,"Soups, broths, sauces & condiments",Tomato Sauce,No,FNAO,Food additives & flavourings,Physcial checks,Physcial checks
+14/04/2025,Sri Lanka,0709999035,9kg,Fruits & vegetables,Mukunuwenna/Brazilian spinach,Yes,FNAO,Documentary checks,Documentary Checks,Documentary Checks
+17/04/2025,Poland,020713,5600kg,Poultry meat & poultry meat products,Chilled chicken breast,Yes,POAO,Pathogenic micro-organisms,Physcial checks,Physcial checks
+14/04/2025,India,0909,88.2kg,Herbs & spices,Whole cumin - Can 400 ccm,Yes,FNAO,not determined / other,Not determined,informing authorities
+15/04/2025,Nigeria,,830kg,Non-alcoholic beverages,Bitter Lemon Drink,No,,Composition,,
+15/04/2025,India,09042200019,10000kg,Herbs & spices,Crushed chilli,Yes,FNAO,Mycotoxins,Physcial checks,Physcial checks
+16/04/2025,India,12024200,25000kg,"Nuts, nut products & seeds",Indian HPS Groundnut Kernels,Yes,FNAO,Mycotoxins,Physcial checks,Physcial checks
+16/04/2025,India,12024200,25000kg,Feed materials,Indian HPS Groundnuts Feed,Yes,FNAO,Mycotoxins,Physcial checks,Physcial checks
+17/04/2025,India,09092200,720kg,Herbs & spices,Coriander Powder,Yes,FNAO,Chemical contamination ,Chemical contamination,Physcial checks
+17/04/2025,USA,12024200,19958.3kg,"Nuts, nut products & seeds",Shelled peanuts,Yes,FNAO,Mycotoxins,Physcial checks,Physcial checks
+17/04/2025,Taiwan,,6624kg,non-alcholic beverages,"Pocas Bubble Tea Honeydew, Taro and Thai Tea Flavours",Yes,FNAO,Composition,Composition,Physical
+17/04/2025,India,0708200010,30kg,Fruits & vegetables,Long Beans (India),Yes,FNAO,Pesticide residues,Physcial checks,Physcial checks
+17/04/2025,Spain,160416,103.6kg,Fish & fish products,Marinated white anchovies 600g sealed tray,Yes,POAO,Documentary checks,Documentary checks,Documentary Checks
+22/04/2025,Nigeria,,50kg,non-alcholic beverages,Bitter Lemon,No,FNAO,Composition,Physcial checks,Physcial checks
+22/04/2025,Nigeria,,unknown,"Nuts, nut products & seeds",Beans,Yes,Banned commodity,Mycotoxins,Physcial checks,Physcial checks
+23/04/2025,China,2103 90 90 89,1200kg,other food product / mixed,Traditional Bean Curd,No,FNAO,Pathogenic micro-organisms,Physcial checks,Physcial checks
+23/04/2025,Nigeria,,8000kg,Fruits and vegetables,Non-declared Beans,Yes,Banned commodity,Documentary,Documentary,Documentary
+23/04/2025,Seychelles,030232,539.2kg,Fish and fish products,"FISH AND CRUSTACEANS, MOLLUSCS AND OTHER AQUATIC INVERTEBRATES",Yes,POAO,Documentary checks,Documentary checks,Documentary Checks
+24/04/2025,Ghana,,270kg,"Nuts, nut products & seeds",Groundnut paste,Yes,FNAO,Documentary checks,Documentary checks,Documentary checks
+24/04/2025,India,09096100,240kg,Herbs and spices,Fennel,Yes,FNAO,Pesticide residues,Physcial checks,Physcial checks
+24/04/2025,India,0909,1200kg,Herbs and spices,Cumin Whole,Yes,FNAO,Pesticide residues,Physcial checks,Physcial checks
+24/04/2025,India,0908,30kg,Herbs and spices,Cardamom Black,Yes,FNAO,Pesticide residues,Physcial checks,Physcial checks
+24/04/2025,Vietnam,,215kg,other food product / mixed,Sting Energy Drink,No,FNAO,Food additives & flavourings,Food additives & flavouring,Physical
+25/04/2025,Dominican Republic,0709609920,50kg,Fruits and vegetables,Peppers,Yes,FNAO,Pesticide residues,Physcial checks,Physcial checks
+25/04/2025,Dominican Republic,0709609920,1418kg,Fruits and vegetables,Peppers,Yes,FNAO,Pesticide residues,Physcial checks,Physcial checks
+26/04/2025,Nigeria,,70.6kg,Fish and fish products,Mackerel and Sardines,Yes,POAO,Not determined / other,,
+29/04/2025,Pakistan,,1000kg,"Soups, broths, sauces and condiments",Mint Chutney,No,FNAO,Food additives & flavourings,Physcial checks,Physcial checks
+29/04/2025,Egypt,,1000kg,Fruits and vegetables,Fresh Chilli peppers,Yes,FNAO,Pesticide residues,Physcial checks,Physcial checks
+30/04/2025,South Africa,,1152kg,Non-alcoholic beverages,Pine Nut Soft Drink,No,FNAO,Food additives & flavourings,Physcial checks,Physcial checks
+30/04/2025,South Africa,,345 kg,Non-alcoholic beverages,Fanta,No,FNAO,Food additives & flavourings,Physcial checks,Physcial checks
+30/04/2025,South Africa,,576 kg,Non-alcoholic beverages,Fanta,No,FNAO,Food additives & flavourings,Physcial checks,Physcial checks
+30/04/2025,South Africa,,3800 kg,Non-alcoholic beverages,Sparletta Cream Soda Cans,No,FNAO,Food additives & flavourings,Physcial checks,Physcial checks
+30/04/2025,South Africa,,845 kg,Non-alcoholic beverages,Sparletta Cream Soda,No,FNAO,Food additives & flavourings,Physcial checks,Physcial checks
+30/04/2025,South Africa,,2304 kg,Non-alcoholic beverages,Sparletta Cream Soda,No,FNAO,Food additives & flavourings,Physcial checks,Physcial checks
+30/04/2025,India,904220019,10000 kg,Herbs and spices,Crushed Chillies,Yes,FNAO,Mycotoxins,Physcial checks,Physcial checks
+,,,,,,,,,,
+,,,,,,,,,,

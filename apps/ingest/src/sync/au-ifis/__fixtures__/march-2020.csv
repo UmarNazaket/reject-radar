@@ -1,0 +1,64 @@
+Risk food tests,,,,,,,,,
+Date of fail,Product description,Country of origin,Producer name,Reason for fail,Result/s,Units,Reference,,
+3/03/2020,Kashmiri chilli powder,India,Brahmins Foods India (P) Ltd,Salmonella,Detected,/125g,SPI 06/2019,,
+11/03/2020,Frozen boiled king crab legs,Japan,Yutaka Suisan,Listeria monocytogenes,Detected,/125g,CRU 03/2019,,
+2/03/2020,Caffeine tablets,United States,Arnet Pharmaceuticals,Caffeine,30.8,g/100g,CAF 12/2019,,
+16/03/2020,Powdered herring,Ghana,Gorgino Enterprise,Histamine,292,mg/kg,HIS 12/2016,,
+17/03/2020,Curry paste,Thailand,D&G Food Supply Co Ltd,Aflatoxin,0.244,mg/kg,NUT 11/2018,,
+27/03/2020,Peanut satay sauce,Indonesia,Pt Enak Jaya Makmur (Indonesia),Aflatoxin,0.041,mg/kg,NUT 11/2018,,
+30/03/2020,Formulated supplementary sports food,United States,Granite Supplements,Caffeine,10,g/100g,CAF 12/2019,,
+30/03/2020,Formulated supplementary sports food,United States,Granite Supplements,Caffeine,8.33,g/100g,CAF 12/2019,,
+,,,,,,,,,
+30/03/2020,Peanut masala,India,Malabar Natural Foods Pvt Ltd,Aflatoxin,0.022,mg/kg,NUT 11/2018,,
+30/03/2020,Peanut candy bar,India,Malabar Natural Foods Pvt Ltd,Aflatoxin,0.012,mg/kg,NUT 11/2018,,
+,,,,,"(product contains 75% peanut, therefore the calculated maximum level is 0.011)",,,,
+,,,,,,,,,
+,,,,,,,,,
+,,,,,,,,,
+,,,,,,,,,
+Surveillance food tests,,,,,,,,,
+Date of fail,Product description,Country of origin,Producer name,Test applied ,Reason for fail,Result/s,Units,Reference,Holding order number
+2/03/2020,Dried elberta peaches halves,South Africa,Ceres Fruit Juices Pty Ltd (South Africa),Fruit and vegetable residue screen,Thiabendazole,0.046,mg/kg,FSC 1.4.2,15803
+2/03/2020,Frozen dried longan,Thailand,Tanaya International Co Ltd,Fruit and vegetable residue screen,Carbendazim,0.055,mg/kg,FSC 1.4.2,HO match
+2/03/2020,Frozen dried longan,Thailand,Tanaya International Co Ltd,Fruit and vegetable residue screen,Carbendazim,0.19,mg/kg,FSC 1.4.2,HO match
+5/03/2020,Fresh naval oranges,Egypt,El Rawan Co For Import & Export,Fruit and vegetable residue screen,Cyhalothrin,0.071,mg/kg,FSC 1.4.2,HO match
+4/03/2020,Pan masala,India,Dharampal Satyapal Ltd,Composition,Areca catechu,Prohibited plant,n/a,FSC 1.4.4,15730
+4/03/2020,Dried strawberries,Iran,Ratin Khosh Co,Fruit and vegetable residue screen,Carbendazim,0.12,mg/kg,FSC 1.4.2,15731
+6/03/2020,Dried longan meat,Thailand,Reanthong Agro Product Limited Partnership,Fruit and vegetable residue screen,Carbendazim,0.13,mg/kg,FSC 1.4.2,15734
+18/03/2020,Frozen green chillies,India,Arctic Agro Foods Pvt Ltd,Fruit and vegetable residue screen,Cyhalothrin,0.02,mg/kg,FSC 1.4.2,HO match
+18/03/2020,Frozen green chillies,India,Arctic Agro Foods Pvt Ltd,Fruit and vegetable residue screen,"Cyhalothrin
+
+Tebuconazole
+","0.03
+
+0.07
+",mg/kg,FSC 1.4.2,HO match
+17/03/2020,Chana dhal,Sri Lanka,Colombo Commodities,Fruit and vegetable residue screen,Pirimiphos Methyl,0.16,mg/kg,FSC 1.4.2,15759
+27/02/2020,Cereal,Japan,"Calbee, Inc.",Composition,"Vitamin B12
+ 
+Ferric Sodium Citrate
+",Not permitted in this food,n/a,FSC 1.3.2,15720
+24/03/2020,Bhindi (baby okra),India,Global Gourmet Pvt Ltd,Fruit and vegetable residue screen,Monocrotophos,"0.073
+
+Not permitted in this food",mg/kg,FSC 1.4.2,15768
+24/03/2020,Instant coffee mix with collagen,Thailand,New Concept Product Co.,Composition,Vitamin C,Not permitted in this food,n/a,FSC 1.3.2,15769
+24/03/2020,Instant coffee mix with white kidney bean extract,Thailand,New Concept Product Co.,Composition,"Vitamin B1, B2 and B6",Not permitted in this food,n/a,FSC 1.3.2,15769
+24/03/2020,Frozen spinach,India,Global Gourmet Pvt Ltd,Fruit and vegetable residue screen,"Chlorpyrifos
+
+Profenofos
+","0.67
+
+0.034
+",mg/kg,FSC 1.4.2,HO match
+25/03/2020,Frozen okra,Egypt,United Co. For Food Industry(Sae),Fruit and vegetable residue screen,Chlorpyrifos,0.02,mg/kg,FSC 1.4.2,HO match
+24/03/2020,Frozen surti papdi (whole indian  beans),India,Global Gourmet Pvt Ltd,Fruit and vegetable residue screen,Profenofos,0.047,mg/kg,FSC 1.4.2,15773
+25/03/2020,Seasoning,Vietnam,Thao Nhi Import Export Company Limited,Composition,Vitamin A,Not permitted in this food,n/a,FSC 1.3.2,15777
+30/03/2020,Dietary supplement,United States,Spectrum Labs,Composition,St John’s wort extract (Hypericum perforatum),Restricted plant,n/a,FSC 1.4.4,15784
+30/03/2020,Frozen mixed fruit ,Canada,Nature's Touch Frozen Foods Inc,Fruit and vegetable residue screen,Tau-fluvalinate,"0.11
+
+Not permitted in this food",mg/kg,FSC 1.4.2,15793
+30/03/2020,Sardines in tomato sauce with chilli,Philippines,Chattrade Enterprises,Composition,"Additive E160b 
+(annatto)
+",Not permitted in this food,n/a,FSC 1.3.1,n/a*
+,,,,,,,,,
+* Risk food which failed a non-analytical test. Does not require a holding order.,,,,,,,,,

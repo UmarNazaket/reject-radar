@@ -1,0 +1,2 @@
+ALTER TABLE "import_alert_listing_product" ADD COLUMN "problems" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
+ALTER TABLE "import_alert_listing_product" ADD COLUMN "position" smallint;

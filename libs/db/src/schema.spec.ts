@@ -8,7 +8,7 @@ const EXPECTED_TABLES = [
   'eu_pesticide_residue', 'fda_charge_code', 'fda_refusal', 'firm', 'firm_alias', 'firm_fei', 'hazard', 'hazard_rule',
   'import_alert', 'import_alert_listing', 'import_alert_listing_product', 'import_alert_summary', 'invite', 'job_cursor',
   'lookup_log', 'match_review', 'membership', 'notice', 'notification_pref', 'org', 'paddle_event', 'rasff_notification',
-  'refresh_token', 'source_sync_run', 'subscription', 'uk_border_notification', 'usage_counter', 'watchlist_item',
+  'refresh_token', 'source_file', 'source_sync_run', 'subscription', 'uk_border_notification', 'usage_counter', 'watchlist_item',
 ];
 
 const ORG_A = '0192c7a0-0000-7000-8000-0000000000a1';
@@ -27,7 +27,7 @@ describe('database schema (spec §7)', () => {
     await client.end();
   });
 
-  it('creates exactly the 43 tables in spec §7', async () => {
+  it('creates exactly the 44 tables in spec §7', async () => {
     const { rows } = await client.query<{ table_name: string }>(
       "select table_name from information_schema.tables where table_schema = 'public'",
     );
@@ -139,6 +139,75 @@ describe('database schema (spec §7)', () => {
       const usable = rows.some((r) => /\(org_id[,)]/.test(r.indexdef) && !r.indexdef.includes(' WHERE '));
       expect({ table, usable }).toEqual({ table, usable: true });
     }
+  });
+
+  const noticeInsert = (source: string, destination: string, noticeType: string) =>
+    client.query(
+      "insert into notice (source, source_key, destination, notice_type, notice_on) values ($1, 'k', $2, $3, '2026-01-01')",
+      [source, destination, noticeType],
+    );
+  const eventInsert = (kind: string, severity: string) =>
+    client.query(
+      "insert into change_event (source, source_key, kind, severity, occurred_on) values ('fda_refusal', 'k', $1, $2, '2026-01-01')",
+      [kind, severity],
+    );
+
+  it.each([
+    ['notice.source', () => noticeInsert('bogus', 'US', 'refusal')],
+    ['notice.destination', () => noticeInsert('fda_refusal', 'XX', 'refusal')],
+    ['notice.notice_type', () => noticeInsert('fda_refusal', 'US', 'bogus')],
+    [
+      'change_event.source',
+      () =>
+        client.query(
+          "insert into change_event (source, source_key, kind, severity, occurred_on) values ('bogus', 'k', 'fda_refusal', 'high', '2026-01-01')",
+        ),
+    ],
+    ['change_event.kind', () => eventInsert('bogus', 'high')],
+    ['change_event.severity', () => eventInsert('fda_refusal', 'low')],
+    [
+      'change_event.destination',
+      () =>
+        client.query(
+          "insert into change_event (source, source_key, kind, severity, occurred_on, destination) values ('fda_refusal', 'k', 'fda_refusal', 'high', '2026-01-01', 'XX')",
+        ),
+    ],
+    ['source_sync_run.source', () => client.query("insert into source_sync_run (source, status) values ('bogus', 'running')")],
+    ['source_sync_run.status', () => client.query("insert into source_sync_run (source, status) values ('rasff', 'done')")],
+    [
+      'import_alert_listing.list',
+      () =>
+        client.query(
+          "insert into import_alert_listing (listing_key, alert_number, list, firm_name, name_norm, first_seen_on, last_seen_on) values ('k2', '99-08', 'blue', 'Acme', 'acme', '2026-10-01', '2026-10-01')",
+        ),
+    ],
+    [
+      'commodity_rule.match_type',
+      () => client.query("insert into commodity_rule (source, field, match_type, pattern, commodity_id) values ('rasff', 'f', 'regex', 'p', 1)"),
+    ],
+    [
+      'commodity_rule.source',
+      () => client.query("insert into commodity_rule (source, field, match_type, pattern, commodity_id) values ('bogus', 'f', 'exact', 'p', 1)"),
+    ],
+    [
+      'hazard_rule.match_type',
+      () => client.query("insert into hazard_rule (source, field, match_type, pattern, hazard_id) values ('rasff', 'f', 'regex', 'p', 1)"),
+    ],
+    [
+      'hazard_rule.source',
+      () => client.query("insert into hazard_rule (source, field, match_type, pattern, hazard_id) values ('bogus', 'f', 'exact', 'p', 1)"),
+    ],
+    ['source_file.source', () => client.query("insert into source_file (source, url, sha256, rows) values ('bogus', 'https://x', 'abc', 3)")],
+  ])('rejects an unknown value for %s', async (_column, run) => {
+    await expect(run()).rejects.toMatchObject({ code: '23514' });
+  });
+
+  it('records a loaded source file with a default load time', async () => {
+    const { rows } = await client.query<{ loaded_at: Date }>(
+      "insert into source_file (source, url, sha256, rows) values ('uk_bn', 'https://x', 'abc', 3) returning loaded_at",
+    );
+    expect(rows[0].loaded_at).toBeInstanceOf(Date);
+    expect(Math.abs(Date.now() - rows[0].loaded_at.getTime())).toBeLessThan(60_000);
   });
 
   it('keeps pool settings that let Neon scale to zero (spec §5.4)', () => {

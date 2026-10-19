@@ -1,0 +1,1 @@
+ALTER TABLE "source_sync_run" ADD COLUMN "partial" boolean DEFAULT false NOT NULL;

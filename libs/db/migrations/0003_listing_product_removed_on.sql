@@ -1,0 +1,1 @@
+ALTER TABLE "import_alert_listing_product" ADD COLUMN "removed_on" date;

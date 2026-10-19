@@ -1,0 +1,26 @@
+﻿Table 1 Risk food test results,,,,,,,,,
+Date of fail,Product description,Country of origin,Producer name,,Reason for fail,Result/s,Units,Reference,
+2/11/2021,Seasoned seaweed,Japan,Kurakon Foods Corporation,,Iodine,3800,mg/kg,BSW 12/2016 ,
+26/11/2021,Dried fish,Zambia,Kiza Enterprises,,The food is not suitable for its reasonable intended use. Insect infestation.,N/A,N/A,Imported Food Control Act Section 3(2),
+8/12/2021,Dried sardinella,Sri Lanka,Ceylon First Exports (Pvt) Ltd,,Histamine,240,mg/kg,HIS 12/2016,
+14/12/2021,Dry red chillies,India,Srinivasa Exports,,The food is not suitable for its reasonable intended use – mould.,N/A,N/A,Imported Food Control Act Section 3(2),
+23/12/2021,Dried betel nut,Thailand,Wilaiwan,,Prohibited plant –Areca catechu nut,N/A,N/A,FSC 1.4.4,
+Table 2 Surveillance food test results,,,,,,,,,
+Date of fail,Product description,Country of origin,Producer name,Test applied,Reason for fail,Result/s,Units,Reference,Holding order number
+12/11/2021 ,Frozen durian,Vietnam,Song Tran Import and Export Co Ltd,Fruit and vegetable residue screen,Carbendazim not permitted in this food,0.17,mg/kg,FSC 1.4.2,Holding order match 17360
+3/12/2021,Fresh lemon,Egypt,Orange For Agricultural Crops,Fruit and vegetable residue screen,Propargite not permitted in this food,0.05,mg/kg,FSC 1.4.2,Holding order match 16705
+8/12/2021,Electrolyte drink mix - watermelon/lemonade/raspberry,United States,Ultima Health Products Inc,Composition,Zinc citrate and manganese citrate not permitted in this food,N/A,N/A,FSC 1.3.2,17515
+9/12/2021,Acacia honey,Serbia,Med-Honey Doo,C4 adulteration  ,Evidence of blended or artificial honey being misrepresented as honey,29.2,%,FSC 2.8.2,Holding order match 15398
+10/12/2021,Fresh betel leaves,India,Fresh Jasmines Export And Import Pvt Ltd,Fruit and vegetable residue screen,Chlorpyrifos detected in excess of MRL,1.89,mg/kg,FSC 1.4.2,Holding order match 15412
+10/12/2021,Red wine and garlic sprinkle,South Africa,Flippen Lekka Spice,Composition,Additive Colour (E127) not permitted in this food,N/A,N/A,FSC 1.3.1,Holding order match 17170
+13/12/2021,Frozen whole durian,Thailand,Sunshine International Co Ltd,Fruit and vegetable residue screen,Procymidone not permitted in this food,0.77,mg/kg,FSC 1.4.2,Holding order match 17363
+16/12/2021,Fish cake,Japan,S-Around Inc.,Composition,Additive Erythrosine E127 not permitted in this food,N/A,N/A,FSC 1.3.1,Composition fail for a risk food
+17/12/2021,Baby okra,India,Chetak Melbourne Pty Ltd,Fruit and vegetable residue screen,Tebuconazole detected in excess of MRL,0.08,mg/kg,FSC 1.4.2,17530
+20/12/2021,Fresh garlic sprouts,China,Aohua Produce (Shandong) Co Ltd,Fruit and vegetable residue screen,Iprodione detected in excess of MRL,0.54,mg/kg,FSC 1.4.2,17531
+20/12/2021,Frozen red chilli,Vietnam,Nguyen Thanh Iep Co Ltd,Fruit and vegetable residue screen,Heptachlor not permitted in this food ,0.11,mg/kg,FSC 1.4.2,17544
+20/12/2021,Frozen red chilli,Vietnam,Nguyen Thanh Iep Co Ltd,Fruit and vegetable residue screen,Propiconazole detected in excess of MRL,0.17,mg/kg,,
+23/12/2021,Black harmula,"Iran, Islamic Republic of",Barg Sabz Co,Composition,Prohibited plant – Peganum harmala,N/A,N/A,FSC 1.4.4,17555
+29/12/2021,Frozen dry shrimp dumpling,China,Yunnan Moben International Trade Co Ltd,Composition,Prohibited plant - Amanita muscaria (Agaric) ,N/A,N/A,FSC 1.4.4,17554
+30/12/2021,Dried dates,China,Hong Fung Trading Co (Hong Kong),Fruit and vegetable residue screen,Cypermethrin detected in excess of MRL,0.06,mg/kg,FSC 1.4.2,17551
+30/12/2021,Dried dates,China,Hong Fung Trading Co (Hong Kong),Fruit and vegetable residue screen,Fenvalerate detected in excess of MRL,0.08,mg/kg,,
+30/12/2021,Dried figs,China,Yun Wo Medicine Trading Co,Fruit and vegetable residue screen,Dimethoate not permitted in this food,0.08,mg/kg,FSC 1.4.2,17552

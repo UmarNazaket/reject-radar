@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fakeFetcher, fetchResult } from '../core/test-fetcher';
 import { formatReport, verifySource } from './verify-source';
 
 describe('verifySource with a JSON file', () => {
@@ -33,20 +34,9 @@ describe('verifySource with a JSON file', () => {
 });
 
 describe('verifySource with the FDA API', () => {
-  const originalContact = process.env['INGEST_CONTACT_EMAIL'];
-
-  beforeAll(() => {
-    process.env['INGEST_CONTACT_EMAIL'] = 'test@example.com';
-  });
-
-  afterAll(() => {
-    if (originalContact === undefined) delete process.env['INGEST_CONTACT_EMAIL'];
-    else process.env['INGEST_CONTACT_EMAIL'] = originalContact;
-  });
-
   it('verifies refusals without touching the network', async () => {
-    const fakeFetch = (async () =>
-      new Response(
+    const { fetcher } = fakeFetcher(() =>
+      fetchResult(
         JSON.stringify({
           statuscode: 400,
           message: 'Success.',
@@ -57,7 +47,9 @@ describe('verifySource with the FDA API', () => {
             { FEINumber: 2, FirmName: 'Beta', ShipmentID: 'S1' },
           ],
         }),
-      )) as unknown as typeof fetch;
+        { contentType: 'application/json' },
+      ),
+    );
 
     const result = await verifySource({
       source: 'fda_refusals',
@@ -65,7 +57,7 @@ describe('verifySource with the FDA API', () => {
       to: '2026-07-31',
       unique: ['ShipmentID'],
       env: { FDA_API_USER: 'u', FDA_API_KEY: 'k' },
-      fetchImpl: fakeFetch,
+      fetcher,
     });
 
     expect(result.rows).toBe(2);
@@ -73,6 +65,10 @@ describe('verifySource with the FDA API', () => {
     expect(result.duplicates).toBe(1);
     expect(result.missing).toContain('RefusalDate');
     expect(result.fillRates).toMatchObject({ feinumber: 1, firmname: 1 });
+  });
+
+  it('needs a fetcher to download a file from a URL', async () => {
+    await expect(verifySource({ source: 'rasff', url: 'https://webgate.ec.europa.eu/x.json' })).rejects.toThrow('fetcher');
   });
 
   it('asks for FDA credentials when they are missing', async () => {

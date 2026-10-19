@@ -1,8 +1,21 @@
+import {
+  DESTINATIONS,
+  EVENT_KINDS,
+  LISTS,
+  NOTICE_SOURCES,
+  NOTICE_TYPES,
+  RULE_MATCH_TYPES,
+  RULE_SOURCES,
+  SEVERITIES,
+  SYNC_SOURCES,
+  SYNC_STATUSES,
+} from '@rejectradar/contracts';
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
   bigint,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -20,6 +33,10 @@ import {
 const emptyTextArray = sql`'{}'::text[]`;
 const emptyIntArray = sql`'{}'::int[]`;
 const emptyObject = sql`'{}'::jsonb`;
+
+/** `column in ('a', 'b')` built from a contracts union, so the database enforces the same values as the code. */
+const oneOf = (column: string, values: readonly string[]) =>
+  sql.raw(`${column} in (${values.map((value) => `'${value}'`).join(', ')})`);
 
 // ── Taxonomy (fixed IDs, seeded in phase 2) ─────────────────────────────────
 
@@ -50,7 +67,11 @@ export const commodityRule = pgTable(
     createdBy: uuid('created_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('commodity_rule_source_idx').on(t.source, t.field)],
+  (t) => [
+    index('commodity_rule_source_idx').on(t.source, t.field),
+    check('commodity_rule_source_ck', oneOf('source', RULE_SOURCES)),
+    check('commodity_rule_match_type_ck', oneOf('match_type', RULE_MATCH_TYPES)),
+  ],
 );
 
 export const hazard = pgTable(
@@ -77,7 +98,11 @@ export const hazardRule = pgTable(
     createdBy: uuid('created_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('hazard_rule_source_idx').on(t.source, t.field)],
+  (t) => [
+    index('hazard_rule_source_idx').on(t.source, t.field),
+    check('hazard_rule_source_ck', oneOf('source', RULE_SOURCES)),
+    check('hazard_rule_match_type_ck', oneOf('match_type', RULE_MATCH_TYPES)),
+  ],
 );
 
 // ── Firms ───────────────────────────────────────────────────────────────────
@@ -201,6 +226,8 @@ export const importAlertListing = pgTable(
     city: text('city'),
     region: text('region'),
     countryCode: text('country_code'),
+    /** The country heading as the page writes it; with the raw firm name it identifies a listing for re-keying. */
+    countryName: text('country_name'),
     listedOn: date('listed_on'),
     firstSeenOn: date('first_seen_on').notNull(),
     lastSeenOn: date('last_seen_on').notNull(),
@@ -214,6 +241,7 @@ export const importAlertListing = pgTable(
     index('import_alert_listing_name_trgm_idx').using('gin', t.nameNorm.op('gin_trgm_ops')),
     index('import_alert_listing_firm_idx').on(t.firmId),
     index('import_alert_listing_alert_idx').on(t.alertNumber),
+    check('import_alert_listing_list_ck', oneOf('list', LISTS)),
   ],
 );
 
@@ -229,6 +257,12 @@ export const importAlertListingProduct = pgTable(
     description: text('description'),
     listedOn: date('listed_on'),
     notes: text('notes'),
+    /** The problems the page lists for the product, in full (`notes` is cut at 1,000 characters); the taxonomy classifies on these. */
+    problems: text('problems').array().notNull().default(emptyTextArray),
+    /** 0-based place of the product among its listing's products on the page at the last sync; null until a sync has stored it. */
+    position: smallint('position'),
+    /** Set when the code is missing from the page; cleared when it returns. The row is kept so a return is not a new product. */
+    removedOn: date('removed_on'),
   },
   (t) => [index('import_alert_listing_product_listing_idx').on(t.listingId)],
 );
@@ -263,6 +297,8 @@ export const auFailingFood = pgTable(
     failedOn: date('failed_on'),
     productDesc: text('product_desc').notNull(),
     countryCode: text('country_code'),
+    /** The country of origin as the file writes it; a corrected record pairs on it (see `syncMonthlyFiles`). */
+    countryName: text('country_name'),
     producerName: text('producer_name'),
     nameNorm: text('name_norm').notNull().default(''),
     testApplied: text('test_applied'),
@@ -299,6 +335,8 @@ export const rasffNotification = pgTable(
     commodityId: integer('commodity_id').references(() => commodity.id),
     hazardIds: integer('hazard_ids').array().notNull().default(emptyIntArray),
     url: text('url'),
+    /** When the detail was last fetched successfully (or given up on); null means it still has to be fetched. */
+    detailsFetchedAt: timestamp('details_fetched_at', { withTimezone: true }),
   },
   (t) => [index('rasff_notification_notified_on_idx').on(t.notifiedOn)],
 );
@@ -309,6 +347,8 @@ export const ukBorderNotification = pgTable(
     sourceKey: text('source_key').primaryKey(),
     notifiedOn: date('notified_on').notNull(),
     originCountry: text('origin_country'),
+    /** The country as the file writes it; a corrected row pairs on it (see `syncMonthlyFiles`). */
+    countryName: text('country_name'),
     commodity: text('commodity'),
     productCategory: text('product_category'),
     productName: text('product_name'),
@@ -385,6 +425,10 @@ export const notice = pgTable(
     index('notice_firm_idx').on(t.firmId),
     index('notice_hazard_ids_idx').using('gin', t.hazardIds),
     index('notice_product_trgm_idx').using('gin', t.productText.op('gin_trgm_ops')),
+    index('notice_url_idx').on(t.url),
+    check('notice_source_ck', oneOf('source', NOTICE_SOURCES)),
+    check('notice_destination_ck', oneOf('destination', DESTINATIONS)),
+    check('notice_notice_type_ck', oneOf('notice_type', NOTICE_TYPES)),
   ],
 );
 
@@ -410,6 +454,11 @@ export const changeEvent = pgTable(
   (t) => [
     index('change_event_firm_idx').on(t.firmId),
     index('change_event_source_key_idx').on(t.source, t.sourceKey),
+    index('change_event_notice_idx').on(t.noticeId),
+    check('change_event_source_ck', oneOf('source', NOTICE_SOURCES)),
+    check('change_event_kind_ck', oneOf('kind', EVENT_KINDS)),
+    check('change_event_severity_ck', oneOf('severity', SEVERITIES)),
+    check('change_event_destination_ck', oneOf('destination', DESTINATIONS)),
   ],
 );
 
@@ -448,8 +497,26 @@ export const sourceSyncRun = pgTable(
     rowsDeleted: integer('rows_deleted').notNull().default(0),
     eventsEmitted: integer('events_emitted').notNull().default(0),
     error: text('error'),
+    /** True for a run limited to part of the source (`sync:import-alerts --only`); it never counts as a first load. */
+    partial: boolean('partial').notNull().default(false),
   },
-  (t) => [index('source_sync_run_source_started_idx').on(t.source, t.startedAt)],
+  (t) => [
+    index('source_sync_run_source_started_idx').on(t.source, t.startedAt),
+    check('source_sync_run_source_ck', oneOf('source', SYNC_SOURCES)),
+    check('source_sync_run_status_ck', oneOf('status', SYNC_STATUSES)),
+  ],
+);
+
+export const sourceFile = pgTable(
+  'source_file',
+  {
+    source: text('source').notNull(),
+    url: text('url').notNull(),
+    sha256: text('sha256').notNull(),
+    rows: integer('rows').notNull().default(0),
+    loadedAt: timestamp('loaded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.source, t.url] }), check('source_file_source_ck', oneOf('source', SYNC_SOURCES))],
 );
 
 export const jobCursor = pgTable('job_cursor', {

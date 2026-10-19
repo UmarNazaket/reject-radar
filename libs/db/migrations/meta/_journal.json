@@ -8,6 +8,62 @@
       "when": 1792180945902,
       "tag": "0000_initial_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792305977259,
+      "tag": "0001_ingestion_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792307406258,
+      "tag": "0002_taxonomy_seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792310035488,
+      "tag": "0003_listing_product_removed_on",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792311322766,
+      "tag": "0004_rasff_details_fetched_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792315721789,
+      "tag": "0005_listing_product_problems_position",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792337234796,
+      "tag": "0006_listing_country_name_and_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792395713011,
+      "tag": "0007_sync_run_partial",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792395869732,
+      "tag": "0008_raw_country_names",
+      "breakpoints": true
     }
   ]
 }

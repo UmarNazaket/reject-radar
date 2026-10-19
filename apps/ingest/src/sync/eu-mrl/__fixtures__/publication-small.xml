@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Pesticides><Header><Creation_Date>10/16/2026 03:03:20 am</Creation_Date></Header><Substances>
+            <Name>Cadusafos</Name>
+            <Pest_res_id>2275</Pest_res_id>
+            <entry_force>14/06/2012</entry_force>
+            <directive>Reg. (EU) No 441/2012</directive><Product>
+                        <Product_name>FRUITS, FRESH or FROZEN; TREE NUTS</Product_name>
+                        <Product_code>0100000</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Citrus fruits</Product_name>
+                        <Product_code>0110000</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Grapefruits</Product_name>
+                        <Product_code>0110010</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Oranges</Product_name>
+                        <Product_code>0110020</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Lemons</Product_name>
+                        <Product_code>0110030</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Limes</Product_name>
+                        <Product_code>0110040</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Mandarins</Product_name>
+                        <Product_code>0110050</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Others (2)</Product_name>
+                        <Product_code>0110990</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Tree nuts</Product_name>
+                        <Product_code>0120000</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Almonds</Product_name>
+                        <Product_code>0120010</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Brazil nuts</Product_name>
+                        <Product_code>0120020</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Cashew nuts</Product_name>
+                        <Product_code>0120030</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Chestnuts</Product_name>
+                        <Product_code>0120040</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Coconuts</Product_name>
+                        <Product_code>0120050</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Hazelnuts/cobnuts</Product_name>
+                        <Product_code>0120060</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Macadamias</Product_name>
+                        <Product_code>0120070</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Pecans</Product_name>
+                        <Product_code>0120080</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Pine nut kernels</Product_name>
+                        <Product_code>0120090</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Pistachios</Product_name>
+                        <Product_code>0120100</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Walnuts</Product_name>
+                        <Product_code>0120110</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Others (2)</Product_name>
+                        <Product_code>0120990</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Pome fruits</Product_name>
+                        <Product_code>0130000</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Apples</Product_name>
+                        <Product_code>0130010</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Pears</Product_name>
+                        <Product_code>0130020</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Quinces</Product_name>
+                        <Product_code>0130030</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Medlars</Product_name>
+                        <Product_code>0130040</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Loquats/Japanese medlars</Product_name>
+                        <Product_code>0130050</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Others (2)</Product_name>
+                        <Product_code>0130990</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Stone fruits</Product_name>
+                        <Product_code>0140000</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product><Product>
+                        <Product_name>Apricots</Product_name>
+                        <Product_code>0140010</Product_code>
+                        <MRL>0.01*</MRL>    
+                        <ApplicationDate>14/06/2012</ApplicationDate></Product></Substances><Substances>
+            <Name>Captan (Sum of captan and THPI, expressed as captan) (R)</Name>
+            <Pest_res_id>36</Pest_res_id>
+            <entry_force>11/07/2019</entry_force>
+            <directive>Reg. (EU) 2019/1015</directive><Substances_ft><Footnotes_sub>code 1000000 except 1040000: Sum of THPI, 3-OH THPI and 5-OH THPI, expressed as captan; code 0151020: captan</Footnotes_sub></Substances_ft><Product>
+                        <Product_name>Stone fruits</Product_name>
+                        <Product_code>0140000</Product_code>
+                        <MRL/>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Apricots</Product_name>
+                        <Product_code>0140010</Product_code>
+                        <MRL>6</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Cherries (sweet)</Product_name>
+                        <Product_code>0140020</Product_code>
+                        <MRL>6</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Peaches</Product_name>
+                        <Product_code>0140030</Product_code>
+                        <MRL>6</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Plums</Product_name>
+                        <Product_code>0140040</Product_code>
+                        <MRL>10</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Others (2)</Product_name>
+                        <Product_code>0140990</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Berries and small fruits</Product_name>
+                        <Product_code>0150000</Product_code>
+                        <MRL/>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>(a) grapes</Product_name>
+                        <Product_code>0151000</Product_code>
+                        <MRL/>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Table grapes</Product_name>
+                        <Product_code>0151010</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Wine grapes</Product_name>
+                        <Product_code>0151020</Product_code>
+                        <MRL>0.02*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>(b) strawberries</Product_name>
+                        <Product_code>0152000</Product_code>
+                        <MRL>1.5</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>(c) cane fruits</Product_name>
+                        <Product_code>0153000</Product_code>
+                        <MRL/>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Blackberries</Product_name>
+                        <Product_code>0153010</Product_code>
+                        <MRL>20</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Dewberries</Product_name>
+                        <Product_code>0153020</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Raspberries (red and yellow)</Product_name>
+                        <Product_code>0153030</Product_code>
+                        <MRL>20</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Others (2)</Product_name>
+                        <Product_code>0153990</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>(d) other small fruits and berries</Product_name>
+                        <Product_code>0154000</Product_code>
+                        <MRL/>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Blueberries</Product_name>
+                        <Product_code>0154010</Product_code>
+                        <MRL>30</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Cranberries</Product_name>
+                        <Product_code>0154020</Product_code>
+                        <MRL>30</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Currants (black, red and white)</Product_name>
+                        <Product_code>0154030</Product_code>
+                        <MRL>30</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Gooseberries (green, red and yellow)</Product_name>
+                        <Product_code>0154040</Product_code>
+                        <MRL>30</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Rose hips</Product_name>
+                        <Product_code>0154050</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Mulberries (black and white)</Product_name>
+                        <Product_code>0154060</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Azaroles/Mediterranean medlars</Product_name>
+                        <Product_code>0154070</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Elderberries</Product_name>
+                        <Product_code>0154080</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Others (2)</Product_name>
+                        <Product_code>0154990</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Miscellaneous fruitswith</Product_name>
+                        <Product_code>0160000</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>(a) edible peel</Product_name>
+                        <Product_code>0161000</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Dates</Product_name>
+                        <Product_code>0161010</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product><Product>
+                        <Product_name>Figs</Product_name>
+                        <Product_code>0161020</Product_code>
+                        <MRL>0.03*</MRL>    
+                        <ApplicationDate>11/07/2019</ApplicationDate></Product></Substances><Substances>
+            <Name>Calcium carbide</Name>
+            <Pest_res_id>2423</Pest_res_id>
+            <entry_force>13/04/2016</entry_force>
+            <directive>Reg. (EU) 2016/439</directive><Product>
+                        <Product_name>FRUITS, FRESH or FROZEN; TREE NUTS</Product_name>
+                        <Product_code>0100000</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product><Product>
+                        <Product_name>Citrus fruits</Product_name>
+                        <Product_code>0110000</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product><Product>
+                        <Product_name>Grapefruits</Product_name>
+                        <Product_code>0110010</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product><Product>
+                        <Product_name>Oranges</Product_name>
+                        <Product_code>0110020</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product><Product>
+                        <Product_name>Lemons</Product_name>
+                        <Product_code>0110030</Product_code>
+                        <MRL>No MRL Required</MRL>    
+                        <ApplicationDate>13/04/2016</ApplicationDate></Product></Substances></Pesticides>

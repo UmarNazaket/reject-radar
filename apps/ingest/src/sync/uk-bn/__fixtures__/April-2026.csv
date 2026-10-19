@@ -1,0 +1,72 @@
+DateBNRaised,Country,Commodity,NetWeight,ProductCategory,ProductName,ControlledByLegislationYOrN,TypeOfConsignment,HazardCategory,TypeOfFailure,ReasonForFailure
+01/04/2026,Trinidad and Tobago,,1196 kg,Prepared dishes and snacks,Cheese Regular,No,POAO,Chemical contamination (inc. environmental & industrial,Food addittives & flavourings,Physical
+01/04/2026,Jamaica,,238 kg,Non-alcoholic beverages,Mango Peach Drink,No,,Composition,Food addittives & flavourings,Physical
+01/04/2026,Iraq,,2259 kg,Food additives and flavourings,Orange Sparkling Soft Drink 330ml,No,,Feed additives,Food addittives & flavourings,Physcial 
+01/04/2026,India,12024200,4017.16 kg,Other food product / mixed,Roasted Peanuts,Yes,FNAO,Documentary checks  ,Documentary checks,Documentary
+01/04/2026,India,09092100,500 kg,Herbs and spices,Coriander Powder,Yes,FNAO,Documentary checks  ,Documentary checks,Documentary
+02/04/2026,India,0910,756 kg,Herbs and spices,"Ground Ginger, lot 52880-GGR25365a",Yes,FNAO,Pesticide residues,Pesticide residues,Physcial 
+02/04/2026,Dominican Republic,0709609920,1676 kg,Fruits and vegetables,Peppers,Yes,FNAO,Chemical contamination (inc. environmental & industrial,Pesticide residues,Physcial 
+06/04/2026,India,0710809530,837 kg,Fruits and vegetables,Okra,Yes,FNAO,Documentary checks  ,Documentary checks,Documentary
+06/04/2026,Germany,160249,87.92 kg,Other food product / mixed,Beef and pork baloney,Yes,POAO,Identity checks,Identity checks,Identity
+07/04/2026,Turks and Caicos Islands,1902,6000 kg,Milk and milk products,"Carbonara, Quattro Cheese, Cheese, Cream Carbonara",Yes,POAO,Identity checks,Identity checks,Identity
+07/04/2026,Portugal,03055190,400 kg,Fish and fish products,Caras Jumbo ISL Salgadas Verdes Pre-embaladas,Yes,POAO,Documentary checks  ,Documentary checks,Documentary
+07/04/2026,China,03054490,16808.4 kg,Fish and fish products,Frozen Smoked Basa Fillets,Yes,POAO,Laboratory tests,Docmentary checks,Documentary
+07/04/2026,India,09096100,20 kg,Herbs and spices,Fennel Seeds,Yes,FNAO,Documentary checks  ,Documentary checks,Documentary
+08/04/2026,Ukraine,"	04072100","	18794.4 kg",Eggs and egg products,A class shell eggs,Yes,POAO,Physical checks,Physical Hygiene Failure,Physical
+08/04/2026,Bulgaria,"	160100 ",53.58 kg,Meat and meat products,"Meat products-Sausages and similar products, of meat, meat offal or blood; food preparations based on these products",Yes,POAO,Documentary checks  ,Documentary checks,Documentary
+08/04/2026,India,"	100630","	1400 kg",Cereals and bakery products,"	JS ORGANIC BASMATI RICE RIB 10X500GM",Yes,FNAO,Documentary checks  ,Documentary,Documentary
+09/04/2026,Dominican Republic,"	0709609920","	1892 kg",Fruits and vegetables,"	Peppers",Yes,FNAO,Chemical contamination (inc. environmental & industrial,Chemical contamination,Physical
+09/04/2026,Argentina,12024200,24780 kg,"Nuts, nut products and seeds",Groundnuts,Yes,FNAO,Mycotoxins ,Mycotoxins,Physcial 
+10/04/2026,China,0902,510 kg,Non-alcoholic beverages,Green tea - Sencha Cut,Yes,FNAO,Documentary checks  ,Dcoumentary checks,Documentary
+10/04/2026,China,1006,350 kg,Cereals and bakery products,Rice,Yes,FNAO,Documentary checks  ,Docmentary checks,Documentary
+11/04/2026,India,"	09109991","	1284 kg",Herbs and spices,"	Ajwain Seeds",Yes,FNAO,Documentary checks  ,Documentary checks,Documentary
+11/04/2026,Bulgaria,"	160100","	370.9 kg",Meat and meat products,"	BOILED SALAMI VEAL ""MUSAN"" 600gr",Yes,POAO,Documentary checks  ,Documentary checks,Documentary
+11/04/2026,Italy,"	05119910","	3480 kg",Pet food,"	dog chews",Yes,Feed,Documentary checks  ,Documentary checks,Documentary
+11/04/2026,Italy,"	051199","	3014 kg",Pet food,"	dog chews",Yes,Feed,Documentary checks  ,Documentary checks,Documentary
+11/04/2026,India,"	0710809530","	837 kg",Fruits and vegetables,"	Okra - Cut (Bhindi) Frozen",Yes,FNAO,Documentary checks  ,Documentary checks,Documentary 
+13/04/2026,China,"	0902","	80 kg",Other food product / mixed,"	Tea(different varieties)",Yes,FNAO,Documentary checks  ,Documentary checks,Documentary 
+13/04/2026,Lithuania,"	1214909020","	24200 kg",Feed materials,"	Haylage",Yes,POAO,Documentary checks  ,Documentary checks,Documentary 
+13/04/2026,Italy,"	160100","	148.3 kg",Meat and meat products,"	SALSICCIA FNC DOLCE AL FINOCCHIO",Yes,POAO,Identity checks,Identity checks,Identity
+13/04/2026,India,"	0710","	17920 kg",Fruits and vegetables,"	sliced okra bhindi",Yes,FNAO,Pesticide residues,Chemical contamination,Physical
+13/04/2026,Syria,2001909711,"	1272 kg",Fruits and vegetables,"	Pickled Turnips",Yes,FNAO,Laboratory tests,Chemical contamination,Physical
+13/04/2026,Seychelles,"	03044990","	406.12 kg",Fish and fish products,"	Yellowfin tuna loins",Yes,POAO,Physical checks,Physical hygiene failure,Physical
+14/04/2026,Greece,"	160249","	288 kg",Meat and meat products,"Gallus domesticus (i.e. chickens), prepared or preserved",Yes,POAO,Documentary checks  ,Documentary checks,Documentary 
+14/04/2026,Bulgaria,"	160100","	400.1 kg",Meat and meat products,"	VEAL MEATBALLS ""MUSAN""",Yes,POAO,Documentary checks  ,Documentary checks,Documentary 
+14/04/2026,China,"	0902 ","	1920 kg",Other food product / mixed,"	Tea, whether or not flavoured",Yes,FNAO,Pesticide residues,chemical contamination,Physical
+15/04/2026,Bulgaria,"	160100","	729 kg",Meat and meat products,"	beef and chicken meat product",Yes,POAO,Documentary checks  ,Documentary,Documentary
+15/04/2026,Nigeria,,"	15.18 kg",Crustaceans and products thereof,"	Shrimp Seasoning",No,FNAO,metals & heavy metals,Documentary,Documentary checks
+15/04/2026,India,"	091091","	400 kg",Herbs and spices,"	Curry Powder",No,FNAO,Documentary checks  ,Documentary,Documentary
+15/04/2026,Nigeria,,"	91.1 kg",Other food product / mixed,"	Calabash rocks",No,Other,metals & heavy metals,Heavy Metals,Physical
+15/04/2026,Nigeria,,"	134.8 kg",Other food product / mixed,"	Calabash Flakes",No,Other,metals & heavy metals,Heavy Metals,Physical
+15/04/2026,Nigeria,,"	18.28 kg",Other food product / mixed,"	Calabash balls",No,Other,metals & heavy metals,Heavy Metals,Physical
+16/04/2026,Dominican Republic,"	0709300005","	840 kg",Fruits and vegetables,"	Aubergine",Yes,FNAO,Pesticide residues,Chemical contamination,Physical
+16/04/2026,China,"	03061792","	6400 kg",Crustaceans and products thereof,"	Frozen Raw Shrimps",Yes,POAO,Pesticide residues,Chemical contamination,Physical
+16/04/2026,Vietnam,"	03046200","	18160 kg",Fish and fish products,"	Frozen Raw Pangasius",Yes,POAO,Pesticide residues,Chemical contamination,Physical
+16/04/2026,Spain,"	02031913","	720 kg",Meat and meat products,"	Frozen Pork Loin Ribs",Yes,POAO,Physical checks,Physical hygiene failure,Physical
+16/04/2026,Bulgaria,"	1502909010 ","	3000 kg",Meat and meat products,"	Meat fat",Yes,POAO,Physical checks,Documentary checks,Documentary
+17/04/2026,France,"	051199","	14383 kg",Animal by-products,"	DUCK CARCASS, TURKEY CARCASS, TURKEY NECK",Yes,POAO,Identity checks,Identity checks,Identity
+17/04/2026,France,"	051199","	8610 kg",Animal by-products,"	Beef Tripe Minced",Yes,POAO,Identity checks,Identity checks,Identity
+17/04/2026,France,"	05119910","	4617 kg",Animal by-products,"	Lamb MDM",Yes,POAO,Identity checks,Identity checks,Identity
+17/04/2026,France,"	05119910","	4475 kg",Animal by-products,"	Venison trimming",Yes,POAO,Identity checks,Identity checks,Identity
+17/04/2026,Netherlands,"	0511998590","	5991.5 kg",Animal by-products,Beef trim,Yes,POAO,Identity checks,Identity checks,Identity
+17/04/2026,Netherlands,"	0511998590","	4567.98 kg",Animal by-products,Beef trim,Yes,POAO,Identity checks,Identity checks,Identity
+17/04/2026,France,"	051199","	23750 kg",Feed materials,"	Lamb Mix Frozen (HALF PLATE) (CAT. 3)",Yes,POAO,Identity checks,Identity checks,Identity
+17/04/2026,Nigeria,"	1207700010 ","	5213 kg","Nuts, nut products and seeds","	Egusi",Yes,POAO,Mycotoxins ,Mycotoxins,Physical
+18/04/2026,India,,"	720 kg",Non-alcoholic beverages,"	Mirinda Orange Drinks",No,FNAO,Composition,Food addittives & flavourings,Physical
+19/04/2026,Sri Lanka,"	0709999035 ","	42 kg",Fruits and vegetables,"	Mukunuwena",Yes,FNAO,Documentary checks  ,Documentary checks,Documentary
+21/04/2026,Pakistan,"	09109190","	2255 kg",Herbs and spices,Multiple mixed spices,Yes,FNAO,Documentary checks  ,Documentary checks,Documentary
+21/04/2026,China,"	0902","	117.6 kg",Other food product / mixed,Tea,Yes,FNAO,Chemical contamination (inc. environmental & industrial,Chemical contamination,Documentary
+21/04/2026,India,"	09092100","	20350 kg",Herbs and spices,Coriander Seed,Yes,FNAO,Chemical contamination (inc. environmental & industrial,Chemical contamination,Documentary
+21/04/2026,Bulgaria,"	160100","	2400 kg",Other food product / mixed,"	Meat preparations",Yes,POAO,Documentary checks  ,Documentary checks,Documentary
+21/04/2026,Bulgaria,"	160100","	729 kg",Other food product / mixed,"	Meat preparations",Yes,POAO,Documentary checks  ,Documentary checks,Documentary
+22/04/2026,Thailand,"	0710805920","	340 kg",Fruits and vegetables,"	Peppers from Thailand",Yes,FNAO,Pesticide residues,Pesticide residues,Physical
+23/04/2026,India,"	12074090","	19000 kg","Nuts, nut products and seeds",Sesame Seeds,Yes,FNAO,Chemical contamination (inc. environmental & industrial,Pesticide residues,Physical
+24/04/2026,Spain,03061410,12.9 kg,Fish and fish products," Crabs of the species Paralithodes camchaticus, Chionoecetes spp. and Callinectes sapidus",Yes,POAO,Documentary checks  ,Documentary checks,Documentary
+25/04/2026,India,"	1404900010","	588 kg",Fruits and vegetables,"	Betel Leaves",Yes,FNAO,Pathogenic micro-organisms,Pesticice rsidues,Physical
+25/04/2026,India,"	100630","	23520 kg",Cereals and bakery products,Basmati Rice,Yes,Food,Chemical contamination (inc. environmental & industrial,Chemical contamination,Physical
+27/04/2026,Germany,"	160232","	9120 kg",Poultry meat and poultry meat products,"	Meat products-roasted chicken",Yes,POAO,Documentary checks  ,Documentary checks,Documentary
+27/04/2026,China,3924 1000,,Food contact materials,Melamine,Yes,FCM,Migration,Laboratory checks,Physical
+29/04/2026,Argentina,"	12024200 ","	25060 kg","Nuts, nut products and seeds","	Groundnuts - Feed",Yes,Feed,Mycotoxins ,Mycotoxins,Physical
+29/04/2026,China,"	03046900",3375 kg,Fish and fish products,"Golden Soup Sauerkraut Fish, Spicy Poached Fish, Guizou-style Sour Fish Soup",Yes,POAO,Documentary checks  ,Documentary,Documentary
+29/04/2026,Bulgaria,"	02032915","	13.4 kg",Meat and meat products,"	MIXED MEAT PRODUCTS LA SCALLA",Yes,POAO,Labelling absent/incomplete/incorrect,Documentary,Documentary
+30/04/2026,Colombia,,"	10584 kg",Fruits and vegetables,"	Passion Fruit",Yes,FNAO,Pesticide residues,Pesticide residues,Physical
