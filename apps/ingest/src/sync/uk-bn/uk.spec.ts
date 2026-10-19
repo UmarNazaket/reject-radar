@@ -28,6 +28,7 @@ const row = (overrides: Partial<UkRow> = {}): UkRow => ({
   sourceKey: 'k',
   notifiedOn: '2026-04-01',
   originCountry: 'IN',
+  countryName: 'India',
   commodity: null,
   productCategory: null,
   productName: null,
@@ -338,6 +339,26 @@ describe('UK sync', () => {
     expect(moved.title).toContain('Microbiological contamination');
     const [event] = await handle.db.select().from(changeEvent).where(eq(changeEvent.noticeId, oldNotice.id));
     expect(event).toBeDefined();
+  });
+
+  it('pairs a corrected row on the country as the file names it, not on its stored code', async () => {
+    await syncUkBn(backend(), options);
+    const before = parseUkCsv(APRIL_2026, '2026-04')[1];
+    const [oldNotice] = await handle.db.select().from(notice).where(eq(notice.sourceKey, before.sourceKey));
+    const events = await total(changeEvent);
+    // As if the codes were stored under an earlier country-alias table: phase 3 may map names to other codes.
+    await handle.db.update(notice).set({ originCountry: 'ZZ' });
+    await handle.db.update(ukBorderNotification).set({ originCountry: 'ZZ' });
+
+    const corrected = editedApril2026(',Composition,', ',Microbiological contamination,');
+    const result = await syncUkBn(backend({ [URL_2026]: corrected }), options);
+    expect(result).toMatchObject({ rowsInserted: 0, rowsDeleted: 0, eventsEmitted: 0 });
+    expect(await total(changeEvent)).toBe(events);
+    const after = parseUkCsv(corrected, '2026-04')[1];
+    const [moved] = await handle.db.select().from(notice).where(eq(notice.sourceKey, after.sourceKey));
+    expect(moved).toMatchObject({ id: oldNotice.id, originCountry: 'JM' });
+    const [typed] = await handle.db.select().from(ukBorderNotification).where(eq(ukBorderNotification.sourceKey, after.sourceKey));
+    expect(typed).toMatchObject({ originCountry: 'JM', countryName: 'Jamaica' });
   });
 
   it('counts a correction of an unstored value (net weight) as one update', async () => {

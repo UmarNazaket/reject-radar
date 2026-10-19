@@ -42,6 +42,8 @@ export interface AuRecord {
   productDesc: string;
   /** ISO 3166-1 alpha-2, or null when the file gives none or one we do not recognise. */
   countryCode: string | null;
+  /** The country of origin as the file writes it, or null when it gives none. */
+  countryName: string | null;
   producerName: string | null;
   /** Normalised producer name for matching; `''` when no producer is named. */
   nameNorm: string;
@@ -338,6 +340,7 @@ export function parseAuCsv(csv: string, reportMonth: string): AuRecord[] {
       failedOn: draft.failedOn,
       productDesc: draft.product,
       countryCode: countryFromName(draft.country),
+      countryName: orNull(draft.country),
       producerName,
       nameNorm: producerName === null ? '' : normalizeName(producerName).primary,
       testApplied: draft.tests.join(TEST_SEPARATOR),

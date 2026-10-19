@@ -28,6 +28,8 @@ export interface UkRow {
   notifiedOn: string;
   /** ISO 3166-1 alpha-2, or null when the file gives none or one we do not recognise. */
   originCountry: string | null;
+  /** The country as the file writes it, or null when it gives none. */
+  countryName: string | null;
   commodity: string | null;
   productCategory: string | null;
   productName: string | null;
@@ -141,6 +143,7 @@ export function parseUkCsv(csv: string, month: string): UkRow[] {
       sourceKey,
       notifiedOn,
       originCountry: countryFromName(values.Country),
+      countryName: orNull(values.Country),
       commodity: orNull(values.Commodity),
       productCategory: orNull(values.ProductCategory),
       productName: orNull(values.ProductName),

@@ -57,6 +57,13 @@
       "when": 1792395713011,
       "tag": "0007_sync_run_partial",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792395869732,
+      "tag": "0008_raw_country_names",
+      "breakpoints": true
     }
   ]
 }

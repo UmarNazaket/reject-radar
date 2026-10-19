@@ -22,14 +22,22 @@ export interface Classification {
 
 export type Classified<R> = R & Classification;
 
+/** A parsed row of a monthly file: its key and its origin country as the file writes it. */
+export interface MonthlyRow {
+  sourceKey: string;
+  countryName: string | null;
+}
+
 /** What a monthly-file source (UK border notifications, Australian failing food) tells {@link syncMonthlyFiles}. */
-export interface MonthlyFileSource<R extends { sourceKey: string }, TTable extends PgTable> {
+export interface MonthlyFileSource<R extends MonthlyRow, TTable extends PgTable> {
   source: 'uk_bn' | 'au_ifis';
   /** The CKAN `package_show` URL that lists one CSV per month. */
   packageUrl: string;
   /** The typed table; it has a unique `source_key` column. */
   table: TTable;
   keyColumn: PgColumn;
+  /** The typed table's column that stores `countryName`, which corrected rows pair on. */
+  countryNameColumn: PgColumn;
   /** Reads one downloaded file; an error is reported with the file's URL. */
   parse(file: FetchResult, resource: MonthlyResource): R[];
   classify(rules: RuleSet, row: R): Classification;
@@ -48,18 +56,27 @@ interface ChangedFile<R> {
   rows: Classified<R>[];
 }
 
+/** What a row is paired on, from its notice and its typed row. */
+interface PairFields {
+  sourceKey: string;
+  noticeOn: string;
+  countryName: string | null;
+  productText?: string | null;
+  firmName?: string | null;
+}
+
 /**
- * The fields a corrected row keeps: its date, origin country, product and (Australia only) producer. UK notices carry
- * no firm, so the firm part is always null for them.
+ * The fields a corrected row keeps: its date, origin country, product and (Australia only) producer. The country is the
+ * text the file gives, not its code, so a later change to the country aliases cannot stop a stored row from pairing.
+ * UK notices carry no firm, so the firm part is always null for them.
  */
-const pairKey = (n: Pick<NoticeInput, 'noticeOn' | 'originCountry' | 'productText' | 'firmName'>): string =>
-  JSON.stringify([n.noticeOn, n.originCountry ?? null, n.productText ?? null, n.firmName ?? null]);
+const pairKey = (p: PairFields): string => JSON.stringify([p.noticeOn, p.countryName, p.productText ?? null, p.firmName ?? null]);
 
 /**
  * Pairs the keys a changed file no longer holds with its new keys that describe the same record (same
  * {@link pairKey}), in file order: each pair is one corrected row, not a deletion plus an insertion.
  */
-function pairCorrections(gone: readonly StoredNotice[], added: readonly NoticeInput[]): Map<string, StoredNotice> {
+function pairCorrections(gone: readonly StoredNotice[], added: readonly PairFields[]): Map<string, StoredNotice> {
   const byKey = new Map<string, StoredNotice[]>();
   for (const stored of gone) {
     const key = pairKey(stored);
@@ -73,13 +90,9 @@ function pairCorrections(gone: readonly StoredNotice[], added: readonly NoticeIn
   return pairs;
 }
 
-interface StoredNotice {
+/** A notice of a file as stored, with the country its typed row gives. */
+interface StoredNotice extends PairFields {
   id: number;
-  sourceKey: string;
-  noticeOn: string;
-  originCountry: string | null;
-  productText: string | null;
-  firmName: string | null;
 }
 
 /** Inserts typed rows or updates the ones whose values changed; returns the keys written and whether each was new. */
@@ -113,14 +126,14 @@ async function upsertTyped<TTable extends PgTable>(
  * failed download leaves the live tables unchanged.
  *
  * A row key hashes the row's values, so a corrected row gets a new key. Inside a file loaded before, a new key whose
- * date, country and product (and producer) match a key the file no longer holds is that row corrected: the typed row
- * and its notice move to the new key in place (the notice keeps its id) and no event is emitted. Every other new row
- * emits an event; so does every row of a file never loaded before.
+ * date, country (as the file writes it), product (and producer) match a key the file no longer holds is that row
+ * corrected: the typed row and its notice move to the new key in place (the notice keeps its id) and no event is
+ * emitted. Every other new row emits an event; so does every row of a file never loaded before.
  *
  * `rowsRead` counts the rows of the files loaded in this run; `rowsInserted`, `rowsUpdated` and `rowsDeleted` count
  * typed rows (a moved row counts as updated).
  */
-export async function syncMonthlyFiles<R extends { sourceKey: string }, TTable extends PgTable>(
+export async function syncMonthlyFiles<R extends MonthlyRow, TTable extends PgTable>(
   deps: SyncDeps,
   spec: MonthlyFileSource<R, TTable>,
   options: { events: boolean },
@@ -165,11 +178,12 @@ export async function syncMonthlyFiles<R extends { sourceKey: string }, TTable e
             id: notice.id,
             sourceKey: notice.sourceKey,
             noticeOn: notice.noticeOn,
-            originCountry: notice.originCountry,
+            countryName: sql<string | null>`${spec.countryNameColumn}`,
             productText: notice.productText,
             firmName: notice.firmName,
           })
           .from(notice)
+          .leftJoin(spec.table as PgTable, eq(spec.keyColumn, notice.sourceKey))
           .where(and(eq(notice.source, spec.source), eq(notice.url, resource.url)))
           .orderBy(notice.id);
         const present = new Set(rows.map((row) => row.sourceKey));
@@ -178,7 +192,7 @@ export async function syncMonthlyFiles<R extends { sourceKey: string }, TTable e
         const corrections = loadedBefore
           ? pairCorrections(
               gone,
-              notices.filter((n) => !storedKeys.has(n.sourceKey)),
+              notices.flatMap((n, i) => (storedKeys.has(n.sourceKey) ? [] : [{ ...n, countryName: rows[i].countryName }])),
             )
           : new Map<string, StoredNotice>();
 

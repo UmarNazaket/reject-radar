@@ -31,6 +31,7 @@ const record = (overrides: Partial<AuRecord> = {}): AuRecord => ({
   failedOn: '2026-07-01',
   productDesc: 'Product',
   countryCode: 'IN',
+  countryName: 'India',
   producerName: 'Producer',
   nameNorm: 'producer',
   testApplied: 'Test',
@@ -586,6 +587,26 @@ describe('Australian sync', () => {
     expect(typed.testApplied).toBe('Listeria monocytogenes detected in excess of level permitted');
     const [moved] = await handle.db.select().from(notice).where(eq(notice.sourceKey, after.sourceKey));
     expect(moved.id).toBe(oldNotice.id);
+  });
+
+  it('pairs a corrected record on the country as the file names it, not on its stored code', async () => {
+    await syncAuIfis(backend(), options);
+    const before = parseAuCsv(fixture('july-2026.csv'), '2026-07-01')[1];
+    const [oldNotice] = await handle.db.select().from(notice).where(eq(notice.sourceKey, before.sourceKey));
+    const events = await total(changeEvent);
+    // As if the codes were stored under an earlier country-alias table: phase 3 may map names to other codes.
+    await handle.db.update(notice).set({ originCountry: 'ZZ' });
+    await handle.db.update(auFailingFood).set({ countryCode: 'ZZ' });
+
+    const corrected = editedJuly(',Listeria monocytogenes detected,', ',Listeria monocytogenes detected in excess of level permitted,');
+    const result = await syncAuIfis(backend({ [URL_JULY]: corrected }), options);
+    expect(result).toMatchObject({ rowsInserted: 0, rowsDeleted: 0, eventsEmitted: 0 });
+    expect(await total(changeEvent)).toBe(events);
+    const after = parseAuCsv(corrected, '2026-07-01')[1];
+    const [moved] = await handle.db.select().from(notice).where(eq(notice.sourceKey, after.sourceKey));
+    expect(moved).toMatchObject({ id: oldNotice.id, originCountry: 'IT' });
+    const [typed] = await handle.db.select().from(auFailingFood).where(eq(auFailingFood.sourceKey, after.sourceKey));
+    expect(typed).toMatchObject({ countryCode: 'IT', countryName: 'Italy' });
   });
 
   it('treats a record whose producer changed as a new record, with an event', async () => {

@@ -314,6 +314,7 @@ export async function remapTaxonomy(db: Database, options: { batchSize?: number 
           failedOn: row.failedOn,
           productDesc: row.productDesc,
           countryCode: row.countryCode,
+          countryName: row.countryName,
           producerName: row.producerName,
           nameNorm: row.nameNorm,
           testApplied: row.testApplied ?? '',

@@ -297,6 +297,8 @@ export const auFailingFood = pgTable(
     failedOn: date('failed_on'),
     productDesc: text('product_desc').notNull(),
     countryCode: text('country_code'),
+    /** The country of origin as the file writes it; a corrected record pairs on it (see `syncMonthlyFiles`). */
+    countryName: text('country_name'),
     producerName: text('producer_name'),
     nameNorm: text('name_norm').notNull().default(''),
     testApplied: text('test_applied'),
@@ -345,6 +347,8 @@ export const ukBorderNotification = pgTable(
     sourceKey: text('source_key').primaryKey(),
     notifiedOn: date('notified_on').notNull(),
     originCountry: text('origin_country'),
+    /** The country as the file writes it; a corrected row pairs on it (see `syncMonthlyFiles`). */
+    countryName: text('country_name'),
     commodity: text('commodity'),
     productCategory: text('product_category'),
     productName: text('product_name'),
