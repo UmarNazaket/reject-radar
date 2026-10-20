@@ -3,7 +3,7 @@ name: Sync weekly
 on:
   schedule:
     # FDA charge codes and refusals. Daily for the first week, to find the day FDA publishes new refusals
-    # (rows_inserted in source_sync_run); then weekly, on the day after it. By 08:00 the daily 04:00 run and
+    # (rows_inserted in source_sync_run); then weekly, on the day after it. By 08:00 the daily 03:07 run and
     # Monday's 06:30 run have ended even at their job timeouts, so this one never waits as a pending run.
     - cron: '0 8 * * *'
     - cron: '30 6 * * 1' # UK border notifications, then Australian IFIS

@@ -2,7 +2,10 @@ name: Sync daily
 
 on:
   schedule:
-    - cron: '0 4 * * *' # Import Alerts, then RASFF (FDA robots.txt visiting hours: 03:00-09:00 UTC)
+    # Import Alerts, then RASFF. A full Import Alert crawl must start inside FDA's robots.txt visiting hours, 03:00-09:00
+    # UTC. GitHub can start a scheduled run hours late (the first one, due at 04:00, started at 09:05), most often on the
+    # hour, so the run is due early in the window and off the hour.
+    - cron: '7 3 * * *'
   workflow_dispatch:
     inputs:
       job:
@@ -29,7 +32,7 @@ jobs:
   import-alerts:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: ${{ github.event.schedule == '0 4 * * *' || inputs.job == 'all' || inputs.job == 'import-alerts' }}
+    if: ${{ github.event.schedule == '7 3 * * *' || inputs.job == 'all' || inputs.job == 'import-alerts' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -64,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     needs: import-alerts
-    if: ${{ !cancelled() && (github.event.schedule == '0 4 * * *' || inputs.job == 'all' || inputs.job == 'rasff') }}
+    if: ${{ !cancelled() && (github.event.schedule == '7 3 * * *' || inputs.job == 'all' || inputs.job == 'rasff') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
