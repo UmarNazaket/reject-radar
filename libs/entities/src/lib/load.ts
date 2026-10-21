@@ -3,18 +3,40 @@ import { normalizeAddress, type NormalizedAddress, stripLocationTail } from '@re
 import { and, asc, eq, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import type { DbOrTx, FirmRecord, KnownFirm } from './types';
 
+/** A stored record that names a firm: the engine's view of it, the firm it is linked to and its address as written. */
+export interface LoadedRecord {
+  record: FirmRecord;
+  /** null while the record is unlinked. */
+  firmId: number | null;
+  /** The address as the source writes it, for a person to read; null when the source gives none. */
+  rawAddress: string | null;
+}
+
+interface LoadOptions {
+  /** Linked records too, not only the unlinked ones. */
+  includeLinked: boolean;
+}
+
 /**
  * What a linking run starts from: every firm that can still receive records, and every unlinked record that names a
  * firm. Firms come by id; records by source (FDA, Import Alert, Australia), each in the order its rows were stored.
  */
 export async function loadLinkInput(db: DbOrTx): Promise<{ firms: KnownFirm[]; records: FirmRecord[] }> {
   const firms = await loadFirms(db);
-  const records = [...(await loadRefusals(db)), ...(await loadListings(db)), ...(await loadAuRows(db))];
+  const records = (await loadFirmRecords(db, { includeLinked: false })).map(({ record }) => record);
   return { firms, records };
 }
 
-/** The firms not merged away (P3-D9), with the FEIs they hold, ascending. */
-async function loadFirms(db: DbOrTx): Promise<KnownFirm[]> {
+/**
+ * Every record that names a firm, unlinked only unless `includeLinked`: by source (FDA, Import Alert, Australia), each
+ * in the order its rows were stored.
+ */
+export async function loadFirmRecords(db: DbOrTx, opts: LoadOptions): Promise<LoadedRecord[]> {
+  return [...(await loadRefusals(db, opts)), ...(await loadListings(db, opts)), ...(await loadAuRows(db, opts))];
+}
+
+/** The firms not merged away (P3-D9), by ascending id, each with the FEIs it holds, ascending. */
+export async function loadFirms(db: DbOrTx): Promise<KnownFirm[]> {
   const rows = await db
     .select({
       id: firm.id,
@@ -51,7 +73,8 @@ function storedAddress(columns: NormalizedAddress): NormalizedAddress | null {
 
 const commodityIdsOf = (commodityId: number | null): number[] => (commodityId === null ? [] : [commodityId]);
 
-async function loadRefusals(db: DbOrTx): Promise<FirmRecord[]> {
+/** FDA refusals. The address comes in fields, which a person reads joined by commas. */
+async function loadRefusals(db: DbOrTx, { includeLinked }: LoadOptions): Promise<LoadedRecord[]> {
   const rows = await db
     .select({
       key: fdaRefusal.sourceKey,
@@ -66,26 +89,34 @@ async function loadRefusals(db: DbOrTx): Promise<FirmRecord[]> {
       countryCode: fdaRefusal.countryCode,
       commodityId: fdaRefusal.commodityId,
       seenOn: fdaRefusal.refusalDate,
+      firmId: fdaRefusal.firmId,
     })
     .from(fdaRefusal)
-    .where(isNull(fdaRefusal.firmId))
+    .where(includeLinked ? undefined : isNull(fdaRefusal.firmId))
     .orderBy(asc(fdaRefusal.id));
   return rows.map((row) => ({
-    source: 'fda_refusal',
-    key: row.key,
-    fei: row.fei,
-    firmName: row.firmName,
-    nameNorm: row.nameNorm,
-    address: normalizeAddress({
-      line1: row.addressLine1,
-      line2: row.addressLine2,
-      city: row.city,
-      region: row.region,
-      postalCode: row.postalCode,
-      country: row.countryCode,
-    }),
-    commodityIds: commodityIdsOf(row.commodityId),
-    seenOn: row.seenOn,
+    record: {
+      source: 'fda_refusal',
+      key: row.key,
+      fei: row.fei,
+      firmName: row.firmName,
+      nameNorm: row.nameNorm,
+      address: normalizeAddress({
+        line1: row.addressLine1,
+        line2: row.addressLine2,
+        city: row.city,
+        region: row.region,
+        postalCode: row.postalCode,
+        country: row.countryCode,
+      }),
+      commodityIds: commodityIdsOf(row.commodityId),
+      seenOn: row.seenOn,
+    },
+    firmId: row.firmId,
+    rawAddress:
+      [row.addressLine1, row.addressLine2, row.city, row.region, row.postalCode]
+        .filter((part) => part?.trim())
+        .join(', ') || null,
   }));
 }
 
@@ -94,7 +125,7 @@ async function loadRefusals(db: DbOrTx): Promise<FirmRecord[]> {
  * country as the page writes it, before the address is normalised. Only a Red List listing has a notice, which holds
  * its commodity.
  */
-async function loadListings(db: DbOrTx): Promise<FirmRecord[]> {
+async function loadListings(db: DbOrTx, { includeLinked }: LoadOptions): Promise<LoadedRecord[]> {
   const rows = await db
     .select({
       key: importAlertListing.listingKey,
@@ -107,33 +138,38 @@ async function loadListings(db: DbOrTx): Promise<FirmRecord[]> {
       countryName: importAlertListing.countryName,
       commodityId: notice.commodityId,
       seenOn: sql<string>`coalesce(${importAlertListing.listedOn}, ${importAlertListing.firstSeenOn})`,
+      firmId: importAlertListing.firmId,
     })
     .from(importAlertListing)
     .leftJoin(notice, and(eq(notice.source, 'import_alert'), eq(notice.sourceKey, importAlertListing.listingKey)))
-    .where(isNull(importAlertListing.firmId))
+    .where(includeLinked ? undefined : isNull(importAlertListing.firmId))
     .orderBy(asc(importAlertListing.id));
   return rows.map((row) => ({
-    source: 'import_alert',
-    key: row.key,
-    fei: null,
-    firmName: row.firmName,
-    nameNorm: row.nameNorm,
-    address: normalizeAddress({
-      line1:
-        row.addressRaw === null
-          ? null
-          : stripLocationTail(row.addressRaw, { city: row.city, region: row.region, country: row.countryName }),
-      city: row.city,
-      region: row.region,
-      country: row.countryCode,
-    }),
-    commodityIds: commodityIdsOf(row.commodityId),
-    seenOn: row.seenOn,
+    record: {
+      source: 'import_alert',
+      key: row.key,
+      fei: null,
+      firmName: row.firmName,
+      nameNorm: row.nameNorm,
+      address: normalizeAddress({
+        line1:
+          row.addressRaw === null
+            ? null
+            : stripLocationTail(row.addressRaw, { city: row.city, region: row.region, country: row.countryName }),
+        city: row.city,
+        region: row.region,
+        country: row.countryCode,
+      }),
+      commodityIds: commodityIdsOf(row.commodityId),
+      seenOn: row.seenOn,
+    },
+    firmId: row.firmId,
+    rawAddress: row.addressRaw,
   }));
 }
 
 /** Australian failed tests that name a producer; the file gives only the producer's country. */
-async function loadAuRows(db: DbOrTx): Promise<FirmRecord[]> {
+async function loadAuRows(db: DbOrTx, { includeLinked }: LoadOptions): Promise<LoadedRecord[]> {
   const rows = await db
     .select({
       key: auFailingFood.sourceKey,
@@ -142,24 +178,29 @@ async function loadAuRows(db: DbOrTx): Promise<FirmRecord[]> {
       countryCode: auFailingFood.countryCode,
       commodityId: auFailingFood.commodityId,
       seenOn: sql<string>`coalesce(${auFailingFood.failedOn}, ${auFailingFood.reportMonth})`,
+      firmId: auFailingFood.firmId,
     })
     .from(auFailingFood)
-    .where(and(isNull(auFailingFood.firmId), ne(auFailingFood.nameNorm, '')))
+    .where(and(includeLinked ? undefined : isNull(auFailingFood.firmId), ne(auFailingFood.nameNorm, '')))
     .orderBy(asc(auFailingFood.id));
   // name_norm is '' whenever there is no producer, so this only tells the compiler the name is there.
-  return rows.flatMap(({ key, producerName, nameNorm, countryCode, commodityId, seenOn }) =>
+  return rows.flatMap(({ key, producerName, nameNorm, countryCode, commodityId, seenOn, firmId }) =>
     producerName === null
       ? []
       : [
           {
-            source: 'au_ifis',
-            key,
-            fei: null,
-            firmName: producerName,
-            nameNorm,
-            address: normalizeAddress({ country: countryCode }),
-            commodityIds: commodityIdsOf(commodityId),
-            seenOn,
+            record: {
+              source: 'au_ifis',
+              key,
+              fei: null,
+              firmName: producerName,
+              nameNorm,
+              address: normalizeAddress({ country: countryCode }),
+              commodityIds: commodityIdsOf(commodityId),
+              seenOn,
+            },
+            firmId,
+            rawAddress: null,
           },
         ],
   );

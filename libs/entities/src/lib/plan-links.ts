@@ -143,7 +143,7 @@ function compareText(a: string, b: string): number {
 }
 
 /** The latest record by date, then key: an FEI's firm takes its name and address from it (P3-D6). */
-function latest(records: readonly FirmRecord[]): FirmRecord {
+export function latestRecord(records: readonly FirmRecord[]): FirmRecord {
   return records.reduce((found, record) => (compareByDate(record, found) > 0 ? record : found));
 }
 
@@ -204,7 +204,7 @@ class LinkPlanner {
       this.link(refusals, holder, 1);
       return;
     }
-    const representative = latest(refusals);
+    const representative = latestRecord(refusals);
     const match = this.matchNewFei(representative);
     if (match.decision === 'attach') {
       // The firm matches strongly and has no FEI yet: this one is its FEI, and the refusals keep the match score.

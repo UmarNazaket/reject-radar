@@ -1,7 +1,7 @@
 import type { IngestEnv } from '@rejectradar/contracts';
-import { linkEntities } from '@rejectradar/entities';
+import { LABELLED_PAIR_COLUMNS, linkEntities, samplePairs, sampleSummary, toCsv } from '@rejectradar/entities';
 import { Command, InvalidArgumentError, Option } from 'commander';
-import { appendFile, mkdir } from 'node:fs/promises';
+import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { openDb } from './core/db';
 import { loadIngestEnv } from './core/env';
@@ -192,6 +192,25 @@ program
     try {
       const result = await linkEntities(db, { today: options.today ?? utcToday() });
       console.log(JSON.stringify(result, null, 2));
+    } finally {
+      await close();
+    }
+  });
+
+program
+  .command('entities:sample-pairs')
+  .description('Write a CSV of record/firm pairs to label for the auto-link precision gate: link, review and near scores from at least 5 countries (spec §8.5)')
+  .requiredOption('--out <path>', 'CSV file to write, e.g. libs/matching/test/fixtures/labelled-pairs.csv')
+  .option('--count <n>', 'how many pairs to sample', positiveInt, 300)
+  .option('--seed <n>', 'seed of the shuffle: the same data and seed give the same sample', positiveInt, 1)
+  .action(async (options: { out: string; count: number; seed: number }) => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      // The whole sample is drawn before the file is written, so a run that fails leaves the file as it was.
+      const rows = await samplePairs(db, { count: options.count, seed: options.seed });
+      await mkdir(path.dirname(options.out), { recursive: true });
+      await writeFile(options.out, toCsv(LABELLED_PAIR_COLUMNS, rows), 'utf8');
+      console.log(JSON.stringify({ out: options.out, ...sampleSummary(rows) }));
     } finally {
       await close();
     }

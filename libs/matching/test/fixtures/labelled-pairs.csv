@@ -1,0 +1,1 @@
+pair_id,source,source_key,country,record_raw_name,record_name_norm,record_raw_address,record_address_norm,record_city,record_region,record_postal,record_commodity_ids,firm_id,firm_display_name,firm_name_norm,firm_address_norm,firm_city,firm_region,firm_postal,firm_commodity_ids,is_distinctive,score,decision,label,notes
