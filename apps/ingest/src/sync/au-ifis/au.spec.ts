@@ -1,5 +1,6 @@
 import { auFailingFood, changeEvent, notice, prepareTestDatabase, sourceFile, sourceSyncRun } from '@rejectradar/db';
-import { count, desc, eq } from 'drizzle-orm';
+import { insertFirm } from '@rejectradar/entities';
+import { count, desc, eq, inArray } from 'drizzle-orm';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SyncDeps } from '../../core/deps';
@@ -622,6 +623,53 @@ describe('Australian sync', () => {
     await syncAuIfis(backend(), options);
     const result = await syncAuIfis(backend({ [URL_JULY]: editedJuly(',Latteria Moro Di Moro Sergio,', ',Another Dairy,') }), options);
     expect(result).toMatchObject({ rowsInserted: 1, rowsUpdated: 0, rowsDeleted: 1, eventsEmitted: 1 });
+  });
+
+  /** Links these records to a new firm at score 0.9, as entities:link would; returns the firm's id. */
+  const link = async (keys: string[]) => {
+    const firmId = await insertFirm(handle.db);
+    await handle.db.update(auFailingFood).set({ firmId, linkScore: '0.9000' }).where(inArray(auFailingFood.sourceKey, keys));
+    return firmId;
+  };
+  const typedRow = async (key: string) => (await handle.db.select().from(auFailingFood).where(eq(auFailingFood.sourceKey, key)))[0];
+  const correctedJuly = () => editedJuly(',Listeria monocytogenes detected,', ',Listeria monocytogenes detected in excess of level permitted,');
+
+  it('a corrected Australian producer loses its firm', async () => {
+    await syncAuIfis(backend(), options);
+    const [other, before] = parseAuCsv(fixture('july-2026.csv'), '2026-07-01');
+    const firmId = await link([other.sourceKey, before.sourceKey]);
+    // A corrected record keeps its producer's raw name (a new name makes a new record, above), so what a correction
+    // changes is the normalised name: as if it was stored by an earlier normalizeName.
+    await handle.db.update(auFailingFood).set({ nameNorm: 'latteria moro' }).where(eq(auFailingFood.sourceKey, before.sourceKey));
+    const after = parseAuCsv(correctedJuly(), '2026-07-01')[1];
+    const result = await syncAuIfis(backend({ [URL_JULY]: correctedJuly() }), options);
+    expect(result).toMatchObject({ rowsInserted: 0, rowsUpdated: 1, rowsDeleted: 0 });
+    expect(await typedRow(after.sourceKey)).toMatchObject({ nameNorm: before.nameNorm, firmId: null, linkScore: null });
+    expect(await typedRow(other.sourceKey)).toMatchObject({ firmId, linkScore: '0.9000' });
+  });
+
+  it('a corrected Australian record whose producer and country are unchanged keeps its firm', async () => {
+    await syncAuIfis(backend(), options);
+    const before = parseAuCsv(fixture('july-2026.csv'), '2026-07-01')[1];
+    const firmId = await link([before.sourceKey]);
+    const after = parseAuCsv(correctedJuly(), '2026-07-01')[1];
+    expect(await syncAuIfis(backend({ [URL_JULY]: correctedJuly() }), options)).toMatchObject({ rowsUpdated: 1 });
+    expect(await typedRow(after.sourceKey)).toMatchObject({
+      testApplied: 'Listeria monocytogenes detected in excess of level permitted',
+      firmId,
+      linkScore: '0.9000',
+    });
+  });
+
+  it('an Australian record whose country code changes loses its firm', async () => {
+    await syncAuIfis(backend(), options);
+    const [first, , third] = parseAuCsv(fixture('july-2026.csv'), '2026-07-01');
+    const firmId = await link([first.sourceKey, third.sourceKey]);
+    // As if the code was stored under an earlier country-alias table; the file changed elsewhere, so it is loaded again.
+    await handle.db.update(auFailingFood).set({ countryCode: 'ZZ' }).where(eq(auFailingFood.sourceKey, first.sourceKey));
+    await syncAuIfis(backend({ [URL_JULY]: changedJuly() }), options);
+    expect(await typedRow(first.sourceKey)).toMatchObject({ countryCode: 'JP', firmId: null, linkScore: null });
+    expect(await typedRow(third.sourceKey)).toMatchObject({ firmId, linkScore: '0.9000' });
   });
 
   it('loads a June 2019 file, titling a record by its reason, and updates a corrected record of it in place', async () => {

@@ -1,5 +1,6 @@
 import { changeEvent, fdaChargeCode, fdaRefusal, notice, prepareTestDatabase, sourceSyncRun } from '@rejectradar/db';
-import { count, desc, eq } from 'drizzle-orm';
+import { insertFirm } from '@rejectradar/entities';
+import { count, desc, eq, inArray } from 'drizzle-orm';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SyncDeps } from '../../core/deps';
@@ -197,6 +198,62 @@ describe('FDA refusals sync', () => {
     expect(second).toMatchObject({ rowsInserted: 0, rowsUpdated: 1, eventsEmitted: 0 });
     const [row] = await handle.db.select().from(fdaRefusal).where(eq(fdaRefusal.sourceKey, page.result[0].ShipmentID));
     expect(row.productDesc).toBe('SOMETHING ELSE ENTIRELY');
+  });
+
+  /** Links these refusals to a new firm at score 0.95, as entities:link would; returns the firm's id. */
+  const link = async (keys: string[]) => {
+    const firmId = await insertFirm(handle.db);
+    await handle.db.update(fdaRefusal).set({ firmId, linkScore: '0.9500' }).where(inArray(fdaRefusal.sourceKey, keys));
+    return firmId;
+  };
+  const refusal = async (key: string) => (await handle.db.select().from(fdaRefusal).where(eq(fdaRefusal.sourceKey, key)))[0];
+
+  it("a re-read with a new FEI clears the refusal's firm", async () => {
+    const page = JSON.parse(PAGE1);
+    await syncFdaRefusals(withApi(api(() => PAGE1)), options);
+    // Two refusals of one firm, both linked; FDA then corrects the FEI of the first.
+    const [corrected, other] = [page.result[0].ShipmentID, page.result[1].ShipmentID];
+    const firmId = await link([corrected, other]);
+    page.result[0].FEINumber = '3099999999';
+    const second = await syncFdaRefusals(withApi(api(() => JSON.stringify(page))), options);
+    expect(second).toMatchObject({ rowsInserted: 0, rowsUpdated: 1 });
+    expect(await refusal(corrected)).toMatchObject({ fei: 3099999999, firmId: null, linkScore: null });
+    expect(await refusal(other)).toMatchObject({ fei: 3010500143, firmId, linkScore: '0.9500' });
+  });
+
+  it("a re-read with a new firm name or country clears the refusal's firm", async () => {
+    const page = JSON.parse(PAGE1);
+    await syncFdaRefusals(withApi(api(() => PAGE1)), options);
+    const [renamed, moved, other] = [2, 3, 4].map((i) => page.result[i].ShipmentID as string);
+    const firmId = await link([renamed, moved, other]);
+    page.result[2].FirmName = 'DASENLIN FOODSTUFF CO., LTD';
+    Object.assign(page.result[3], { CountryCode: 'HK', CountryName: 'Hong Kong' });
+    const second = await syncFdaRefusals(withApi(api(() => JSON.stringify(page))), options);
+    expect(second).toMatchObject({ rowsInserted: 0, rowsUpdated: 2 });
+    expect(await refusal(renamed)).toMatchObject({ nameNorm: 'dasenlin foodstuff', firmId: null, linkScore: null });
+    expect(await refusal(moved)).toMatchObject({ countryCode: 'HK', firmId: null, linkScore: null });
+    expect(await refusal(other)).toMatchObject({ firmId, linkScore: '0.9500' });
+  });
+
+  it('an unchanged re-read keeps it', async () => {
+    const page = JSON.parse(PAGE1);
+    await syncFdaRefusals(withApi(api(() => PAGE1)), options);
+    const key = page.result[0].ShipmentID;
+    const firmId = await link([key]);
+    expect(await syncFdaRefusals(withApi(api(() => PAGE1)), options)).toMatchObject({ rowsUpdated: 0 });
+    expect(await refusal(key)).toMatchObject({ firmId, linkScore: '0.9500' });
+
+    // Fields outside the identity change, and so does the raw name, but not its normalised form: the row is rewritten
+    // and keeps its firm.
+    page.result[0].ProductCodeDescription = 'SOMETHING ELSE ENTIRELY';
+    page.result[0].FirmName = 'LEVANT FOOD PRODUCTS COMPANY LTD.';
+    expect(await syncFdaRefusals(withApi(api(() => JSON.stringify(page))), options)).toMatchObject({ rowsUpdated: 1 });
+    expect(await refusal(key)).toMatchObject({
+      firmName: 'LEVANT FOOD PRODUCTS COMPANY LTD.',
+      productDesc: 'SOMETHING ELSE ENTIRELY',
+      firmId,
+      linkScore: '0.9500',
+    });
   });
 
   it('suppresses events on a first load, then emits them', async () => {

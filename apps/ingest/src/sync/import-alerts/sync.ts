@@ -391,7 +391,10 @@ export async function syncImportAlerts(
         productUpdates.push(...plan.updates);
         productRemovals.push(...plan.removals);
         const dirty = (Object.keys(set) as (keyof ListingRow)[]).some((column) => set[column] !== row[column]) || productsChanged;
-        if (dirty) changed.push({ id: row.id, set: { ...set, lastSeenOn: today } });
+        // A listing whose identity (normalised name, country) changes loses its firm, so entities:link relinks it
+        // (P3-D8). Such a listing is already dirty: the link columns never make one dirty on their own.
+        const unlink = set.nameNorm !== row.nameNorm || set.countryCode !== row.countryCode ? { firmId: null, linkScore: null } : {};
+        if (dirty) changed.push({ id: row.id, set: { ...set, ...unlink, lastSeenOn: today } });
         else if (row.lastSeenOn !== today) touchOnly.push(row.id);
 
         const wasRed = row.list === 'red';

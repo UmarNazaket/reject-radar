@@ -25,6 +25,7 @@ export const AU_FILES: MonthlyFileSource<AuRecord, typeof auFailingFood> = {
   table: auFailingFood,
   keyColumn: auFailingFood.sourceKey,
   countryNameColumn: auFailingFood.countryName,
+  linkIdentity: [auFailingFood.nameNorm, auFailingFood.countryCode],
   parse: (file, resource) => parseAuCsv(decodeAuCsv(file.bytes), `${resource.month}-01`),
   classify: classifyAu,
   typedRow: (r) => ({

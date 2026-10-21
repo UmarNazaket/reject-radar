@@ -38,6 +38,11 @@ export interface MonthlyFileSource<R extends MonthlyRow, TTable extends PgTable>
   keyColumn: PgColumn;
   /** The typed table's column that stores `countryName`, which corrected rows pair on. */
   countryNameColumn: PgColumn;
+  /**
+   * Firm-level sources only, whose table has `firmId` and `linkScore`: the typed-row columns a record is linked to its
+   * firm on (P3-D8). A load that changes them on a stored row clears its link, so `entities:link` relinks it.
+   */
+  linkIdentity?: PgColumn[];
   /** Reads one downloaded file; an error is reported with the file's URL. */
   parse(file: FetchResult, resource: MonthlyResource): R[];
   classify(rules: RuleSet, row: R): Classification;
@@ -95,18 +100,30 @@ interface StoredNotice extends PairFields {
   id: number;
 }
 
-/** Inserts typed rows or updates the ones whose values changed; returns the keys written and whether each was new. */
+/**
+ * Inserts typed rows or updates the ones whose values changed; returns the keys written and whether each was new. An
+ * update that changes a row's `linkIdentity` also clears its `firm_id` and `link_score`.
+ */
 async function upsertTyped<TTable extends PgTable>(
   tx: Tx,
   table: TTable,
   keyColumn: PgColumn,
   values: PgInsertValue<TTable>[],
+  linkIdentity: PgColumn[] | undefined,
 ): Promise<{ sourceKey: string; inserted: boolean }[]> {
   if (values.length === 0) return [];
   const columns = getTableColumns(table) as Record<string, PgColumn>;
   const updated = Object.keys(values[0]).filter((name) => columns[name] !== keyColumn);
   const excluded = (name: string): SQL => sql.raw(`excluded."${columns[name].name}"`);
-  const set = Object.fromEntries(updated.map((name) => [name, excluded(name)])) as PgUpdateSetSource<TTable>;
+  const set: Record<string, SQL> = Object.fromEntries(updated.map((name) => [name, excluded(name)]));
+  if (linkIdentity !== undefined) {
+    // Not compared in `setWhere`: a changed identity already is, as the typed row holds its columns.
+    const moved = sql`(${sql.join(linkIdentity, sql`, `)}) is distinct from (${sql.join(
+      linkIdentity.map((column) => sql.raw(`excluded."${column.name}"`)),
+      sql`, `,
+    )})`;
+    for (const name of ['firmId', 'linkScore']) set[name] = sql`case when ${moved} then null else ${columns[name]} end`;
+  }
   const setWhere = sql`(${sql.join(
     updated.map((name) => sql`${columns[name]}`),
     sql`, `,
@@ -114,7 +131,7 @@ async function upsertTyped<TTable extends PgTable>(
   return tx
     .insert(table)
     .values(values)
-    .onConflictDoUpdate({ target: keyColumn, set, setWhere })
+    .onConflictDoUpdate({ target: keyColumn, set: set as PgUpdateSetSource<TTable>, setWhere })
     .returning({ sourceKey: sql<string>`${keyColumn}`, inserted: sql<boolean>`(xmax = 0)` });
 }
 
@@ -204,7 +221,7 @@ export async function syncMonthlyFiles<R extends MonthlyRow, TTable extends PgTa
 
         const updatedKeys = new Set(corrections.keys());
         for (const batch of chunks(rows, BATCH_SIZE)) {
-          for (const written of await upsertTyped(tx, spec.table, spec.keyColumn, batch.map((row) => spec.typedRow(row)))) {
+          for (const written of await upsertTyped(tx, spec.table, spec.keyColumn, batch.map((row) => spec.typedRow(row)), spec.linkIdentity)) {
             if (written.inserted) rowsInserted++;
             else updatedKeys.add(written.sourceKey);
           }

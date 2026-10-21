@@ -1,5 +1,6 @@
 import { changeEvent, importAlert, importAlertListing, importAlertListingProduct, notice, prepareTestDatabase, sourceSyncRun } from '@rejectradar/db';
-import { count, desc, eq } from 'drizzle-orm';
+import { insertFirm } from '@rejectradar/entities';
+import { count, desc, eq, inArray } from 'drizzle-orm';
 import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -650,6 +651,59 @@ ${block}`));
 
       // Still a non-food alert on the next run: nothing changes.
       expect((await run()).rowsUpdated).toBe(0);
+    });
+  });
+
+  describe("a listing's firm (P3-D8)", () => {
+    const [first, second] = parsed('99-19').listings;
+    const firstKey = keyOf('99-19', first);
+    const secondKey = keyOf('99-19', second);
+
+    /** Links these listings to a new firm at score 0.9, as entities:link would; returns the firm's id. */
+    const link = async (keys: string[]) => {
+      const firmId = await insertFirm(handle.db);
+      await handle.db.update(importAlertListing).set({ firmId, linkScore: '0.9000' }).where(inArray(importAlertListing.listingKey, keys));
+      return firmId;
+    };
+    const listing = async (key: string) => (await handle.db.select().from(importAlertListing).where(eq(importAlertListing.listingKey, key)))[0];
+
+    it('a listing whose firm name changes loses its firm', async () => {
+      await run();
+      const firmId = await link([firstKey, secondKey]);
+      // "&" becomes ",": the key's canonical name drops both, so it is the same listing, but the normalised name loses
+      // the "and" that the "&" stood for.
+      const renamed = ORIGINAL['99-19'].replace('Mohamad Mahroof & Mahmood Haidar', 'Mohamad Mahroof, Mahmood Haidar');
+      expect(keyOf('99-19', parsed('99-19', renamed).listings[0])).toBe(firstKey);
+      serve('99-19', renamed);
+      expect(await run()).toMatchObject({ rowsInserted: 0, rowsUpdated: 1 });
+      expect(await listing(firstKey)).toMatchObject({
+        firmName: 'Mohamad Mahroof, Mahmood Haidar',
+        nameNorm: 'mohamad mahroof mahmood haidar',
+        firmId: null,
+        linkScore: null,
+      });
+      expect(await listing(secondKey)).toMatchObject({ firmId, linkScore: '0.9000' });
+    });
+
+    it('a listing whose country code changes loses its firm', async () => {
+      await run();
+      const firmId = await link([firstKey, secondKey]);
+      // As if the code was stored under an earlier country-alias table: this run maps the heading to another code.
+      await handle.db.update(importAlertListing).set({ countryCode: 'ZZ' }).where(eq(importAlertListing.listingKey, firstKey));
+      expect(await run()).toMatchObject({ rowsInserted: 0, rowsUpdated: 1 });
+      expect(await listing(firstKey)).toMatchObject({ countryCode: 'AF', firmId: null, linkScore: null });
+      expect(await listing(secondKey)).toMatchObject({ firmId, linkScore: '0.9000' });
+    });
+
+    it('a listing re-keyed for an edited address keeps its firm', async () => {
+      await run();
+      const firmId = await link([firstKey]);
+      const edited = ORIGINAL['99-19'].replace('Bazaar Kandharyellow Carvansera', 'Bazaar Kandhar Yellow Carvansera Road 9');
+      const newKey = keyOf('99-19', parsed('99-19', edited).listings[0]);
+      serve('99-19', edited);
+      expect(await run()).toMatchObject({ rowsInserted: 0, rowsUpdated: 1 });
+      // The address is not part of a listing's identity.
+      expect(await listing(newKey)).toMatchObject({ addressRaw: expect.stringContaining('Road 9'), firmId, linkScore: '0.9000' });
     });
   });
 
