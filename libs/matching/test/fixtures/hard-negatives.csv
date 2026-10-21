@@ -1,0 +1,6 @@
+name_a,address_a,city_a,country_a,name_b,address_b,city_b,country_b,distinctive,note
+Al Noor Rice Mills,Plot 23 Korangi Industrial Area,Karachi,PK,Al Nasr Rice Mills,Plot 23 Korangi Industrial Area,Karachi,PK,false,Two mills one word apart (noor / nasr) at the same address: one differing word must not read as a near-match
+Al Noor Rice Mills,Plot 23 Korangi Industrial Area,Karachi,PK,Al Nasr Rice Mills,Plot 25 Korangi Industrial Area,Karachi,PK,false,The same two mills on neighbouring plots: addresses that differ only in the plot number are not the same address
+"FUJIAN DONGWEI FOOD CO., LTD.",NO.5 Fulu Centre Road,FUQING,CN,"Fujian Dongshui Food Co., Ltd.","No.10, Xiamei Rd.",Fuzhou City,CN,true,Two Fujian exporters whose rare words (dongwei / dongshui) are only a few letters apart
+AL RAHMAN RICE MILLS,,Lahore,PK,AL RAHMAN RICE MILLS,,Gujranwala,PK,false,An exact but generic name in one country at most goes to review
+GURUDEV SPICES,,,IN,GURUDEV SPICES,,,PK,true,An exact distinctive name never links across countries
