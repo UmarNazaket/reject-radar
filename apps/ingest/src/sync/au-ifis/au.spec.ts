@@ -380,6 +380,15 @@ describe('Australian classification', () => {
   it('falls back to unclassified', () => {
     expect(classifyAu(rules, record({ productDesc: 'Mystery', testApplied: 'Something odd' })).hazardIds).toEqual([1200]);
   });
+
+  it('classifies the tests and products that the rules of migration 0009 cover', () => {
+    const hcn = 'Hydrocyanic acid detected in excess of level permitted';
+    expect(classifyAu(rules, record({ productDesc: 'Tapioca chips', testApplied: hcn, reason: hcn }))).toEqual({ commodityId: 1300, hazardIds: [601] });
+    expect(classifyAu(rules, record({ productDesc: 'Fresh lychee', testApplied: 'Fruit and vegetable residue screen', reason: 'Difenoconazole' }))).toEqual({
+      commodityId: 600,
+      hazardIds: [100],
+    });
+  });
 });
 
 describe('Australian sync', () => {

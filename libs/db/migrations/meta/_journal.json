@@ -64,6 +64,13 @@
       "when": 1792395869732,
       "tag": "0008_raw_country_names",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792586850671,
+      "tag": "0009_taxonomy_coverage",
+      "breakpoints": true
     }
   ]
 }
