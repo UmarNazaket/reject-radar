@@ -9,6 +9,7 @@ import { refreshFirmAggregates } from './aggregates';
 import { refreshFirmAltNames } from './alt-names';
 import { applyLinkPlan } from './apply';
 import { loadLinkInput } from './load';
+import { lockFirms } from './lock';
 import { planLinks } from './plan-links';
 
 /** What one linking run did. */
@@ -32,20 +33,22 @@ export interface LinkRunResult {
 }
 
 /**
- * The `entities:link` run (spec §8.2): loads the unlinked records and plans their links, then, in one transaction,
- * applies the plan, refreshes the alternative names of the firms it touched and the facts of every firm (P3-D7) on
- * `today` (YYYY-MM-DD). The transaction runs even when there is nothing to link, so that events written since their
- * record was linked get its firm and the 12-month and 3-year counts age.
+ * The `entities:link` run (spec §8.2), all in one transaction that first takes the firm lock (lockFirms), so that no
+ * merge or split commits between the load and the apply: loads the unlinked records, plans and applies their links,
+ * then refreshes the alternative names of the firms it touched and the facts of every firm (P3-D7) on `today`
+ * (YYYY-MM-DD). The run writes even when there is nothing to link, so that events written since their record was linked
+ * get its firm and the 12-month and 3-year counts age.
  */
 export async function linkEntities(db: Database, opts: { today: string }): Promise<LinkRunResult> {
   const started = performance.now();
-  const input = await loadLinkInput(db);
-  const plan = planLinks(input);
-  const { propagated, firmsRefreshed } = await db.transaction(async (tx) => {
+  const { input, plan, propagated, firmsRefreshed } = await db.transaction(async (tx) => {
+    await lockFirms(tx);
+    const input = await loadLinkInput(tx);
+    const plan = planLinks(input);
     const applied = await applyLinkPlan(tx, plan);
     await refreshFirmAltNames(tx, applied.touchedFirmIds);
     const refreshed = await refreshFirmAggregates(tx, { today: opts.today });
-    return { propagated: applied.propagated, firmsRefreshed: refreshed };
+    return { input, plan, propagated: applied.propagated, firmsRefreshed: refreshed };
   });
   const sources = input.records.map(({ source }) => source);
   const reasons = plan.reviews.map(({ reason }) => reason);

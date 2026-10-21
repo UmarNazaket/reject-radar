@@ -5,6 +5,7 @@ export * from './lib/candidate-index';
 export * from './lib/csv';
 export * from './lib/link-entities';
 export * from './lib/load';
+export * from './lib/lock';
 export * from './lib/plan-links';
 export * from './lib/sample-pairs';
 export * from './lib/testing';
