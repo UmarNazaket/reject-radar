@@ -238,6 +238,22 @@ describe('stripLocationTail (P3-D3)', () => {
     expect(stripLocationTail('12 Main Road; Lahore ;; PAKISTAN ;', { city: 'Lahore', country: 'Pakistan' })).toBe('12 Main Road');
   });
 
+  it('takes any other punctuation for a separator, also where a part or the address ends in it', () => {
+    expect(
+      stripLocationTail('12 Gangnam-daero, SEOUL, Seoul KOREA, REPUBLIC OF (SOUTH)', {
+        city: 'SEOUL',
+        region: 'Seoul',
+        country: 'KOREA, REPUBLIC OF (SOUTH)',
+      }),
+    ).toBe('12 Gangnam-daero');
+    expect(
+      stripLocationTail('Plot 5, Industrial Zone, Hebei Prov. CHINA', { city: null, region: 'Hebei Prov.', country: 'CHINA' }),
+    ).toBe('Plot 5, Industrial Zone');
+    expect(
+      stripLocationTail('Plot 5, Industrial Zone, Shijiazhuang CHINA.', { city: 'Shijiazhuang', region: null, country: 'CHINA' }),
+    ).toBe('Plot 5, Industrial Zone');
+  });
+
   it('skips a part that is missing', () => {
     expect(stripLocationTail('Wuchuan, Zhanjiang, Guangdong CHINA', { country: 'China' })).toBe('Wuchuan, Zhanjiang, Guangdong');
     expect(stripLocationTail('Wuchuan, Zhanjiang', { city: 'Zhanjiang', region: null, country: undefined })).toBe('Wuchuan');

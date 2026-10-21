@@ -173,15 +173,19 @@ function sameNumbers(a: string, b: string): boolean {
   return numbersA.size === numbersB.size && [...numbersA].every((word) => numbersB.has(word));
 }
 
-/** What may stand between the words of an address and its location tail: whitespace, commas and semicolons. */
-const TAIL_SEPARATOR = /[\s,;]/;
+/**
+ * What may stand between the words of an address and its location tail: any character other than a-z and 0-9 once
+ * folded, the words' own alphabet. Besides spaces, commas and semicolons, that is the "." of "Hebei Prov." or "CHINA."
+ * and the ")" of "REPUBLIC OF (SOUTH)".
+ */
+const TAIL_SEPARATOR = /[^a-z0-9]/;
 
 /**
  * Cuts the city, region and country off the end of an address that carries them (P3-D3): an Import Alert `address_raw`
  * reads "…, FUQING, Fujian CHINA", while an FDA address line holds the street only. The comparison is on folded text and
- * whole words, from the end, trying country, then region, then city, for as long as one of them matches; commas,
- * semicolons and spaces around each cut go with it. The result is the matching prefix of `raw`, in its own spelling, or
- * `raw` itself when it has no such tail.
+ * whole words, from the end, trying country, then region, then city, for as long as one of them matches; the
+ * punctuation and spaces around each cut go with it. The result is the matching prefix of `raw`, in its own spelling,
+ * or `raw` itself when it has no such tail.
  */
 export function stripLocationTail(
   raw: string,
