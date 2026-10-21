@@ -154,6 +154,12 @@ function earliestSeenOn(records: readonly FirmRecord[]): string {
 /** The best candidate and the band its score falls in; below the review band no candidate matters. */
 type Match = { decision: 'new' } | { decision: 'link' | 'review'; best: ScoredCandidate };
 
+/** A new FEI joins `candidate` ('attach'), or gets a firm of its own, reviewed against `candidate` unless 'new'. */
+type FeiMatch =
+  | { decision: 'new' }
+  | { decision: 'attach'; candidate: ScoredCandidate }
+  | { decision: MatchReviewReason; candidate: ScoredCandidate };
+
 /** The engine's state while it plans: the firms so far, a candidate index per country, and the plan. */
 class LinkPlanner {
   readonly plan: LinkPlan = { newFirms: [], links: [], feis: [], reviews: [] };
@@ -199,30 +205,49 @@ class LinkPlanner {
       return;
     }
     const representative = latest(refusals);
-    const match = this.match(representative);
-    if (match.decision === 'link' && match.best.firm.feis.length === 0) {
+    const match = this.matchNewFei(representative);
+    if (match.decision === 'attach') {
       // The firm matches strongly and has no FEI yet: this one is its FEI, and the refusals keep the match score.
-      this.assignFei(fei, match.best.firm, refusals);
-      this.link(refusals, match.best.firm, match.best.score);
+      this.assignFei(fei, match.candidate.firm, refusals);
+      this.link(refusals, match.candidate.firm, match.candidate.score);
       return;
     }
     const firm = this.createFirm(refusals, representative);
     this.assignFei(fei, firm, refusals);
     this.link(refusals, firm, 1);
-    // A strong match that holds another FEI may be the same firm under two FEIs; a reviewer decides.
-    if (match.decision === 'link') this.review(representative, firm, match.best, 'second_fei');
-    else if (match.decision === 'review') this.review(representative, firm, match.best, 'score_band');
+    if (match.decision !== 'new') this.review(representative, firm, match.candidate, match.decision);
+  }
+
+  /** The record's candidates in its country, ranked by rankCandidates. A record without a country has none. */
+  private rank(record: FirmRecord): ScoredCandidate[] {
+    const country = record.address?.countryCode;
+    return country ? rankCandidates(record, this.indexes.get(country), this.frequencies.get(country), this.cfg) : [];
   }
 
   /** The record's best candidate in its country and what its score decides. A record without a country has none. */
   private match(record: FirmRecord): Match {
-    const country = record.address?.countryCode;
-    if (!country) return { decision: 'new' };
-    const ranked = rankCandidates(record, this.indexes.get(country), this.frequencies.get(country), this.cfg);
-    const best: ScoredCandidate | undefined = ranked[0];
+    const best: ScoredCandidate | undefined = this.rank(record)[0];
     if (!best) return { decision: 'new' };
     const decision = decideLink(best.score, this.cfg);
     return decision === 'new' ? { decision } : { decision, best };
+  }
+
+  /**
+   * P3-D5 as ruling R13 narrows it, for a new FEI's latest refusal. The best firm without an FEI keeps the bands. A
+   * firm holding another FEI is another establishment unless the address agrees (spec §8.2 step 1), so it only ever
+   * gets a second_fei review, and only for a link-band score with the same address or postal code.
+   */
+  private matchNewFei(record: FirmRecord): FeiMatch {
+    const ranked = this.rank(record);
+    const withoutFei = ranked.find(({ firm }) => firm.feis.length === 0);
+    if (withoutFei && withoutFei.score >= this.cfg.autoLink) return { decision: 'attach', candidate: withoutFei };
+    const sameAddress = ranked.find(
+      ({ firm, score, evidence }) =>
+        firm.feis.length > 0 && score >= this.cfg.autoLink && (evidence.addressMatch || evidence.postalMatch),
+    );
+    if (sameAddress) return { decision: 'second_fei', candidate: sameAddress };
+    if (withoutFei && withoutFei.score >= this.cfg.review) return { decision: 'score_band', candidate: withoutFei };
+    return { decision: 'new' };
   }
 
   /** A new firm named and placed as `representative` (P3-D6), first seen on the earliest date of `records`. */

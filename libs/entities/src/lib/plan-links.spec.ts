@@ -209,21 +209,55 @@ describe('planLinks', () => {
     });
   });
 
-  it('opens a second_fei review when the strong match has another FEI', () => {
+  it('opens a second_fei review when another FEI holder matches by name and address', () => {
+    // One company's plants in two cities, each with its own FEI. Both firms score 1 and firm 8 ranks first on its id,
+    // but only firm 9 is at the new FEI's address.
+    const unjha = knownFirm(8, 'GURUDEV SPICES', { city: 'Unjha', country: 'IN' }, { feis: [3005550001] });
+    const plot14: RawAddress = { line1: 'Plot 14, GIDC Estate', city: 'Mehsana', country: 'IN' };
+    const mehsana = knownFirm(9, 'GURUDEV SPICES', plot14, { feis: [3005550003] });
+    const r = refusal('r-1', '2024-04-20', 'GURUDEV SPICES PVT LTD', plot14, { fei: 3005550002 });
+
+    expect(planLinks({ firms: [unjha, mehsana], records: [r] })).toEqual({
+      newFirms: [newFirm(0, r)],
+      links: [linked(r, created(0), 1)],
+      feis: [{ fei: 3005550002, firm: created(0), firstSeen: '2024-04-20' }],
+      reviews: [
+        {
+          source: 'fda_refusal',
+          key: 'r-1',
+          firm: created(0),
+          candidate: existing(9),
+          score: 1,
+          reason: 'second_fei',
+          evidence: {
+            ...countryOnly,
+            nameSim: 1,
+            addressMatch: true,
+            exactDistinctiveName: true,
+            cityMatch: true,
+            parts: { name: 0.75, location: 0.25, locationReason: 'address', product: 0, total: 1 },
+          },
+        },
+      ],
+    });
+  });
+
+  it('opens a second_fei review when another FEI holder matches by name and postal code', () => {
     const firm = knownFirm(
       8,
       'GURUDEV SPICES',
-      { city: 'Unjha', country: 'IN' },
+      { city: 'Unjha', postalCode: '384170', country: 'IN' },
       { commodityIds: [9], feis: [3005550001] },
     );
     const r = refusal(
       'r-1',
       '2024-04-20',
       'GURUDEV SPICES PVT LTD',
-      { city: 'Unjha', country: 'India' },
+      { city: 'Unjha', postalCode: '384170', country: 'India' },
       { fei: 3005550002, commodityIds: [9] },
     );
 
+    // The postal code is what opens the review, although the distinctive name earns the location bonus.
     expect(planLinks({ firms: [firm], records: [r] })).toEqual({
       newFirms: [newFirm(0, r)],
       links: [linked(r, created(0), 1)],
@@ -240,6 +274,7 @@ describe('planLinks', () => {
             ...countryOnly,
             nameSim: 1,
             exactDistinctiveName: true,
+            postalMatch: true,
             cityMatch: true,
             productOverlap: true,
             parts: { name: 0.75, location: 0.25, locationReason: 'distinctive_exact_name', product: 0.03, total: 1 },
@@ -247,6 +282,86 @@ describe('planLinks', () => {
         },
       ],
     });
+  });
+
+  it('opens no review for a new FEI whose name matches another FEI holder in the same city', () => {
+    const firm = knownFirm(
+      8,
+      'GURUDEV SPICES',
+      { city: 'Unjha', country: 'IN' },
+      { commodityIds: [9], feis: [3005550001] },
+    );
+    const r = refusal(
+      'r-1',
+      '2024-04-20',
+      'GURUDEV SPICES PVT LTD',
+      { city: 'Unjha', country: 'India' },
+      { fei: 3005550002, commodityIds: [9] },
+    );
+
+    // Exact distinctive name in the same city: 1, but a city is not an address. FDA gives each establishment its own
+    // FEI, so without the same address or postal code this is another plant (ruling R13).
+    expect(planLinks({ firms: [firm], records: [r] })).toEqual({
+      newFirms: [newFirm(0, r)],
+      links: [linked(r, created(0), 1)],
+      feis: [{ fei: 3005550002, firm: created(0), firstSeen: '2024-04-20' }],
+      reviews: [],
+    });
+  });
+
+  it('opens no review for a new FEI whose name matches another FEI holder in another city', () => {
+    const firm = knownFirm(5, 'ABHAYA EXPORTS', { city: 'Navi Mumbai', country: 'IN' }, { feis: [3006660001] });
+    const r = refusal(
+      'r-1',
+      '2024-04-20',
+      'ABHAYA EXPORTS',
+      { city: 'Kolkata', country: 'India' },
+      { fei: 3006660002 },
+    );
+
+    // The distinctive name alone scores 0.75 + 0.25 = 1.
+    expect(planLinks({ firms: [firm], records: [r] })).toEqual({
+      newFirms: [newFirm(0, r)],
+      links: [linked(r, created(0), 1)],
+      feis: [{ fei: 3006660002, firm: created(0), firstSeen: '2024-04-20' }],
+      reviews: [],
+    });
+  });
+
+  it('prefers attaching to a link-band firm without an FEI over a second_fei review', () => {
+    const where: RawAddress = { city: 'Zhanjiang', postalCode: '524000', country: 'CN' };
+    // Firm 3 holds another FEI and ranks first, by exact name and postal code: on its own, a second_fei review.
+    const holder = knownFirm(3, 'ZHANJIANG EVERGREEN AQUATIC PRODUCTS', where, {
+      commodityIds: [5],
+      feis: [3001000001],
+    });
+    // Firm 12 has no FEI and matches strongly too: 0.7453 + 0.15 + 0.03 = 0.9253.
+    const listed = knownFirm(12, 'ZHANJIANG EVERGREEN AQUATIC PRODUCT', where, { commodityIds: [5] });
+    const r = refusal('r-1', '2024-02-01', 'ZHANJIANG EVERGREEN AQUATIC PRODUCTS CO LTD', where, {
+      fei: 3002000002,
+      commodityIds: [5],
+    });
+
+    expect(planLinks({ firms: [holder, listed], records: [r] })).toEqual({
+      newFirms: [],
+      links: [linked(r, existing(12), 0.9253)],
+      feis: [{ fei: 3002000002, firm: existing(12), firstSeen: '2024-02-01' }],
+      reviews: [],
+    });
+  });
+
+  it('prefers a second_fei review over a score_band review', () => {
+    const where: RawAddress = { city: 'Unjha', postalCode: '384170', country: 'IN' };
+    // Firm 8 holds another FEI and matches by name and postal code: 1.
+    const holder = knownFirm(8, 'GURUDEV SPICES', where, { feis: [3005550001] });
+    // Firm 2 has no FEI and a near name in the same city: 0.7406 + 0.12 = 0.8606, the review band.
+    const listed = knownFirm(2, 'GURUDEVA SPICES', { city: 'Unjha', country: 'IN' });
+    const r = refusal('r-1', '2024-04-20', 'GURUDEV SPICES PVT LTD', where, { fei: 3005550002 });
+
+    const { reviews } = planLinks({ firms: [holder, listed], records: [r] });
+    expect(reviews.map(({ candidate, reason, score }) => ({ candidate, reason, score }))).toEqual([
+      { candidate: existing(8), reason: 'second_fei', score: 1 },
+    ]);
   });
 
   it('creates a firm and a score_band review between 0.75 and 0.90', () => {
@@ -307,6 +422,40 @@ describe('planLinks', () => {
         },
       ],
     });
+  });
+
+  it('never opens a score_band review against an FEI holder for a new FEI', () => {
+    // Firm 12 holds another FEI and shares the postal code, though no commodity: 0.7453 + 0.15 = 0.8953. Below the link
+    // band a firm with another FEI is another establishment, even at the same postal code.
+    const where: RawAddress = { city: 'Zhanjiang', postalCode: '524000', country: 'CN' };
+    const holder = knownFirm(12, 'ZHANJIANG EVERGREEN AQUATIC PRODUCT', where, { feis: [3001000001] });
+    const r = refusal('r-1', '2024-05-06', 'ZHANJIANG EVERGREEN AQUATIC PRODUCTS CO., LTD', where, { fei: 3003000003 });
+
+    expect(planLinks({ firms: [holder], records: [r] })).toEqual({
+      newFirms: [newFirm(0, r)],
+      links: [linked(r, created(0), 1)],
+      feis: [{ fei: 3003000003, firm: created(0), firstSeen: '2024-05-06' }],
+      reviews: [],
+    });
+
+    // A firm without an FEI still gets its review, though it ranks below firm 12: same city only, 0.7453 + 0.12.
+    const listed = knownFirm(13, 'ZHANJIANG EVERGREEN AQUATIC PRODUCT', { city: 'Zhanjiang', country: 'CN' });
+    expect(planLinks({ firms: [holder, listed], records: [r] }).reviews).toEqual([
+      {
+        source: 'fda_refusal',
+        key: 'r-1',
+        firm: created(0),
+        candidate: existing(13),
+        score: 0.8653,
+        reason: 'score_band',
+        evidence: {
+          ...countryOnly,
+          nameSim: 0.99375,
+          cityMatch: true,
+          parts: { name: 0.7453, location: 0.12, locationReason: 'city', product: 0, total: 0.8653 },
+        },
+      },
+    ]);
   });
 
   it('links the same exporter listed on three Import Alerts to one firm', () => {
