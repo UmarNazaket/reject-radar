@@ -19,7 +19,8 @@
       "@rejectradar/contracts": ["./libs/contracts/src/index.ts"],
       "@rejectradar/matching": ["./libs/matching/src/index.ts"],
       "@rejectradar/db": ["./libs/db/src/index.ts"],
-      "@rejectradar/taxonomy": ["./libs/taxonomy/src/index.ts"]
+      "@rejectradar/taxonomy": ["./libs/taxonomy/src/index.ts"],
+      "@rejectradar/entities": ["./libs/entities/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

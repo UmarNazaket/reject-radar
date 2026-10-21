@@ -115,6 +115,22 @@ describe('database schema (spec §7)', () => {
     ).rejects.toMatchObject({ code: '23502' });
   });
 
+  it.each([
+    ['reason', 'other', 'match_review_reason_ck'],
+    ['status', 'done', 'match_review_status_ck'],
+  ])('rejects match_review.%s = %p through %s', async (column, value, constraint) => {
+    const firmIds = await client.query<{ id: string }>(
+      "insert into firm (display_name, name_norm, country_code) values ('Review Foods', 'review foods', 'PK'), ('Reviewed Foods', 'reviewed foods', 'PK') returning id",
+    );
+    const [newFirm, candidate] = firmIds.rows.map((r) => r.id);
+    await expect(
+      client.query(
+        `insert into match_review (source, source_key, firm_id, candidate_firm_id, score, ${column}) values ('au_ifis', 'au-3', $1, $2, 0.8, $3)`,
+        [newFirm, candidate, value],
+      ),
+    ).rejects.toMatchObject({ code: '23514', constraint });
+  });
+
   it('stores a dispute kind, defaulting to other', async () => {
     const firm = await client.query<{ id: string }>("insert into firm (display_name, name_norm, country_code) values ('Disputed Foods', 'disputed foods', 'PK') returning id");
     const { rows } = await client.query<{ kind: string }>(
