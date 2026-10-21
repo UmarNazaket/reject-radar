@@ -71,6 +71,13 @@
       "when": 1792586850671,
       "tag": "0009_taxonomy_coverage",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792606195821,
+      "tag": "0010_rasff_details_failures",
+      "breakpoints": true
     }
   ]
 }

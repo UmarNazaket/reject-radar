@@ -408,6 +408,76 @@ describe('RASFF sync', () => {
       expect((await rowOf(threeIds[1])).hazards).toHaveLength(1);
     });
 
+    it('retries a detail failing with HTTP 500 for two more runs, then gives up on it and stops asking', async () => {
+      const failing = { [threeIds[1]]: 500 };
+      for (const run of [1, 2]) {
+        const b = backend([three], DETAIL, failing);
+        const result = await syncRasff(withBackend(b), { detailsLimit: 10, events: false, ...from });
+        expect(detailRequests(b)).toContain(rasffDetailUrl(threeIds[1]));
+        expect(result).toMatchObject({ status: 'succeeded', detailsTransient: 1, detailsGivenUp: 0 });
+        expect(warn.mock.calls[run - 1][0]).toMatch(/1 failed transiently and will be retried next run, 0 given up/);
+        expect((await rowOf(threeIds[1])).detailsFetchedAt).toBeNull();
+      }
+
+      const third = backend([three], DETAIL, failing);
+      const result = await syncRasff(withBackend(third), { detailsLimit: 10, events: false, ...from });
+      expect(detailRequests(third)).toEqual([rasffDetailUrl(threeIds[1])]);
+      expect(result).toMatchObject({ status: 'succeeded', detailsFetched: 0, detailsGone: 0, detailsInvalid: 0, detailsTransient: 0, detailsGivenUp: 1 });
+      expect(warn.mock.calls[2][0]).toMatch(/0 failed transiently and will be retried next run, 1 given up after failing in 3 runs/);
+      const givenUp = await rowOf(threeIds[1]);
+      expect(givenUp.detailsFetchedAt).not.toBeNull();
+      expect(givenUp.hazards).toEqual([]);
+
+      const fourth = backend([three], DETAIL, failing);
+      await syncRasff(withBackend(fourth), { detailsLimit: 10, events: false, ...from });
+      expect(detailRequests(fourth)).toHaveLength(0);
+    });
+
+    it('fetches a detail normally when it succeeds after failing, short of giving up', async () => {
+      for (let run = 0; run < 2; run++) {
+        await syncRasff(withBackend(backend([three], DETAIL, { [threeIds[1]]: 500 })), { detailsLimit: 10, events: false, ...from });
+      }
+      const recovered = backend([three]);
+      const result = await syncRasff(withBackend(recovered), { detailsLimit: 10, events: false, ...from });
+      expect(detailRequests(recovered)).toEqual([rasffDetailUrl(threeIds[1])]);
+      expect(result).toMatchObject({ detailsFetched: 1, detailsTransient: 0, detailsGivenUp: 0 });
+      const row = await rowOf(threeIds[1]);
+      expect(row.detailsFetchedAt).not.toBeNull();
+      expect(row.hazards).toHaveLength(1);
+      expect(row.hazardIds).toContain(400);
+
+      const again = backend([three], DETAIL, { [threeIds[1]]: 500 });
+      await syncRasff(withBackend(again), { detailsLimit: 10, events: false, ...from });
+      expect(detailRequests(again)).toHaveLength(0);
+    });
+
+    it('tries backlog rows that never failed before older ones that did', async () => {
+      await handle.db.insert(rasffNotification).values(
+        [1, 2].map((i) => ({ reference: `B.${i}`, notifiedOn: `2026-01-0${i}`, subject: 'Older notification', url: rasffPublicUrl(900_000 + i) })),
+      );
+      const none = { ...three, notifications: [] };
+      const failing = { 900_001: 500 };
+
+      const first = backend([none], DETAIL, failing);
+      await syncRasff(withBackend(first), { detailsLimit: 1, events: false, ...from });
+      expect(detailRequests(first)).toEqual([rasffDetailUrl(900_001)]);
+
+      const second = backend([none], DETAIL, failing);
+      await syncRasff(withBackend(second), { detailsLimit: 1, events: false, ...from });
+      expect(detailRequests(second)).toEqual([rasffDetailUrl(900_002)]);
+
+      const third = backend([none], DETAIL, failing);
+      await syncRasff(withBackend(third), { detailsLimit: 1, events: false, ...from });
+      expect(detailRequests(third)).toEqual([rasffDetailUrl(900_001)]);
+    });
+
+    it('asks the fetcher for one in-run retry of a detail and leaves the list at its default', async () => {
+      const b = backend([three]);
+      await syncRasff(withBackend(b), { detailsLimit: 10, events: false, ...from });
+      expect(b.calls.filter((c) => c.url !== RASFF_SEARCH_URL).map((c) => c.options?.retries)).toEqual([1, 1, 1]);
+      expect(b.calls.filter((c) => c.url === RASFF_SEARCH_URL).map((c) => c.options?.retries)).toEqual([undefined]);
+    });
+
     it('treats a network failure without a status as transient', async () => {
       const fake = fakeFetcher((url: string) => {
         if (url !== RASFF_SEARCH_URL) throw new SourceFetchError('timed out', null, url);

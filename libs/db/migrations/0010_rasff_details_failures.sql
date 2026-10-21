@@ -1,0 +1,1 @@
+ALTER TABLE "rasff_notification" ADD COLUMN "details_failures" smallint DEFAULT 0 NOT NULL;

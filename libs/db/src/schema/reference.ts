@@ -337,6 +337,8 @@ export const rasffNotification = pgTable(
     url: text('url'),
     /** When the detail was last fetched successfully (or given up on); null means it still has to be fetched. */
     detailsFetchedAt: timestamp('details_fetched_at', { withTimezone: true }),
+    /** Runs whose detail fetch failed transiently; after a few the detail is given up on (see `syncRasff`). */
+    detailsFailures: smallint('details_failures').notNull().default(0),
   },
   (t) => [index('rasff_notification_notified_on_idx').on(t.notifiedOn)],
 );
