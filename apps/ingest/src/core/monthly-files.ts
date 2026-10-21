@@ -118,11 +118,11 @@ async function upsertTyped<TTable extends PgTable>(
   const set: Record<string, SQL> = Object.fromEntries(updated.map((name) => [name, excluded(name)]));
   if (linkIdentity !== undefined) {
     // Not compared in `setWhere`: a changed identity already is, as the typed row holds its columns.
-    const moved = sql`(${sql.join(linkIdentity, sql`, `)}) is distinct from (${sql.join(
+    const identityChanged = sql`(${sql.join(linkIdentity, sql`, `)}) is distinct from (${sql.join(
       linkIdentity.map((column) => sql.raw(`excluded."${column.name}"`)),
       sql`, `,
     )})`;
-    for (const name of ['firmId', 'linkScore']) set[name] = sql`case when ${moved} then null else ${columns[name]} end`;
+    for (const name of ['firmId', 'linkScore']) set[name] = sql`case when ${identityChanged} then null else ${columns[name]} end`;
   }
   const setWhere = sql`(${sql.join(
     updated.map((name) => sql`${columns[name]}`),
