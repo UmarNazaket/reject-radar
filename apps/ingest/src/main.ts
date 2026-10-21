@@ -1,10 +1,11 @@
 import type { IngestEnv } from '@rejectradar/contracts';
+import { linkEntities } from '@rejectradar/entities';
 import { Command, InvalidArgumentError, Option } from 'commander';
 import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { openDb } from './core/db';
 import { loadIngestEnv } from './core/env';
-import { createDeps } from './core/deps';
+import { createDeps, utcToday } from './core/deps';
 import { createFetcher } from './core/http';
 import { databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
 import { syncChargeCodes } from './sync/fda/charge-codes';
@@ -177,6 +178,20 @@ program
     try {
       const { updated } = await remapTaxonomy(db);
       console.log(JSON.stringify({ updated }, null, 2));
+    } finally {
+      await close();
+    }
+  });
+
+program
+  .command('entities:link')
+  .description('Link unlinked FDA refusals, Import Alert listings and Australian producers to firms, then refresh firm facts (spec §8.2)')
+  .option('--today <date>', 'the date the 12-month and 3-year counts are measured back from, YYYY-MM-DD (default: today, UTC)', isoDate)
+  .action(async (options: { today?: string }) => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      const result = await linkEntities(db, { today: options.today ?? utcToday() });
+      console.log(JSON.stringify(result, null, 2));
     } finally {
       await close();
     }

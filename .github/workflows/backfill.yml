@@ -16,6 +16,7 @@ on:
           - au_ifis
           - eu_mrl
           - taxonomy_remap
+          - entities
       from:
         description: Earliest date to load, YYYY-MM-DD (fda_refusals and rasff; blank uses the command default)
         type: string
@@ -84,6 +85,7 @@ jobs:
             au_ifis)          "${cli[@]}" sync:au-ifis --no-events ;;
             eu_mrl)           "${cli[@]}" sync:eu-mrl --no-events ;;
             taxonomy_remap)   "${cli[@]}" taxonomy:remap ;;
+            entities)         "${cli[@]}" entities:link ;;
             *) echo "unknown source: $SOURCE" >&2; exit 1 ;;
           esac
       # A page-structure failure saves the page under INGEST_FAILURE_DIR (default tmp/ingest-failures).
@@ -95,3 +97,11 @@ jobs:
           path: tmp/ingest-failures
           if-no-files-found: ignore
           retention-days: 30
+      # The firm-level sources add records that no firm is linked to yet. The entities source runs this command alone,
+      # in the step above.
+      - name: entities:link
+        if: ${{ inputs.source == 'fda_refusals' || inputs.source == 'import_alerts' || inputs.source == 'au_ifis' }}
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+        run: node dist/apps/ingest/main.js entities:link

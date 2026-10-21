@@ -60,7 +60,11 @@ jobs:
           FDA_API_USER: ${{ secrets.FDA_API_USER }}
           FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
         run: node dist/apps/ingest/main.js sync:fda-refusals
-      # P3: entities:link
+      - name: entities:link
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+        run: node dist/apps/ingest/main.js entities:link
       # P5: alerts:run
 
   uk-bn:
@@ -86,7 +90,6 @@ jobs:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:uk-bn
-      # P3: entities:link
       # P5: alerts:run
 
   au-ifis:
@@ -112,5 +115,9 @@ jobs:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:au-ifis
-      # P3: entities:link
+      - name: entities:link
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+        run: node dist/apps/ingest/main.js entities:link
       # P5: alerts:run
