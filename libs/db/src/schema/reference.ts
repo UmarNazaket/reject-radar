@@ -2,6 +2,8 @@ import {
   DESTINATIONS,
   EVENT_KINDS,
   LISTS,
+  MATCH_REVIEW_REASONS,
+  MATCH_REVIEW_STATUSES,
   NOTICE_SOURCES,
   NOTICE_TYPES,
   RULE_MATCH_TYPES,
@@ -132,11 +134,15 @@ export const firm = pgTable(
   ],
 );
 
-export const firmAlias = pgTable('firm_alias', {
-  oldId: bigint('old_id', { mode: 'number' }).primaryKey(),
-  newId: bigint('new_id', { mode: 'number' }).notNull().references(() => firm.id),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const firmAlias = pgTable(
+  'firm_alias',
+  {
+    oldId: bigint('old_id', { mode: 'number' }).primaryKey(),
+    newId: bigint('new_id', { mode: 'number' }).notNull().references(() => firm.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('firm_alias_new_idx').on(t.newId)],
+);
 
 export const firmFei = pgTable(
   'firm_fei',
@@ -480,7 +486,13 @@ export const matchReview = pgTable(
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('match_review_status_idx').on(t.status)],
+  (t) => [
+    index('match_review_status_idx').on(t.status),
+    index('match_review_source_key_idx').on(t.source, t.sourceKey),
+    index('match_review_candidate_idx').on(t.candidateFirmId),
+    check('match_review_reason_ck', oneOf('reason', MATCH_REVIEW_REASONS)),
+    check('match_review_status_ck', oneOf('status', MATCH_REVIEW_STATUSES)),
+  ],
 );
 
 export const sourceSyncRun = pgTable(

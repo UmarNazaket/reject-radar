@@ -150,11 +150,84 @@ export function normalizeAddressLine(...lines: (string | null | undefined)[]): s
   return tokens.length > 0 ? tokens.join(' ') : null;
 }
 
-/** Spec §8.2: token-set Jaro-Winkler of normalised address lines, 0 unless both have `minTokens` words. */
+/**
+ * Spec §8.2: token-set Jaro-Winkler of normalised address lines, 0 unless both have `minTokens` words.
+ * P3-D3: also 0 unless the words that contain a digit are the same set on both sides (or neither side has any), so
+ * "plot 23" and "plot 25" are different addresses however alike the rest is.
+ */
 export function addressSimilarity(a: string | null, b: string | null, minTokens = 3): number {
   if (!a || !b) return 0;
   if (a.split(' ').length < minTokens || b.split(' ').length < minTokens) return 0;
+  if (!sameNumbers(a, b)) return 0;
   return tokenSetJaroWinkler(a, b);
+}
+
+/** The words of an address line that contain a digit: plot, house and sector numbers, "23a", postcodes. */
+function numberWords(address: string): Set<string> {
+  return new Set(address.split(' ').filter((word) => /\d/.test(word)));
+}
+
+function sameNumbers(a: string, b: string): boolean {
+  const numbersA = numberWords(a);
+  const numbersB = numberWords(b);
+  return numbersA.size === numbersB.size && [...numbersA].every((word) => numbersB.has(word));
+}
+
+/**
+ * What may stand between the words of an address and its location tail: any character other than a-z and 0-9 once
+ * folded, the words' own alphabet. Besides spaces, commas and semicolons, that is the "." of "Hebei Prov." or "CHINA."
+ * and the ")" of "REPUBLIC OF (SOUTH)".
+ */
+const TAIL_SEPARATOR = /[^a-z0-9]/;
+
+/**
+ * Cuts the city, region and country off the end of an address that carries them (P3-D3): an Import Alert `address_raw`
+ * reads "…, FUQING, Fujian CHINA", while an FDA address line holds the street only. The comparison is on folded text and
+ * whole words, from the end, trying country, then region, then city, for as long as one of them matches; the
+ * punctuation and spaces around each cut go with it. The result is the matching prefix of `raw`, in its own spelling,
+ * or `raw` itself when it has no such tail.
+ */
+export function stripLocationTail(
+  raw: string,
+  parts: { city?: string | null; region?: string | null; country?: string | null },
+): string {
+  const tails = [parts.country, parts.region, parts.city].flatMap((part) => {
+    const words = part ? foldToAscii(part).match(/[a-z0-9]+/g) : null;
+    return words ? [new RegExp(`(?<![a-z0-9])${words.join('[^a-z0-9]+')}$`)] : [];
+  });
+  if (tails.length === 0) return raw;
+
+  // Folding one character at a time lets every folded character say where its source character ends in `raw`.
+  let folded = '';
+  const ends: number[] = [];
+  let offset = 0;
+  for (const char of raw) {
+    offset += char.length;
+    const piece = foldToAscii(char);
+    folded += piece;
+    for (let i = 0; i < piece.length; i++) ends.push(offset);
+  }
+
+  let end = folded.length;
+  let cut = false;
+  for (;;) {
+    while (end > 0 && TAIL_SEPARATOR.test(folded[end - 1])) end--;
+    const head = folded.slice(0, end);
+    const match = firstMatch(tails, head);
+    if (!match) break;
+    end = match.index;
+    cut = true;
+  }
+  if (!cut) return raw;
+  return end === 0 ? '' : raw.slice(0, ends[end - 1]);
+}
+
+function firstMatch(patterns: readonly RegExp[], text: string): RegExpExecArray | null {
+  for (const pattern of patterns) {
+    const match = pattern.exec(text);
+    if (match) return match;
+  }
+  return null;
 }
 
 export function normalizeAddress(address: RawAddress | null | undefined): NormalizedAddress | null {

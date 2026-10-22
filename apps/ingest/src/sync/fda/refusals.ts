@@ -122,6 +122,12 @@ export function classifyRefusal(
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const BATCH_SIZE = 500;
 
+/**
+ * True in the upsert when the re-read changes the refusal's identity: its FEI, normalised name or country (P3-D8). Such
+ * a refusal loses its `firm_id` and `link_score`, so the job's `entities:link` relinks it.
+ */
+const IDENTITY_CHANGED = sql`(${fdaRefusal.fei}, ${fdaRefusal.nameNorm}, ${fdaRefusal.countryCode}) is distinct from (excluded.fei, excluded.name_norm, excluded.country_code)`;
+
 function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -239,6 +245,9 @@ export async function syncFdaRefusals(
               privateLabAnalysis: sql`excluded.private_lab_analysis`,
               commodityId: sql`excluded.commodity_id`,
               hazardIds: sql`excluded.hazard_ids`,
+              // Not compared in `setWhere`: a changed identity already is.
+              firmId: sql`case when ${IDENTITY_CHANGED} then null else ${fdaRefusal.firmId} end`,
+              linkScore: sql`case when ${IDENTITY_CHANGED} then null else ${fdaRefusal.linkScore} end`,
             },
             setWhere: sql`(${fdaRefusal.fei}, ${fdaRefusal.firmName}, ${fdaRefusal.nameNorm}, ${fdaRefusal.addressLine1}, ${fdaRefusal.addressLine2}, ${fdaRefusal.city}, ${fdaRefusal.region}, ${fdaRefusal.postalCode}, ${fdaRefusal.countryCode}, ${fdaRefusal.divisionCode}, ${fdaRefusal.industryCode}, ${fdaRefusal.productCode}, ${fdaRefusal.productDesc}, ${fdaRefusal.productCategory}, ${fdaRefusal.refusalDate}, ${fdaRefusal.chargeCodes}, ${fdaRefusal.fdaSampleAnalysis}, ${fdaRefusal.privateLabAnalysis}, ${fdaRefusal.commodityId}, ${fdaRefusal.hazardIds})
               is distinct from

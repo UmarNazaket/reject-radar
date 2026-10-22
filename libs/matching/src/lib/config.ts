@@ -21,6 +21,8 @@ export interface LinkConfig {
   review: number;
   /** Minimum trigram similarity for a candidate. */
   candidateMinTrigram: number;
+  /** Minimum Jaro-Winkler for two name words to count as the same word in the name similarity. */
+  nameTokenMinJw: number;
   /** Maximum candidates considered per record. */
   maxCandidates: number;
   /** A name token is distinctive when it appears in fewer firm names than this. */
@@ -79,6 +81,7 @@ export const MATCH_CONFIG: Readonly<MatchConfig> = {
     autoLink: 0.9,
     review: 0.75,
     candidateMinTrigram: 0.5,
+    nameTokenMinJw: 0.92,
     maxCandidates: 20,
     distinctiveTokenMaxFreq: 50,
     addressMinSim: 0.9,

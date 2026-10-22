@@ -1,12 +1,13 @@
 import type { IngestEnv } from '@rejectradar/contracts';
+import { LABELLED_PAIR_COLUMNS, linkEntities, samplePairs, sampleSummary, toCsv } from '@rejectradar/entities';
 import { Command, InvalidArgumentError, Option } from 'commander';
-import { appendFile, mkdir } from 'node:fs/promises';
+import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { openDb } from './core/db';
 import { loadIngestEnv } from './core/env';
-import { createDeps } from './core/deps';
+import { createDeps, utcToday } from './core/deps';
 import { createFetcher } from './core/http';
-import { databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
+import { assertBelowSizeLimit, databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
 import { syncChargeCodes } from './sync/fda/charge-codes';
 import { syncAuIfis } from './sync/au-ifis/sync';
 import { syncEuMrl } from './sync/eu-mrl/sync';
@@ -177,6 +178,41 @@ program
     try {
       const { updated } = await remapTaxonomy(db);
       console.log(JSON.stringify({ updated }, null, 2));
+    } finally {
+      await close();
+    }
+  });
+
+program
+  .command('entities:link')
+  .description('Link unlinked FDA refusals, Import Alert listings and Australian producers to firms, then refresh firm facts (spec §8.2)')
+  .option('--today <date>', 'the date the 12-month and 3-year counts are measured back from, YYYY-MM-DD (default: today, UTC)', isoDate)
+  .action(async (options: { today?: string }) => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      // Spec §6.3: linking writes too, so a database at or over the limit stops it as it stops every sync.
+      await assertBelowSizeLimit(db);
+      const result = await linkEntities(db, { today: options.today ?? utcToday() });
+      console.log(JSON.stringify(result, null, 2));
+    } finally {
+      await close();
+    }
+  });
+
+program
+  .command('entities:sample-pairs')
+  .description('Write a CSV of record/firm pairs to label for the auto-link precision gate: link, review and near scores from at least 5 countries (spec §8.5)')
+  .requiredOption('--out <path>', 'CSV file to write, e.g. libs/matching/test/fixtures/labelled-pairs.csv')
+  .option('--count <n>', 'how many pairs to sample', positiveInt, 300)
+  .option('--seed <n>', 'seed of the shuffle: the same data and seed give the same sample', positiveInt, 1)
+  .action(async (options: { out: string; count: number; seed: number }) => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      // The whole sample is drawn before the file is written, so a run that fails leaves the file as it was.
+      const rows = await samplePairs(db, { count: options.count, seed: options.seed });
+      await mkdir(path.dirname(options.out), { recursive: true });
+      await writeFile(options.out, toCsv(LABELLED_PAIR_COLUMNS, rows), 'utf8');
+      console.log(JSON.stringify({ out: options.out, ...sampleSummary(rows) }));
     } finally {
       await close();
     }

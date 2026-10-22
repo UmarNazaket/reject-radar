@@ -47,5 +47,4 @@ jobs:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:eu-mrl
-      # P3: entities:link
       # P5: alerts:run

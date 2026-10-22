@@ -1,8 +1,8 @@
-import { commodity, notice, prepareTestDatabase, sourceSyncRun } from '@rejectradar/db';
+import { commodity, type Database, notice, prepareTestDatabase, sourceSyncRun } from '@rejectradar/db';
 import { count, desc, eq } from 'drizzle-orm';
 import { openDb } from './db';
 import { upsertNotices } from './notices';
-import { SIZE_LIMIT_BYTES, SizeLimitError } from './size-check';
+import { assertBelowSizeLimit, SIZE_LIMIT_BYTES, SizeLimitError } from './size-check';
 import { eventsForRun, lastSucceededRun, runSync } from './sync-run';
 
 describe('runSync', () => {
@@ -91,6 +91,33 @@ describe('runSync', () => {
   it('uses a 900 MB default limit', () => {
     expect(SIZE_LIMIT_BYTES).toBe(943718400);
     expect(new SizeLimitError(1, SIZE_LIMIT_BYTES).message).toContain('900 MB');
+  });
+
+  describe('assertBelowSizeLimit (the guard runSync and entities:link share)', () => {
+    /** A stand-in database that reports a fixed size, so that the boundary is exact. */
+    const reporting = (size: number) =>
+      ({ execute: () => Promise.resolve({ rows: [{ size: String(size) }] }) }) as unknown as Database;
+
+    it('throws a SizeLimitError that carries the size and the limit when the database is over the limit', async () => {
+      // Any database is over a 1-byte limit.
+      const error = await assertBelowSizeLimit(handle.db, 1).then(
+        () => undefined,
+        (thrown: unknown) => thrown,
+      );
+      expect(error).toBeInstanceOf(SizeLimitError);
+      expect(error).toMatchObject({ limitBytes: 1, sizeBytes: expect.any(Number) });
+    });
+
+    it('resolves when the database is below the limit', async () => {
+      await expect(assertBelowSizeLimit(handle.db, Number.MAX_SAFE_INTEGER)).resolves.toBeUndefined();
+    });
+
+    it('throws at the limit itself, passes just below it and defaults to 900 MB', async () => {
+      await expect(assertBelowSizeLimit(reporting(100), 100)).rejects.toBeInstanceOf(SizeLimitError);
+      await expect(assertBelowSizeLimit(reporting(99), 100)).resolves.toBeUndefined();
+      await expect(assertBelowSizeLimit(reporting(SIZE_LIMIT_BYTES))).rejects.toBeInstanceOf(SizeLimitError);
+      await expect(assertBelowSizeLimit(reporting(SIZE_LIMIT_BYTES - 1))).resolves.toBeUndefined();
+    });
   });
 
   it('truncates long errors to 2000 characters', async () => {
