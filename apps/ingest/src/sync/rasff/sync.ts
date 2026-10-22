@@ -26,6 +26,18 @@ export const FIRST_LOAD_FROM = '2020-01-01';
 
 export const DEFAULT_DETAILS_LIMIT = 200;
 
+/**
+ * Runs in which a detail may fail transiently before it is given up on (marked fetched, without hazards). Some details
+ * answer HTTP 500 on every request; without a limit they would be fetched again by every run.
+ */
+export const MAX_DETAIL_FAILURES = 3;
+
+/**
+ * In-run retries of a detail fetch. The next run retries a failed detail anyway, so one quick retry covers a momentary
+ * error; the fetcher's default of three (backing off 2, 8 and 30 s) costs about 40 s for each detail that always fails.
+ */
+const DETAIL_RETRIES = 1;
+
 const ITEMS_PER_PAGE = 100;
 const BATCH_SIZE = 500;
 const KEY_CHUNK = 2000;
@@ -85,6 +97,8 @@ export interface RasffRunResult extends SyncRunResult {
   detailsGone: number;
   detailsInvalid: number;
   detailsTransient: number;
+  /** Details whose transient failure was their last allowed one ({@link MAX_DETAIL_FAILURES}); marked fetched without hazards. */
+  detailsGivenUp: number;
 }
 
 /** A notification as stored: the list fields plus what only the detail holds. */
@@ -94,6 +108,8 @@ interface Row extends RasffListItem {
   isNew: boolean;
   /** Set when this run fetched the detail or gave up on it for good; written as `details_fetched_at = now()`. */
   markFetched: boolean;
+  /** Runs whose detail fetch failed transiently, this one included. */
+  detailsFailures: number;
 }
 
 type StoredRow = typeof rasffNotification.$inferSelect;
@@ -122,6 +138,7 @@ const rowFromStored = (s: StoredRow): Row | null => {
     hazards: s.hazards as RasffHazard[],
     isNew: false,
     markFetched: false,
+    detailsFailures: s.detailsFailures,
   };
 };
 
@@ -152,8 +169,9 @@ async function readList(deps: SyncDeps, cutoff: string): Promise<{ read: number;
  * Syncs RASFF notifications of food and feed into `rasff_notification` and `notice`, in one transaction. The search list
  * is read newest first back to the cutoff (`from`, else 30 days before the newest stored notification). Hazards live only
  * in each notification's detail: up to `detailsLimit` details are fetched per run, new references first, then stored
- * ones never fetched (oldest first). A detail that is gone or malformed is given up on; a transient failure is retried
- * next run. Events are emitted for new references only.
+ * ones never fetched (those that never failed first, then oldest first). A detail that is gone or malformed is given up
+ * on; a transient failure is retried next run, until it has failed in {@link MAX_DETAIL_FAILURES} runs and is given up
+ * on too. Events are emitted for new references only.
  */
 export async function syncRasff(
   deps: SyncDeps,
@@ -162,7 +180,7 @@ export async function syncRasff(
   if (options.from !== undefined && !DATE_ONLY.test(options.from)) throw new Error(`Invalid date "${options.from}"; use YYYY-MM-DD`);
   if (!Number.isSafeInteger(options.detailsLimit) || options.detailsLimit < 0) throw new Error('detailsLimit must be a whole number of 0 or more');
 
-  const skipped = { gone: 0, invalid: 0, transient: 0 };
+  const skipped = { gone: 0, invalid: 0, transient: 0, givenUp: 0 };
   let fetched = 0;
   const result = await runSync(deps.db, 'rasff', async (ctx) => {
     const emitEvents = await eventsForRun(deps.db, 'rasff', options.events);
@@ -197,11 +215,13 @@ export async function syncRasff(
         hazards: (before?.hazards as RasffHazard[] | undefined) ?? [],
         isNew: before === undefined,
         markFetched: false,
+        detailsFailures: before?.detailsFailures ?? 0,
       });
     }
 
     // New references come first, newest first as listed; the remaining slots go to stored rows whose details were never
-    // fetched, oldest first, so a backlog can never starve fresh notifications.
+    // fetched, oldest first, so a backlog can never starve fresh notifications. Rows that already failed wait behind
+    // those never tried.
     const toDetail = [...rows.values()].filter((row) => row.isNew).slice(0, options.detailsLimit);
     const spare = options.detailsLimit - toDetail.length;
     if (spare > 0) {
@@ -209,7 +229,7 @@ export async function syncRasff(
         .select()
         .from(rasffNotification)
         .where(and(isNull(rasffNotification.detailsFetchedAt), isNotNull(rasffNotification.url)))
-        .orderBy(rasffNotification.notifiedOn, rasffNotification.reference)
+        .orderBy(rasffNotification.detailsFailures, rasffNotification.notifiedOn, rasffNotification.reference)
         .limit(spare);
       for (const s of backlog) {
         const row = rows.get(s.reference) ?? rowFromStored(s);
@@ -218,16 +238,23 @@ export async function syncRasff(
     }
 
     for (const row of toDetail) {
-      // A gone or malformed detail is given up on (marked fetched); a transient failure is left to the next run.
+      // A gone or malformed detail is given up on (marked fetched); a transient failure is left to the next run, unless it
+      // is this detail's last allowed one.
       let json: unknown;
       try {
-        json = (await deps.fetcher(rasffDetailUrl(row.notifId), { expect: 'json' })).json();
+        json = (await deps.fetcher(rasffDetailUrl(row.notifId), { expect: 'json', retries: DETAIL_RETRIES })).json();
       } catch (error) {
         if (error instanceof SourceFetchError && (error.status === 404 || error.status === 410)) {
           skipped.gone++;
           row.markFetched = true;
         } else if (error instanceof SourceFetchError || !(error instanceof SyntaxError)) {
-          skipped.transient++;
+          row.detailsFailures++;
+          if (row.detailsFailures >= MAX_DETAIL_FAILURES) {
+            skipped.givenUp++;
+            row.markFetched = true;
+          } else {
+            skipped.transient++;
+          }
         } else {
           skipped.invalid++;
           row.markFetched = true;
@@ -251,9 +278,9 @@ export async function syncRasff(
       fetched++;
       rows.set(row.reference, row);
     }
-    if (skipped.gone + skipped.invalid + skipped.transient > 0) {
+    if (skipped.gone + skipped.invalid + skipped.transient + skipped.givenUp > 0) {
       console.warn(
-        `RASFF details skipped: ${skipped.gone} gone (404/410), ${skipped.invalid} invalid, ${skipped.transient} failed transiently and will be retried next run.`,
+        `RASFF details skipped: ${skipped.gone} gone (404/410), ${skipped.invalid} invalid, ${skipped.transient} failed transiently and will be retried next run, ${skipped.givenUp} given up after failing in ${MAX_DETAIL_FAILURES} runs.`,
       );
     }
 
@@ -285,6 +312,7 @@ export async function syncRasff(
               hazardIds,
               url: rasffPublicUrl(row.notifId),
               detailsFetchedAt: row.markFetched ? now : null,
+              detailsFailures: row.detailsFailures,
             })),
           )
           .onConflictDoUpdate({
@@ -303,10 +331,11 @@ export async function syncRasff(
               hazardIds: sql`excluded.hazard_ids`,
               url: sql`excluded.url`,
               detailsFetchedAt: sql`coalesce(excluded.details_fetched_at, ${rasffNotification.detailsFetchedAt})`,
+              detailsFailures: sql`excluded.details_failures`,
             },
-            setWhere: sql`(${rasffNotification.notifiedOn}, ${rasffNotification.classification}, ${rasffNotification.riskDecision}, ${rasffNotification.notifyingCountry}, ${rasffNotification.originCountries}, ${rasffNotification.distributionCountries}, ${rasffNotification.productCategory}, ${rasffNotification.subject}, ${rasffNotification.hazards}, ${rasffNotification.commodityId}, ${rasffNotification.hazardIds}, ${rasffNotification.url}, ${rasffNotification.detailsFetchedAt})
+            setWhere: sql`(${rasffNotification.notifiedOn}, ${rasffNotification.classification}, ${rasffNotification.riskDecision}, ${rasffNotification.notifyingCountry}, ${rasffNotification.originCountries}, ${rasffNotification.distributionCountries}, ${rasffNotification.productCategory}, ${rasffNotification.subject}, ${rasffNotification.hazards}, ${rasffNotification.commodityId}, ${rasffNotification.hazardIds}, ${rasffNotification.url}, ${rasffNotification.detailsFetchedAt}, ${rasffNotification.detailsFailures})
               is distinct from
-              (excluded.notified_on, excluded.classification, excluded.risk_decision, excluded.notifying_country, excluded.origin_countries, excluded.distribution_countries, excluded.product_category, excluded.subject, excluded.hazards, excluded.commodity_id, excluded.hazard_ids, excluded.url, coalesce(excluded.details_fetched_at, ${rasffNotification.detailsFetchedAt}))`,
+              (excluded.notified_on, excluded.classification, excluded.risk_decision, excluded.notifying_country, excluded.origin_countries, excluded.distribution_countries, excluded.product_category, excluded.subject, excluded.hazards, excluded.commodity_id, excluded.hazard_ids, excluded.url, coalesce(excluded.details_fetched_at, ${rasffNotification.detailsFetchedAt}), excluded.details_failures)`,
           })
           .returning({ inserted: sql<boolean>`(xmax = 0)` });
         for (const r of returned) {
@@ -355,5 +384,5 @@ export async function syncRasff(
     ctx.counts.rowsUpdated = rowsUpdated;
     ctx.counts.eventsEmitted = eventsEmitted;
   });
-  return { ...result, detailsFetched: fetched, detailsGone: skipped.gone, detailsInvalid: skipped.invalid, detailsTransient: skipped.transient };
+  return { ...result, detailsFetched: fetched, detailsGone: skipped.gone, detailsInvalid: skipped.invalid, detailsTransient: skipped.transient, detailsGivenUp: skipped.givenUp };
 }
