@@ -147,7 +147,8 @@ export function latestRecord(records: readonly FirmRecord[]): FirmRecord {
   return records.reduce((found, record) => (compareByDate(record, found) > 0 ? record : found));
 }
 
-function earliestSeenOn(records: readonly FirmRecord[]): string {
+/** The earliest date of `records`: a new firm is first seen on it. */
+export function earliestSeenOn(records: readonly FirmRecord[]): string {
   return records.reduce((found, { seenOn }) => (seenOn < found ? seenOn : found), records[0].seenOn);
 }
 

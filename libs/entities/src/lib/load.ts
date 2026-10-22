@@ -1,6 +1,7 @@
 import { auFailingFood, fdaRefusal, firm, firmAlias, firmFei, importAlertListing, notice } from '@rejectradar/db';
 import { normalizeAddress, type NormalizedAddress, stripLocationTail } from '@rejectradar/matching';
-import { and, asc, eq, isNull, ne, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, notInArray, type SQL, sql } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 import type { DbOrTx, FirmRecord, KnownFirm } from './types';
 
 /** A stored record that names a firm: the engine's view of it, the firm it is linked to and its address as written. */
@@ -12,9 +13,13 @@ export interface LoadedRecord {
   rawAddress: string | null;
 }
 
-interface LoadOptions {
-  /** Linked records too, not only the unlinked ones. */
-  includeLinked: boolean;
+/** Which records to load: the unlinked ones, the linked ones too (`includeLinked`), or those of one firm. */
+type LoadOptions = { includeLinked: boolean } | { firmId: number };
+
+/** The condition on a source's `firm_id` column that picks the records `opts` asks for. */
+function whichRecords(opts: LoadOptions, firmId: PgColumn): SQL | undefined {
+  if ('firmId' in opts) return eq(firmId, opts.firmId);
+  return opts.includeLinked ? undefined : isNull(firmId);
 }
 
 /**
@@ -28,8 +33,8 @@ export async function loadLinkInput(db: DbOrTx): Promise<{ firms: KnownFirm[]; r
 }
 
 /**
- * Every record that names a firm, unlinked only unless `includeLinked`: by source (FDA, Import Alert, Australia), each
- * in the order its rows were stored.
+ * Every record that names a firm, unlinked only unless `includeLinked`, or only those of `firmId`: by source (FDA,
+ * Import Alert, Australia), each in the order its rows were stored.
  */
 export async function loadFirmRecords(db: DbOrTx, opts: LoadOptions): Promise<LoadedRecord[]> {
   return [...(await loadRefusals(db, opts)), ...(await loadListings(db, opts)), ...(await loadAuRows(db, opts))];
@@ -74,7 +79,7 @@ function storedAddress(columns: NormalizedAddress): NormalizedAddress | null {
 const commodityIdsOf = (commodityId: number | null): number[] => (commodityId === null ? [] : [commodityId]);
 
 /** FDA refusals. The address comes in fields, which a person reads joined by commas. */
-async function loadRefusals(db: DbOrTx, { includeLinked }: LoadOptions): Promise<LoadedRecord[]> {
+async function loadRefusals(db: DbOrTx, opts: LoadOptions): Promise<LoadedRecord[]> {
   const rows = await db
     .select({
       key: fdaRefusal.sourceKey,
@@ -92,7 +97,7 @@ async function loadRefusals(db: DbOrTx, { includeLinked }: LoadOptions): Promise
       firmId: fdaRefusal.firmId,
     })
     .from(fdaRefusal)
-    .where(includeLinked ? undefined : isNull(fdaRefusal.firmId))
+    .where(whichRecords(opts, fdaRefusal.firmId))
     .orderBy(asc(fdaRefusal.id));
   return rows.map((row) => ({
     record: {
@@ -125,7 +130,7 @@ async function loadRefusals(db: DbOrTx, { includeLinked }: LoadOptions): Promise
  * country as the page writes it, before the address is normalised. Only a Red List listing has a notice, which holds
  * its commodity.
  */
-async function loadListings(db: DbOrTx, { includeLinked }: LoadOptions): Promise<LoadedRecord[]> {
+async function loadListings(db: DbOrTx, opts: LoadOptions): Promise<LoadedRecord[]> {
   const rows = await db
     .select({
       key: importAlertListing.listingKey,
@@ -142,7 +147,7 @@ async function loadListings(db: DbOrTx, { includeLinked }: LoadOptions): Promise
     })
     .from(importAlertListing)
     .leftJoin(notice, and(eq(notice.source, 'import_alert'), eq(notice.sourceKey, importAlertListing.listingKey)))
-    .where(includeLinked ? undefined : isNull(importAlertListing.firmId))
+    .where(whichRecords(opts, importAlertListing.firmId))
     .orderBy(asc(importAlertListing.id));
   return rows.map((row) => ({
     record: {
@@ -169,7 +174,7 @@ async function loadListings(db: DbOrTx, { includeLinked }: LoadOptions): Promise
 }
 
 /** Australian failed tests that name a producer; the file gives only the producer's country. */
-async function loadAuRows(db: DbOrTx, { includeLinked }: LoadOptions): Promise<LoadedRecord[]> {
+async function loadAuRows(db: DbOrTx, opts: LoadOptions): Promise<LoadedRecord[]> {
   const rows = await db
     .select({
       key: auFailingFood.sourceKey,
@@ -181,7 +186,7 @@ async function loadAuRows(db: DbOrTx, { includeLinked }: LoadOptions): Promise<L
       firmId: auFailingFood.firmId,
     })
     .from(auFailingFood)
-    .where(and(includeLinked ? undefined : isNull(auFailingFood.firmId), ne(auFailingFood.nameNorm, '')))
+    .where(and(whichRecords(opts, auFailingFood.firmId), ne(auFailingFood.nameNorm, '')))
     .orderBy(asc(auFailingFood.id));
   // name_norm is '' whenever there is no producer, so this only tells the compiler the name is there.
   return rows.flatMap(({ key, producerName, nameNorm, countryCode, commodityId, seenOn, firmId }) =>

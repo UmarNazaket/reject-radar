@@ -23,13 +23,13 @@ function* chunks<T>(items: readonly T[], size: number): Generator<T[]> {
 }
 
 /** Where a source keeps its records: the table, its key column and its firm column (all three have `link_score`). */
-interface RecordTable {
+export interface RecordTable {
   table: PgTable;
   key: PgColumn;
   firmId: PgColumn;
 }
 
-const RECORD_TABLES: Readonly<Record<FirmRecordSource, RecordTable>> = {
+export const RECORD_TABLES: Readonly<Record<FirmRecordSource, RecordTable>> = {
   fda_refusal: { table: fdaRefusal, key: fdaRefusal.sourceKey, firmId: fdaRefusal.firmId },
   import_alert: { table: importAlertListing, key: importAlertListing.listingKey, firmId: importAlertListing.firmId },
   au_ifis: { table: auFailingFood, key: auFailingFood.sourceKey, firmId: auFailingFood.firmId },
@@ -103,7 +103,12 @@ async function insertFirms(tx: Tx, newFirms: readonly NewFirm[]): Promise<number
 }
 
 /** A new firm's row: its name and normalised address (P3-D6, all null without one) and the date it was first seen. */
-function firmRow({ displayName, nameNorm, address, firstSeen }: NewFirm): typeof firm.$inferInsert {
+export function firmRow({
+  displayName,
+  nameNorm,
+  address,
+  firstSeen,
+}: Pick<NewFirm, 'displayName' | 'nameNorm' | 'address' | 'firstSeen'>): typeof firm.$inferInsert {
   return {
     displayName,
     nameNorm,

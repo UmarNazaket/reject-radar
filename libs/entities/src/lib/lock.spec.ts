@@ -1,4 +1,5 @@
 import {
+  auditLog,
   auFailingFood,
   changeEvent,
   createDb,
@@ -14,10 +15,11 @@ import {
   notice,
   prepareTestDatabase,
 } from '@rejectradar/db';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { linkEntities } from './link-entities';
 import { lockFirms } from './lock';
-import { insertRefusal } from './testing';
+import { mergeFirms, splitFirm } from './merge-split';
+import { insertFirm, insertRefusal } from './testing';
 import type { Tx } from './types';
 
 const TODAY = '2026-10-22';
@@ -45,6 +47,7 @@ describe('the firm lock', () => {
   beforeEach(async () => {
     // Rows that reference a firm (or a notice) go first.
     for (const table of [
+      auditLog,
       matchReview,
       changeEvent,
       notice,
@@ -115,5 +118,40 @@ describe('the firm lock', () => {
 
     // The run loaded once the holder had committed, so it saw the holder's refusal.
     expect(result).toMatchObject({ records: { fda_refusal: 1 }, firmsCreated: 1, linked: 1 });
+  });
+
+  it('mergeFirms waits for the lock, then re-points what the holder committed', async () => {
+    const kept = await insertFirm(db);
+    const merged = await insertFirm(db);
+
+    const result = await writeWhileLocked(
+      (tx) => insertRefusal(tx, { firmId: merged }),
+      () => mergeFirms(db, { firmIds: [kept, merged], actorUserId: null, today: TODAY }),
+    );
+
+    expect(result.moved).toEqual({ fda_refusal: 1, firm_alias: 1 });
+    expect(await db.select({ firmId: fdaRefusal.firmId }).from(fdaRefusal)).toEqual([{ firmId: kept }]);
+  });
+
+  it('splitFirm waits for the lock, then splits what the holder committed', async () => {
+    const firmId = await insertFirm(db);
+    const first = await insertRefusal(db, { firmId });
+
+    // Moving the firm's only record would be refused; the holder gives it a second one first.
+    const result = await writeWhileLocked(
+      (tx) => insertRefusal(tx, { firmId }),
+      () =>
+        splitFirm(db, {
+          firmId,
+          records: [{ source: 'fda_refusal', key: first.key }],
+          actorUserId: null,
+          today: TODAY,
+        }),
+    );
+
+    expect(result.moved).toEqual({ fda_refusal: 1 });
+    expect(
+      await db.select({ firmId: fdaRefusal.firmId }).from(fdaRefusal).where(eq(fdaRefusal.sourceKey, first.key)),
+    ).toEqual([{ firmId: result.newFirmId }]);
   });
 });
