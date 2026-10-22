@@ -22,3 +22,12 @@ export async function databaseSizeBytes(db: Database): Promise<number> {
   const result = await db.execute<{ size: string }>(sql`select pg_database_size(current_database())::bigint as size`);
   return Number(result.rows[0].size);
 }
+
+/**
+ * Spec §6.3: throws a SizeLimitError when the database is at or above `limit`. Every command that writes calls this
+ * first (`runSync`, `entities:link`), so a full database stops them all, not only the syncs.
+ */
+export async function assertBelowSizeLimit(db: Database, limit = SIZE_LIMIT_BYTES): Promise<void> {
+  const size = await databaseSizeBytes(db);
+  if (size >= limit) throw new SizeLimitError(size, limit);
+}

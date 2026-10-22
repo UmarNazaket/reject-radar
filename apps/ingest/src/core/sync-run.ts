@@ -1,7 +1,7 @@
 import type { SyncSource } from '@rejectradar/contracts';
 import { sourceSyncRun, type Database } from '@rejectradar/db';
 import { and, desc, eq } from 'drizzle-orm';
-import { databaseSizeBytes, SIZE_LIMIT_BYTES, SizeLimitError } from './size-check';
+import { assertBelowSizeLimit } from './size-check';
 
 export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
@@ -41,7 +41,6 @@ export async function runSync(
   work: (ctx: SyncContext) => Promise<void>,
   options: { sizeLimitBytes?: number; partial?: boolean } = {},
 ): Promise<SyncRunResult> {
-  const limit = options.sizeLimitBytes ?? SIZE_LIMIT_BYTES;
   const [run] = await db
     .insert(sourceSyncRun)
     .values({ source, status: 'running', partial: options.partial ?? false })
@@ -51,8 +50,7 @@ export async function runSync(
   let contentSha256: string | null = null;
 
   try {
-    const size = await databaseSizeBytes(db);
-    if (size >= limit) throw new SizeLimitError(size, limit);
+    await assertBelowSizeLimit(db, options.sizeLimitBytes);
     await work({
       runId: run.id,
       counts,

@@ -50,6 +50,7 @@ jobs:
       - run: npm ci
       - run: npx nx build ingest
       - name: Check database size
+        id: size
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
@@ -99,10 +100,12 @@ jobs:
           retention-days: 30
       # The firm-level sources add records that no firm is linked to yet, and taxonomy_remap changes the commodities and
       # hazards that firm facts are built from. Like the scheduled syncs, this links even after a failed "Run the sync"
-      # step, as the rows already stored still need their firms and facts; the job still fails. The entities source runs
-      # this command alone, in the "Run the sync" step.
+      # step, as the rows already stored still need their firms and facts; the job still fails. It does not run after a
+      # failed "Check database size" step: linking writes too, so the 900 MB limit stops it as well (the command checks
+      # it again). The entities source runs this command alone, in the "Run the sync" step, which a failed size check
+      # skips too.
       - name: entities:link
-        if: ${{ !cancelled() && (inputs.source == 'fda_refusals' || inputs.source == 'import_alerts' || inputs.source == 'au_ifis' || inputs.source == 'taxonomy_remap') }}
+        if: ${{ !cancelled() && steps.size.outcome == 'success' && (inputs.source == 'fda_refusals' || inputs.source == 'import_alerts' || inputs.source == 'au_ifis' || inputs.source == 'taxonomy_remap') }}
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}

@@ -42,6 +42,7 @@ jobs:
       - run: npm ci
       - run: npx nx build ingest
       - name: Check database size
+        id: size
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
@@ -61,8 +62,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
       # Runs even after a failed sync, so that records stored earlier still get their firms and firm facts still age.
+      # Not after a failed size check: it writes too, so the 900 MB limit stops it as well (the command checks it again).
       - name: entities:link
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.size.outcome == 'success' }}
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}

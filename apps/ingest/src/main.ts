@@ -7,7 +7,7 @@ import { openDb } from './core/db';
 import { loadIngestEnv } from './core/env';
 import { createDeps, utcToday } from './core/deps';
 import { createFetcher } from './core/http';
-import { databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
+import { assertBelowSizeLimit, databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
 import { syncChargeCodes } from './sync/fda/charge-codes';
 import { syncAuIfis } from './sync/au-ifis/sync';
 import { syncEuMrl } from './sync/eu-mrl/sync';
@@ -190,6 +190,8 @@ program
   .action(async (options: { today?: string }) => {
     const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
     try {
+      // Spec §6.3: linking writes too, so a database at or over the limit stops it as it stops every sync.
+      await assertBelowSizeLimit(db);
       const result = await linkEntities(db, { today: options.today ?? utcToday() });
       console.log(JSON.stringify(result, null, 2));
     } finally {
