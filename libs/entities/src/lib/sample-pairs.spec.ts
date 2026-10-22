@@ -455,6 +455,39 @@ describe('samplePairs', () => {
     }
   });
 
+  it('never pairs a firm that later took an FEI with its founding record', async () => {
+    await insertLinkedFixture();
+    // A refusal without an FEI builds a firm. A refusal of a new FEI, dated later, matches it by name and address, so
+    // the firm takes the FEI (P3-D5); a listing links to it too. All in one run.
+    const siam = { addressLine1: '12 Sukhumvit Road', city: 'BANGKOK', countryCode: 'TH' };
+    const founder = await insertRefusal(db, { ...siam, firmName: 'SIAM CANNING CO., LTD.', refusalDate: '2023-05-02' });
+    const refusal = await insertRefusal(db, {
+      ...siam,
+      fei: 3001112223,
+      firmName: 'SIAM CANNING CO LTD',
+      refusalDate: '2024-08-06',
+    });
+    const listing = await insertListing(db, {
+      firmName: 'Siam Canning Co., Ltd.',
+      addressRaw: '12 Sukhumvit Road, BANGKOK THAILAND',
+      city: 'BANGKOK',
+      countryCode: 'TH',
+      countryName: 'THAILAND',
+      listedOn: '2024-09-01',
+    });
+    await linkEntities(db, { today: TODAY });
+    const firms = await recordFirms();
+    const siamFirm = firms[founder.key] as number;
+    // The new FEI's refusal is on the founder's firm: the firm took the FEI.
+    expect([firms[refusal.key], firms[listing.key]]).toEqual([siamFirm, siamFirm]);
+
+    const pairs = pairsOf(await samplePairs(db, { count: 100, seed: 1 }));
+
+    // The founding refusal against the firm that copies it would score 1.0; the listing is a pair to label.
+    expect(pairs).not.toContain(pair(founder, siamFirm));
+    expect(pairs).toContain(pair(listing, siamFirm));
+  });
+
   it('pairs each record with its 3 best candidates scoring 0.50 or more', async () => {
     const f = await insertLinkedFixture();
     const dongwei = f.firmOf(f.dongweiListing);

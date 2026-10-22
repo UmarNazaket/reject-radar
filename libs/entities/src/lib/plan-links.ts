@@ -130,7 +130,7 @@ function matchingOrder(records: readonly FirmRecord[]): Unit[] {
 
 /**
  * The order planLinks matches records in: by source in the order of FIRM_RECORD_SOURCES, then by date, then key. Within
- * a run, a firm without an FEI is built from the first of its records in this order.
+ * a run, a firm is created when the first of its records in this order is matched.
  */
 export function compareForMatching(a: FirmRecord, b: FirmRecord): number {
   return FIRM_RECORD_SOURCES.indexOf(a.source) - FIRM_RECORD_SOURCES.indexOf(b.source) || compareByDate(a, b);

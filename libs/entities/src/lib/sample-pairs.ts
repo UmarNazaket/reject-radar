@@ -75,8 +75,8 @@ interface Pair {
  *   3 best candidates, scored as planLinks scores them, that score 0.50 or more.
  * - A candidate is a firm the engine could link the record to, other than a copy of the record (ruling R15). An FEI's
  *   refusal has only firms that hold no FEI, since the engine links a new FEI's refusals to the FEI's own firm or to a
- *   firm without one. A firm without an FEI is no candidate of its founding record, the first of its records in the
- *   order planLinks matches them, from which it took its name and address.
+ *   firm without one. No firm is a candidate of its founding record, the first of its records in the order planLinks
+ *   matches them, whether or not the firm took an FEI since.
  * - Half the sample comes from the link band, 30% from the review band and the rest from the near band. A band with
  *   too few pairs gives them all, and the bands with pairs left make up the difference, link first.
  * - Within a band the countries take turns, the one with the most pairs first, each giving its pairs in an order
@@ -147,9 +147,9 @@ async function candidatePairs(db: DbOrTx, cfg: LinkConfig): Promise<Pair[]> {
       (token) => countryFrequencies?.get(token) ?? 0,
       cfg.distinctiveTokenMaxFreq,
     );
-    // Ruling R15: no FEI's refusal with a firm that holds an FEI, no firm without an FEI with its founding record.
+    // Ruling R15: no FEI's refusal with a firm that holds an FEI, and no firm with its founding record.
     const isCandidate = ({ id, feis }: KnownFirm) =>
-      feis.length > 0 ? record.fei === null : founders.get(id) !== record;
+      (feis.length === 0 || record.fei === null) && founders.get(id) !== record;
     const best = rankCandidates(record, indexes.get(country), countryFrequencies, cfg)
       .map(({ firm: view, score }) => ({ candidate: firms[view.order], score }))
       .filter(({ candidate }) => isCandidate(candidate))
@@ -162,7 +162,7 @@ async function candidatePairs(db: DbOrTx, cfg: LinkConfig): Promise<Pair[]> {
   return pairs;
 }
 
-/** Each firm's first record in the order planLinks matches records, by firm id: a firm without an FEI copies it. */
+/** Each firm's founding record, by firm id: the first of its records in the order planLinks matches them. */
 function foundingRecords(loaded: readonly LoadedRecord[]): Map<number, FirmRecord> {
   const founders = new Map<number, FirmRecord>();
   for (const { record, firmId } of loaded) {
