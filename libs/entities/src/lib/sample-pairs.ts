@@ -37,7 +37,9 @@ export const LABELLED_PAIR_COLUMNS = [
 
 /**
  * A record/firm pair to label, every column as text: both sides as the engine scored them, '' for a missing value and
- * commodity IDs joined by '|'. `label` and `notes` are left for the person labelling.
+ * commodity IDs joined by '|'. `label` and `notes` are left for the person labelling: `link` for the same firm, `no` for
+ * another, `skip` for a pair they cannot tell, which the gate leaves out. The gate reads `label` and `is_distinctive`
+ * (written `true` or `false`) trimmed and in any case, as a spreadsheet may save them.
  */
 export type LabelledPair = Record<(typeof LABELLED_PAIR_COLUMNS)[number], string>;
 
@@ -69,7 +71,8 @@ interface Pair {
 }
 
 /**
- * Spec §8.5: `count` record/firm pairs from the linked database, for a person to label `link` or `no`.
+ * Spec §8.5: `count` record/firm pairs from the linked database, for a person to label `link`, `no` or `skip`; the gate
+ * needs 300 labelled `link` or `no`, so a sample has room for skips.
  * - The records are every Import Alert listing, every Australian record that names a producer and every FDA refusal
  *   without an FEI, and for each FEI its latest refusal, by which the engine matches a new FEI. Each is paired with its
  *   3 best candidates, scored as planLinks scores them, that score 0.50 or more.
