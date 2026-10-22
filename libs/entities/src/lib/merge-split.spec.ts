@@ -31,6 +31,8 @@ import { type FixtureRecord, insertAuRow, insertEvent, insertFirm, insertListing
 
 const TODAY = '2026-10-22';
 const ACTOR = randomUUID();
+/** A reviewer who decided a review before the merge or split under test. */
+const EARLIER_ACTOR = randomUUID();
 const KEPT_FEI = 3001234567;
 const MERGED_FEI = 3009876543;
 /** Golden Harvest's FEIs: the split takes both refusals of the first, leaves the second, and the third has none. */
@@ -44,6 +46,16 @@ const ref = (source: FirmRecordSource, { key }: FixtureRecord): RecordRef => ({ 
 /** `firmId` by `id`, of rows that have both. */
 const firmsById = <K extends string | number>(rows: { id: K; firmId: number | null }[]) =>
   Object.fromEntries(rows.map(({ id, firmId }) => [id, firmId]));
+
+/** An open review of a refusal's firm against a candidate, unless `fields` say otherwise. */
+const review = (firmId: number, candidateFirmId: number, fields: Partial<typeof matchReview.$inferInsert> = {}) => ({
+  source: 'fda_refusal',
+  sourceKey: randomUUID(),
+  firmId,
+  candidateFirmId,
+  score: '0.8100',
+  ...fields,
+});
 
 describe('mergeFirms and splitFirm', () => {
   let pool: ReturnType<typeof createPool>;
@@ -175,6 +187,13 @@ describe('mergeFirms and splitFirm', () => {
       .from(firm)
       .where(eq(firm.id, id));
     return row;
+  }
+
+  /** A review's decision, with `decided_at` as text, to the microsecond. */
+  async function decisionOf(id: number) {
+    const { rows } = await db.execute<{ status: string; decidedBy: string | null; decidedAt: string | null }>(sql`
+      select status, decided_by as "decidedBy", decided_at::text as "decidedAt" from match_review where id = ${id}`);
+    return rows[0];
   }
 
   /** Per foreign key on firm.id, as table.column, how many rows point at `firmId`; only the keys that have any. */
@@ -435,18 +454,6 @@ describe('mergeFirms and splitFirm', () => {
       const kept = await insertFirm(db);
       const merged = await insertFirm(db);
       const other = await insertFirm(db);
-      const review = (
-        firmId: number,
-        candidateFirmId: number,
-        fields: Partial<typeof matchReview.$inferInsert> = {},
-      ) => ({
-        source: 'fda_refusal',
-        sourceKey: randomUUID(),
-        firmId,
-        candidateFirmId,
-        score: '0.8100',
-        ...fields,
-      });
       const ids = await db
         .insert(matchReview)
         .values([
@@ -454,7 +461,7 @@ describe('mergeFirms and splitFirm', () => {
           // A reviewer kept the two apart; the merge overrules that.
           review(kept, merged, {
             status: 'kept_separate',
-            decidedBy: randomUUID(),
+            decidedBy: EARLIER_ACTOR,
             decidedAt: new Date('2026-05-01T00:00:00Z'),
           }),
           review(merged, other),
@@ -486,11 +493,41 @@ describe('mergeFirms and splitFirm', () => {
         { id: ids[2].id, firmId: kept, candidateFirmId: other, status: 'open', decidedBy: null, decidedAt: null },
         { id: ids[3].id, firmId: other, candidateFirmId: kept, status: 'open', decidedBy: null, decidedAt: null },
       ]);
-      // Both were decided by the merge, not before it.
+      // Both were decided by the merge, not before it, and its audit row names them.
       const { rows } = await db.execute<{ decided: number }>(
         sql`select count(*)::int as decided from match_review where decided_at >= ${before}::timestamptz`,
       );
       expect(rows).toEqual([{ decided: 2 }]);
+      expect(await auditRows()).toMatchObject([{ details: { reviewsDecided: [ids[0].id, ids[1].id] } }]);
+    });
+
+    it('merge decides only the reviews between the two firms, and earlier decisions stand', async () => {
+      // A and then B are merged into K.
+      const k = await insertFirm(db);
+      const a = await insertFirm(db);
+      const b = await insertFirm(db);
+      const [aWithK, aWithB, kWithB] = (
+        await db
+          .insert(matchReview)
+          .values([review(a, k), review(a, b), review(k, b)])
+          .returning({ id: matchReview.id })
+      ).map(({ id }) => id);
+      const secondActor = randomUUID();
+
+      await mergeFirms(db, { firmIds: [k, a], actorUserId: ACTOR, today: TODAY });
+      const firstDecision = await decisionOf(aWithK);
+      await mergeFirms(db, { firmIds: [k, b], actorUserId: secondActor, today: TODAY });
+
+      // The first merge decided A's review of K, and the second leaves that decision as it was.
+      expect(firstDecision).toMatchObject({ status: 'linked', decidedBy: ACTOR, decidedAt: expect.any(String) });
+      expect(await decisionOf(aWithK)).toEqual(firstDecision);
+      // The second decided the reviews between K and B: K's own, and A's review of B, which the first merge moved to K.
+      expect(await decisionOf(aWithB)).toMatchObject({ status: 'linked', decidedBy: secondActor });
+      expect(await decisionOf(kWithB)).toMatchObject({ status: 'linked', decidedBy: secondActor });
+      expect(await auditRows()).toMatchObject([
+        { details: { mergedId: a, reviewsDecided: [aWithK] } },
+        { details: { mergedId: b, reviewsDecided: [aWithB, kWithB] } },
+      ]);
     });
 
     it('merge refuses one firm twice, a missing firm and a merged-away firm, and writes nothing', async () => {
@@ -516,11 +553,14 @@ describe('mergeFirms and splitFirm', () => {
   describe('splitFirm', () => {
     /**
      * Golden Harvest Foods in Thailand: three refusals under two FEIs, a third FEI without refusals, a listing and an
-     * Australian test, each with its notice; events on two refusals and the listing, alerts on two of those events, and
-     * disputes about a refusal, the Australian test and the firm itself.
+     * Australian test, each with its notice; events on two refusals and the listing, alerts on two of those events,
+     * disputes about a refusal, the Australian test and the firm itself, and reviews of two refusals and the listing.
+     * The refusals' and the listing's keys are fixed, so that their order is known: by key, the listing comes first.
      */
     async function insertGoldenHarvest() {
       const firmId = await insertFirm(db, { displayName: 'Golden Harvest Foods Co., Ltd.', countryCode: 'TH' });
+      // The firm the reviews compare Golden Harvest with.
+      const candidate = await insertFirm(db, { displayName: 'Golden Harvest Food Products', countryCode: 'TH' });
       await db.insert(firmFei).values([
         { fei: SPLIT_FEI, firmId },
         { fei: STAYING_FEI, firmId },
@@ -532,6 +572,7 @@ describe('mergeFirms and splitFirm', () => {
           db,
           {
             ...th,
+            sourceKey: 'fda-b',
             fei: SPLIT_FEI,
             firmName: 'GOLDEN HARVEST FOODS CO., LTD.',
             addressLine1: '12 Old Road',
@@ -544,6 +585,7 @@ describe('mergeFirms and splitFirm', () => {
           db,
           {
             ...th,
+            sourceKey: 'fda-a',
             fei: SPLIT_FEI,
             firmName: 'GOLDEN HARVEST FOOD CO LTD',
             addressLine1: '88 Rama II Rd',
@@ -556,13 +598,25 @@ describe('mergeFirms and splitFirm', () => {
         ),
         await insertRefusal(
           db,
-          { ...th, fei: STAYING_FEI, firmName: 'GOLDEN HARVEST FOODS CO., LTD.', refusalDate: '2026-03-01' },
+          {
+            ...th,
+            sourceKey: 'fda-c',
+            fei: STAYING_FEI,
+            firmName: 'GOLDEN HARVEST FOODS CO., LTD.',
+            refusalDate: '2026-03-01',
+          },
           { notice: true },
         ),
       ];
       const listing = await insertListing(
         db,
-        { ...th, firmName: 'Golden Harvest Foods', city: 'SAMUT SAKHON', listedOn: '2024-01-15' },
+        {
+          ...th,
+          listingKey: 'aa-listing',
+          firmName: 'Golden Harvest Foods',
+          city: 'SAMUT SAKHON',
+          listedOn: '2024-01-15',
+        },
         { notice: true },
       );
       const auRow = await insertAuRow(
@@ -582,11 +636,48 @@ describe('mergeFirms and splitFirm', () => {
         await insertDispute(orgId, firmId, ref('au_ifis', auRow)),
         await insertDispute(orgId, firmId),
       ];
-      return { firmId, refusals, listing, auRow, events, alerts, disputes };
+      const reviews = (
+        await db
+          .insert(matchReview)
+          .values([
+            { ...review(firmId, candidate), sourceKey: refusals[0].key },
+            // Linked when an earlier merge brought the listing's firm into this one, which left it pointing at itself.
+            {
+              ...review(firmId, firmId, {
+                status: 'linked',
+                decidedBy: EARLIER_ACTOR,
+                decidedAt: new Date('2026-05-01T00:00:00Z'),
+              }),
+              source: 'import_alert',
+              sourceKey: listing.key,
+            },
+            { ...review(firmId, candidate), sourceKey: refusals[2].key },
+          ])
+          .returning({ id: matchReview.id })
+      ).map(({ id }) => id);
+      return { firmId, candidate, refusals, listing, auRow, events, alerts, disputes, reviews };
+    }
+
+    /** Each review's firm, candidate and decision, by id. */
+    async function reviewsById() {
+      const rows = await db
+        .select({
+          id: matchReview.id,
+          firmId: matchReview.firmId,
+          candidateFirmId: matchReview.candidateFirmId,
+          status: matchReview.status,
+          decidedBy: matchReview.decidedBy,
+        })
+        .from(matchReview);
+      return Object.fromEntries(rows.map(({ id, ...row }) => [id, row]));
     }
 
     it('split moves records, their notices and events, and FEIs whose refusals all moved', async () => {
-      const { firmId, refusals, listing, auRow, events, alerts, disputes } = await insertGoldenHarvest();
+      const { firmId, candidate, refusals, listing, auRow, events, alerts, disputes, reviews } =
+        await insertGoldenHarvest();
+      const {
+        rows: [{ before }],
+      } = await db.execute<{ before: string }>(sql`select now()::text as before`);
 
       const result = await splitFirm(db, {
         firmId,
@@ -606,6 +697,7 @@ describe('mergeFirms and splitFirm', () => {
           change_event: 2,
           alert: 1,
           dispute: 1,
+          match_review: 2,
           firm_fei: 1,
         },
       });
@@ -629,6 +721,16 @@ describe('mergeFirms and splitFirm', () => {
         [disputes[1]]: firmId,
         [disputes[2]]: firmId,
       });
+      // A moved record's review goes with it. The listing's was linked; the split reverses that.
+      expect(await reviewsById()).toEqual({
+        [reviews[0]]: { firmId: newFirmId, candidateFirmId: candidate, status: 'open', decidedBy: null },
+        [reviews[1]]: { firmId: newFirmId, candidateFirmId: firmId, status: 'kept_separate', decidedBy: ACTOR },
+        [reviews[2]]: { firmId, candidateFirmId: candidate, status: 'open', decidedBy: null },
+      });
+      const { rows: decided } = await db.execute<{ bySplit: boolean }>(
+        sql`select decided_at >= ${before}::timestamptz as "bySplit" from match_review where id = ${reviews[1]}`,
+      );
+      expect(decided).toEqual([{ bySplit: true }]);
       // Only the FEI whose refusals all moved goes; an FEI without refusals stays.
       expect(await feiFirms()).toEqual({ [SPLIT_FEI]: newFirmId, [STAYING_FEI]: firmId, [IDLE_FEI]: firmId });
       // The new firm is named and placed as its latest record, the refusal of 2026-06-05 (P3-D6). Both firms' facts and
@@ -670,9 +772,10 @@ describe('mergeFirms and splitFirm', () => {
     });
 
     it('split refuses to divide an FEI or to move every record', async () => {
-      const { firmId, refusals, listing, auRow } = await insertGoldenHarvest();
+      const { firmId, candidate, refusals, listing, auRow } = await insertGoldenHarvest();
       const split = (records: RecordRef[]) => splitFirm(db, { firmId, records, actorUserId: ACTOR, today: TODAY });
       const before = await recordFirms();
+      const reviewsBefore = await reviewsById();
 
       // Only one of the two refusals under SPLIT_FEI.
       await expect(split([ref('fda_refusal', refusals[0]), ref('import_alert', listing)])).rejects.toThrow(
@@ -687,13 +790,16 @@ describe('mergeFirms and splitFirm', () => {
       ).rejects.toThrow(`A split must leave firm ${firmId} at least one record`);
 
       expect(await recordFirms()).toEqual(before);
-      expect(await db.select({ id: firm.id }).from(firm)).toEqual([{ id: firmId }]);
+      expect(await reviewsById()).toEqual(reviewsBefore);
+      expect(await db.select({ id: firm.id }).from(firm).orderBy(asc(firm.id))).toEqual([
+        { id: firmId },
+        { id: candidate },
+      ]);
       expect(await auditRows()).toEqual([]);
     });
 
     it('split refuses records of other firms, and an empty selection', async () => {
-      const { firmId, refusals } = await insertGoldenHarvest();
-      const other = await insertFirm(db, { countryCode: 'TH' });
+      const { firmId, candidate: other, refusals } = await insertGoldenHarvest();
       const elsewhere = await insertRefusal(db, { countryCode: 'TH', firmId: other });
       const unlinked = await insertRefusal(db, { countryCode: 'TH' });
       const split = (records: RecordRef[]) => splitFirm(db, { firmId, records, actorUserId: ACTOR, today: TODAY });
@@ -729,7 +835,8 @@ describe('mergeFirms and splitFirm', () => {
         today: TODAY,
       });
 
-      // Every record still has a firm, and every row that follows a record (or an event, for an alert) has its firm.
+      // Every record still has a firm, and every row that follows a record (or an event, for an alert) has its firm. A
+      // linked review points a firm at itself.
       const { rows } = await db.execute(sql`
         with records (source, source_key, fei, firm_id) as (
           select 'fda_refusal', source_key, fei, firm_id from fda_refusal
@@ -748,9 +855,59 @@ describe('mergeFirms and splitFirm', () => {
            where alert.firm_id is distinct from change_event.firm_id) as alerts,
           (select count(*)::int from dispute join records using (source, source_key)
            where dispute.firm_id is distinct from records.firm_id) as disputes,
+          (select count(*)::int from match_review join records using (source, source_key)
+           where match_review.firm_id is distinct from records.firm_id) as reviews,
+          (select count(*)::int from match_review
+           where status = 'linked' and firm_id <> candidate_firm_id) as linked_apart,
           (select count(*)::int from firm_fei join records using (fei)
            where firm_fei.firm_id is distinct from records.firm_id) as feis`);
-      expect(rows).toEqual([{ unlinked_records: 0, notices: 0, events: 0, alerts: 0, disputes: 0, feis: 0 }]);
+      expect(rows).toEqual([
+        {
+          unlinked_records: 0,
+          notices: 0,
+          events: 0,
+          alerts: 0,
+          disputes: 0,
+          reviews: 0,
+          linked_apart: 0,
+          feis: 0,
+        },
+      ]);
+    });
+
+    it('split audits the records it moved, once each, by source and then key', async () => {
+      const { firmId, refusals, listing } = await insertGoldenHarvest();
+
+      const { newFirmId, moved } = await splitFirm(db, {
+        firmId,
+        // Out of order, and one of them twice.
+        records: [
+          ref('import_alert', listing),
+          ref('fda_refusal', refusals[0]),
+          ref('fda_refusal', refusals[1]),
+          ref('fda_refusal', refusals[0]),
+        ],
+        actorUserId: ACTOR,
+        today: TODAY,
+      });
+
+      expect(await auditRows()).toEqual([
+        {
+          actorUserId: ACTOR,
+          action: 'firm.split',
+          targetType: 'firm',
+          targetId: String(firmId),
+          details: {
+            newFirmId,
+            moved,
+            records: [
+              { source: 'fda_refusal', key: 'fda-a' },
+              { source: 'fda_refusal', key: 'fda-b' },
+              { source: 'import_alert', key: 'aa-listing' },
+            ],
+          },
+        },
+      ]);
     });
   });
 
@@ -774,14 +931,14 @@ describe('mergeFirms and splitFirm', () => {
         action: 'firm.merge',
         targetType: 'firm',
         targetId: String(kept),
-        details: { mergedId: merged, moved: { fda_refusal: 1, firm_alias: 1 } },
+        details: { mergedId: merged, moved: { fda_refusal: 1, firm_alias: 1 }, reviewsDecided: [] },
       },
       {
         actorUserId: null,
         action: 'firm.split',
         targetType: 'firm',
         targetId: String(kept),
-        details: { newFirmId, moved: { fda_refusal: 1 } },
+        details: { newFirmId, moved: { fda_refusal: 1 }, records: [{ source: 'fda_refusal', key: refusal.key }] },
       },
     ]);
   });

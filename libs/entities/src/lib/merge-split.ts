@@ -16,7 +16,7 @@ import {
   notice,
   watchlistItem,
 } from '@rejectradar/db';
-import { and, eq, getTableName, inArray, type SQL, sql } from 'drizzle-orm';
+import { and, eq, getTableName, inArray, or, type SQL, sql } from 'drizzle-orm';
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { refreshFirmAggregates } from './aggregates';
 import { refreshFirmAltNames } from './alt-names';
@@ -63,10 +63,11 @@ const MERGE_REPOINTS: readonly PgTable[] = [
 
 /**
  * Spec §8.2, stable IDs: merges two firms in one transaction that holds the firm lock. The older firm, the smaller id,
- * is kept and takes every row that points at the other one. The merged firm keeps its row behind a `firm_alias` and is
- * never a link target again (P3-D9). The kept firm's facts are refreshed on `today` (YYYY-MM-DD), and the merge is
- * audited as `firm.merge` by `actorUserId`. Throws, writing nothing, when the two ids are one firm, or when a firm does
- * not exist or was merged away already.
+ * is kept and takes every row that points at the other one; the reviews between the two are decided as `linked`. The
+ * merged firm keeps its row behind a `firm_alias` and is never a link target again (P3-D9). The kept firm's facts are
+ * refreshed on `today` (YYYY-MM-DD), and the merge is audited as `firm.merge` by `actorUserId`, with the reviews it
+ * decided. Throws, writing nothing, when the two ids are one firm, or when a firm does not exist or was merged away
+ * already.
  */
 export async function mergeFirms(
   db: Database,
@@ -85,6 +86,19 @@ export async function mergeFirms(
       const result = await tx.execute(sql`update ${table} set firm_id = ${keptId} where firm_id = ${mergedId}`);
       count(getTableName(table), result.rowCount);
     }
+    // The merge decides the reviews between the two firms, found before their sides move. A review that already points
+    // a firm at itself was decided by an earlier merge, and keeps who decided it and when.
+    const decided = await tx
+      .update(matchReview)
+      .set({ status: 'linked', decidedBy: input.actorUserId, decidedAt: sql`now()` })
+      .where(
+        or(
+          and(eq(matchReview.firmId, keptId), eq(matchReview.candidateFirmId, mergedId)),
+          and(eq(matchReview.firmId, mergedId), eq(matchReview.candidateFirmId, keptId)),
+        ),
+      )
+      .returning({ id: matchReview.id });
+    const reviewsDecided = decided.map(({ id }) => id).sort((a, b) => a - b);
     // A review counts once, whichever of its sides moved.
     const reviews = await tx.execute(sql`
       update match_review
@@ -92,11 +106,6 @@ export async function mergeFirms(
           candidate_firm_id = case when candidate_firm_id = ${mergedId} then ${keptId} else candidate_firm_id end
       where firm_id = ${mergedId} or candidate_firm_id = ${mergedId}`);
     count('match_review', reviews.rowCount);
-    // A review between the two firms now points the kept firm at itself: the merge decides it.
-    await tx
-      .update(matchReview)
-      .set({ status: 'linked', decidedBy: input.actorUserId, decidedAt: sql`now()` })
-      .where(and(eq(matchReview.firmId, keptId), eq(matchReview.candidateFirmId, keptId)));
 
     // An account watching both firms keeps the item it added first (by created_at, then id).
     const duplicates = await tx.execute(sql`
@@ -131,7 +140,7 @@ export async function mergeFirms(
       action: 'firm.merge',
       targetType: 'firm',
       targetId: String(keptId),
-      details: { mergedId, moved },
+      details: { mergedId, moved, reviewsDecided },
     });
     return { keptId, mergedId, moved };
   });
@@ -139,11 +148,11 @@ export async function mergeFirms(
 
 /**
  * Spec §8.2, stable IDs: in one transaction that holds the firm lock, moves `records` of firm `firmId` to a new firm,
- * with their notices and events, the alerts on those events, the disputes about the records, and the FEIs whose
- * refusals all moved. The new firm is named and placed as the latest of the records (P3-D6). Both firms' facts and
- * alternative names are refreshed on `today` (YYYY-MM-DD), and the split is audited as `firm.split` by `actorUserId`.
- * Throws, writing nothing, unless the records are some but not all of the firm's and every FEI's refusals stay on one
- * side.
+ * with their notices and events, the alerts on those events, the disputes and reviews about the records, and the FEIs
+ * whose refusals all moved; a moved review that was `linked` becomes `kept_separate`. The new firm is named and placed
+ * as the latest of the records (P3-D6). Both firms' facts and alternative names are refreshed on `today` (YYYY-MM-DD),
+ * and the split is audited as `firm.split` by `actorUserId`, with the records it moved. Throws, writing nothing, unless
+ * the records are some but not all of the firm's and every FEI's refusals stay on one side.
  */
 export async function splitFirm(
   db: Database,
@@ -205,6 +214,15 @@ export async function splitFirm(
       .set({ firmId: newFirmId })
       .where(and(eq(dispute.firmId, fromId), ofRecords(dispute.source, dispute.sourceKey)));
     count('dispute', disputes.rowCount);
+    // A review's firm is its record's firm. A linked one, left pointing the firm at itself by the merge that brought
+    // the record here, is reversed by the split.
+    const ofMovedRecords = and(eq(matchReview.firmId, fromId), ofRecords(matchReview.source, matchReview.sourceKey));
+    await tx
+      .update(matchReview)
+      .set({ status: 'kept_separate', decidedBy: input.actorUserId, decidedAt: sql`now()` })
+      .where(and(ofMovedRecords, eq(matchReview.status, 'linked')));
+    const reviews = await tx.update(matchReview).set({ firmId: newFirmId }).where(ofMovedRecords);
+    count('match_review', reviews.rowCount);
     // No FEI is on both sides, so each FEI of the moved refusals had all its refusals moved.
     const feis = [...new Set(records.flatMap(({ fei }) => (fei === null ? [] : [fei])))];
     if (feis.length > 0) {
@@ -222,10 +240,19 @@ export async function splitFirm(
       action: 'firm.split',
       targetType: 'firm',
       targetId: String(fromId),
-      details: { newFirmId, moved },
+      details: { newFirmId, moved, records: recordRefs(records) },
     });
     return { fromId, newFirmId, moved };
   });
+}
+
+/** The records as the split's audit row lists them: by source, in the order of FIRM_RECORD_SOURCES, then by key. */
+function recordRefs(records: readonly FirmRecord[]): RecordRef[] {
+  const rank = (source: FirmRecordSource) => FIRM_RECORD_SOURCES.indexOf(source);
+  // Keys in code-unit order, which no locale changes.
+  return records
+    .map(({ source, key }) => ({ source, key }))
+    .sort((a, b) => rank(a.source) - rank(b.source) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
 /** The counts of a merge or split, under each table's name, leaving out the tables where nothing moved. */
