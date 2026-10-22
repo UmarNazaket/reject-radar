@@ -22,6 +22,15 @@ export interface FirmRecord {
   seenOn: string;
 }
 
+/**
+ * A name in the population whose tokens are counted to tell a distinctive name (P3-D4): a firm's or a firm-level
+ * record's `name_norm`, under its `country_code`.
+ */
+export interface FrequencyName {
+  countryCode: string | null;
+  nameNorm: string;
+}
+
 /** A firm in the database that can still receive records (not merged away), with the FEIs it holds. */
 export interface KnownFirm {
   id: number;

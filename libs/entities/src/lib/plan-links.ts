@@ -11,7 +11,7 @@ import {
   type NormalizedAddress,
 } from '@rejectradar/matching';
 import { CandidateIndex } from './candidate-index';
-import type { FirmRecord, FirmRef, KnownFirm, LinkPlan } from './types';
+import type { FirmRecord, FirmRef, FrequencyName, KnownFirm, LinkPlan } from './types';
 
 /** Per country, how many distinct name_norms contain each token (P3-D4). Entries without a country are ignored. */
 export function countryTokenFrequencies(
@@ -69,11 +69,7 @@ export function rankCandidates(
   cfg: LinkConfig = MATCH_CONFIG.link,
 ): ScoredCandidate[] {
   if (!record.address?.countryCode || !index) return [];
-  const isDistinctive = isDistinctiveName(
-    record.nameNorm,
-    (token) => frequencies?.get(token) ?? 0,
-    cfg.distinctiveTokenMaxFreq,
-  );
+  const isDistinctive = isDistinctiveIn(record.nameNorm, frequencies, cfg);
   return index
     .search(record.nameNorm, { minSim: cfg.candidateMinTrigram, limit: cfg.maxCandidates })
     .map(({ item: firm }) => {
@@ -85,13 +81,81 @@ export function rankCandidates(
     .sort((a, b) => b.score - a.score || a.firm.order - b.firm.order);
 }
 
+/** Whether a name is distinctive among its country's names, given how many of them contain each token (P3-D4). */
+function isDistinctiveIn(nameNorm: string, frequencies: Map<string, number> | undefined, cfg: LinkConfig): boolean {
+  return isDistinctiveName(nameNorm, (token) => frequencies?.get(token) ?? 0, cfg.distinctiveTokenMaxFreq);
+}
+
+/**
+ * The firms a record can be matched with, built alike by planLinks and the sampler: a candidate index per country,
+ * which grows as firms are added, and per country the token frequencies of `frequencyNames`, which tell whether a
+ * record's name is distinctive there (P3-D4). The known firms are added first, by ascending id, so a known firm's
+ * `order` is its place among them by id.
+ */
+export class FirmCandidates {
+  /** The known firms' views, by ascending id. */
+  readonly known: FirmView[];
+  private readonly cfg: LinkConfig;
+  private readonly frequencies: Map<string, Map<string, number>>;
+  private readonly indexes = new Map<string, CandidateIndex<FirmView>>();
+  private nextOrder = 0;
+
+  constructor(
+    firms: readonly KnownFirm[],
+    frequencyNames: Iterable<FrequencyName>,
+    cfg: LinkConfig = MATCH_CONFIG.link,
+  ) {
+    this.cfg = cfg;
+    this.frequencies = countryTokenFrequencies(frequencyNames);
+    this.known = [...firms]
+      .sort((a, b) => a.id - b.id)
+      .map((firm) => this.add({ kind: 'existing', id: firm.id }, firm));
+  }
+
+  /** Adds a firm, with its own copies of the lists that grow; with a country, it is a candidate from now on. */
+  add(ref: FirmRef, firm: Pick<KnownFirm, 'nameNorm' | 'address' | 'commodityIds' | 'feis'>): FirmView {
+    const view: FirmView = {
+      ref,
+      nameNorm: firm.nameNorm,
+      address: firm.address,
+      commodityIds: [...firm.commodityIds],
+      feis: [...firm.feis],
+      order: this.nextOrder++,
+    };
+    const country = view.address?.countryCode;
+    if (country) {
+      let index = this.indexes.get(country);
+      if (!index) {
+        index = new CandidateIndex<FirmView>();
+        this.indexes.set(country, index);
+      }
+      index.add(view.nameNorm, view);
+    }
+    return view;
+  }
+
+  /** Whether the record's name is distinctive in its country (P3-D4), as rank scores it. */
+  isDistinctive(record: FirmRecord): boolean {
+    const country = record.address?.countryCode;
+    return isDistinctiveIn(record.nameNorm, country ? this.frequencies.get(country) : undefined, this.cfg);
+  }
+
+  /** The record's candidates in its country, ranked by rankCandidates. A record without a country has none. */
+  rank(record: FirmRecord): ScoredCandidate[] {
+    const country = record.address?.countryCode;
+    return country ? rankCandidates(record, this.indexes.get(country), this.frequencies.get(country), this.cfg) : [];
+  }
+}
+
 /**
  * Spec §8.2: links every record to a firm, by FEI first, then by name and location among the firms of its country, and
  * plans the firms, FEIs and reviews that takes. Records are matched one after another, so a firm created for one record
- * is a candidate for the next (Review Focus 2). Pure: the input is left as it is.
+ * is a candidate for the next (Review Focus 2). A name is distinctive by the token frequencies of `frequencyNames`
+ * (P3-D4), which loadLinkInput gives as the names of every firm and every record, linked or not; without them, by those
+ * of the input's firms and records. Pure: the input is left as it is.
  */
 export function planLinks(
-  input: { firms: readonly KnownFirm[]; records: readonly FirmRecord[] },
+  input: { firms: readonly KnownFirm[]; records: readonly FirmRecord[]; frequencyNames?: readonly FrequencyName[] },
   cfg: LinkConfig = MATCH_CONFIG.link,
 ): LinkPlan {
   const planner = new LinkPlanner(input, cfg);
@@ -165,29 +229,28 @@ type FeiMatch =
   | { decision: 'attach'; candidate: ScoredCandidate }
   | { decision: MatchReviewReason; candidate: ScoredCandidate };
 
-/** The engine's state while it plans: the firms so far, a candidate index per country, and the plan. */
+/** The engine's state while it plans: the firms so far, as candidates, and the plan. */
 class LinkPlanner {
   readonly plan: LinkPlan = { newFirms: [], links: [], feis: [], reviews: [] };
   private readonly cfg: LinkConfig;
-  private readonly frequencies: Map<string, Map<string, number>>;
-  private readonly indexes = new Map<string, CandidateIndex<FirmView>>();
+  private readonly candidates: FirmCandidates;
   /** The firm that held each FEI before the run. */
   private readonly knownFeis = new Map<number, FirmView>();
-  private nextOrder = 0;
 
-  constructor(input: { firms: readonly KnownFirm[]; records: readonly FirmRecord[] }, cfg: LinkConfig) {
+  constructor(
+    input: { firms: readonly KnownFirm[]; records: readonly FirmRecord[]; frequencyNames?: readonly FrequencyName[] },
+    cfg: LinkConfig,
+  ) {
     this.cfg = cfg;
-    // P3-D4: counted once over the firms and every record of the run, so a first run doesn't depend on record order.
-    this.frequencies = countryTokenFrequencies(
+    // P3-D4: counted once, before any record is matched, so a run doesn't depend on record order.
+    const frequencyNames =
+      input.frequencyNames ??
       [...input.firms, ...input.records].map(({ nameNorm, address }) => ({
         countryCode: address?.countryCode ?? null,
         nameNorm,
-      })),
-    );
-    for (const firm of [...input.firms].sort((a, b) => a.id - b.id)) {
-      const view = this.addFirm({ kind: 'existing', id: firm.id }, firm);
-      for (const fei of firm.feis) this.knownFeis.set(fei, view);
-    }
+      }));
+    this.candidates = new FirmCandidates(input.firms, frequencyNames, cfg);
+    for (const view of this.candidates.known) for (const fei of view.feis) this.knownFeis.set(fei, view);
   }
 
   /** Spec §8.2 steps 2 to 4, for a record without an FEI. */
@@ -223,15 +286,9 @@ class LinkPlanner {
     if (match.decision !== 'new') this.review(representative, firm, match.candidate, match.decision);
   }
 
-  /** The record's candidates in its country, ranked by rankCandidates. A record without a country has none. */
-  private rank(record: FirmRecord): ScoredCandidate[] {
-    const country = record.address?.countryCode;
-    return country ? rankCandidates(record, this.indexes.get(country), this.frequencies.get(country), this.cfg) : [];
-  }
-
   /** The record's best candidate in its country and what its score decides. A record without a country has none. */
   private match(record: FirmRecord): Match {
-    const best: ScoredCandidate | undefined = this.rank(record)[0];
+    const best: ScoredCandidate | undefined = this.candidates.rank(record)[0];
     if (!best) return { decision: 'new' };
     const decision = decideLink(best.score, this.cfg);
     return decision === 'new' ? { decision } : { decision, best };
@@ -243,7 +300,7 @@ class LinkPlanner {
    * gets a second_fei review, and only for a link-band score with the same address or postal code.
    */
   private matchNewFei(record: FirmRecord): FeiMatch {
-    const ranked = this.rank(record);
+    const ranked = this.candidates.rank(record);
     const withoutFei = ranked.find(({ firm }) => firm.feis.length === 0);
     if (withoutFei && withoutFei.score >= this.cfg.autoLink) return { decision: 'attach', candidate: withoutFei };
     const sameAddress = ranked.find(
@@ -268,29 +325,7 @@ class LinkPlanner {
       source,
       key,
     });
-    return this.addFirm({ kind: 'new', index }, { nameNorm, address, commodityIds: [], feis: [] });
-  }
-
-  /** Adds a firm, with its own copies of the lists that grow; with a country, it is a candidate from now on. */
-  private addFirm(ref: FirmRef, firm: Pick<KnownFirm, 'nameNorm' | 'address' | 'commodityIds' | 'feis'>): FirmView {
-    const view: FirmView = {
-      ref,
-      nameNorm: firm.nameNorm,
-      address: firm.address,
-      commodityIds: [...firm.commodityIds],
-      feis: [...firm.feis],
-      order: this.nextOrder++,
-    };
-    const country = view.address?.countryCode;
-    if (country) {
-      let index = this.indexes.get(country);
-      if (!index) {
-        index = new CandidateIndex<FirmView>();
-        this.indexes.set(country, index);
-      }
-      index.add(view.nameNorm, view);
-    }
-    return view;
+    return this.candidates.add({ kind: 'new', index }, { nameNorm, address, commodityIds: [], feis: [] });
   }
 
   /** Gives `firm` the FEI, from the date of its earliest refusal. */

@@ -641,6 +641,61 @@ describe('planLinks', () => {
     ]);
   });
 
+  it('counts the names of linked records and firms in a later run', () => {
+    // A later run. The firm table holds 51 Pakistani firms whose names contain "rahman": 50 units, whose linked records
+    // name them "AL RAHMAN UNIT<n> RICE MILLS", and Al Rahman Rice Mills in Gujranwala, whose record is linked too.
+    const units = Array.from({ length: 50 }, (_, i) => knownFirm(100 + i, `AL RAHMAN UNIT${i + 1}`, { country: 'PK' }));
+    const firm = knownFirm(7, 'AL RAHMAN RICE MILLS', { city: 'Gujranwala', country: 'PK' }, { commodityIds: [3] });
+    const linkedRecords = [
+      ...units.map((_, i) =>
+        listing(`ia-${100 + i}`, '2020-01-06', `AL RAHMAN UNIT${i + 1} RICE MILLS`, { country: 'PK' }),
+      ),
+      listing(
+        'ia-1',
+        '2021-01-04',
+        'AL RAHMAN RICE MILLS',
+        { city: 'Gujranwala', country: 'PK' },
+        { commodityIds: [3] },
+      ),
+    ];
+    const r = listing(
+      'ia-2',
+      '2022-01-03',
+      'Al Rahman Rice Mills',
+      { city: 'Lahore', country: 'Pakistan' },
+      { commodityIds: [3] },
+    );
+    // What loadLinkInput counts: every firm and every record, linked or not (P3-D4). 51 of these Pakistani names contain
+    // each word of "al rahman rice mills"; the firms and the unlinked record alone give "rice" and "mills" only one.
+    const frequencyNames = [...units, firm, ...linkedRecords, r].map(({ nameNorm, address }) => ({
+      countryCode: address?.countryCode ?? null,
+      nameNorm,
+    }));
+
+    // Not distinctive, as in the first run: 0.75 + 0.03 + 0.03 = 0.81, where a distinctive name would link at 1.
+    expect(planLinks({ firms: [...units, firm], records: [r], frequencyNames })).toEqual({
+      newFirms: [newFirm(0, r)],
+      links: [linked(r, created(0), 1)],
+      feis: [],
+      reviews: [
+        {
+          source: 'import_alert',
+          key: 'ia-2',
+          firm: created(0),
+          candidate: existing(7),
+          score: 0.81,
+          reason: 'score_band',
+          evidence: {
+            ...countryOnly,
+            nameSim: 1,
+            productOverlap: true,
+            parts: { name: 0.75, location: 0.03, locationReason: 'same_country', product: 0.03, total: 0.81 },
+          },
+        },
+      ],
+    });
+  });
+
   it("matches an FEI's refusals together, where its earliest refusal falls", () => {
     const where: RawAddress = { city: 'Bangkok', country: 'TH' };
     const older = refusal('r-1', '2020-03-02', 'ABC FOODS', where, { fei: 3001234567 });

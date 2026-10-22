@@ -1,8 +1,8 @@
 import { auFailingFood, fdaRefusal, firm, firmAlias, firmFei, importAlertListing, notice } from '@rejectradar/db';
-import { normalizeAddress, type NormalizedAddress, stripLocationTail } from '@rejectradar/matching';
-import { and, asc, eq, isNull, ne, notInArray, type SQL, sql } from 'drizzle-orm';
+import { normalizeAddress, type NormalizedAddress, type RawAddress, stripLocationTail } from '@rejectradar/matching';
+import { and, asc, eq, isNotNull, isNull, ne, notInArray, type SQL, sql } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
-import type { DbOrTx, FirmRecord, KnownFirm } from './types';
+import type { DbOrTx, FirmRecord, FrequencyName, KnownFirm } from './types';
 
 /** A stored record that names a firm: the engine's view of it, the firm it is linked to and its address as written. */
 export interface LoadedRecord {
@@ -23,13 +23,46 @@ function whichRecords(opts: LoadOptions, firmId: PgColumn): SQL | undefined {
 }
 
 /**
- * What a linking run starts from: every firm that can still receive records, and every unlinked record that names a
- * firm. Firms come by id; records by source (FDA, Import Alert, Australia), each in the order its rows were stored.
+ * What a linking run starts from: every firm that can still receive records, every unlinked record that names a firm,
+ * and the names whose tokens tell a distinctive name (loadFrequencyNames). Firms come by id; records by source (FDA,
+ * Import Alert, Australia), each in the order its rows were stored.
  */
-export async function loadLinkInput(db: DbOrTx): Promise<{ firms: KnownFirm[]; records: FirmRecord[] }> {
+export async function loadLinkInput(
+  db: DbOrTx,
+): Promise<{ firms: KnownFirm[]; records: FirmRecord[]; frequencyNames: FrequencyName[] }> {
   const firms = await loadFirms(db);
   const records = (await loadFirmRecords(db, { includeLinked: false })).map(({ record }) => record);
-  return { firms, records };
+  return { firms, records, frequencyNames: await loadFrequencyNames(db) };
+}
+
+/** The firms merged away (P3-D9), which keep their rows behind a `firm_alias`. */
+const mergedAway = (db: DbOrTx) => db.select({ id: firmAlias.oldId }).from(firmAlias);
+
+/**
+ * P3-D4: the names whose tokens tell a distinctive name, the same for every run and for the sampler. Each distinct
+ * `country_code` and `name_norm` of every firm-level record, linked or not (FDA refusals, Import Alert listings and the
+ * Australian failed tests that name a producer), and of every firm not merged away. A name without a country counts in
+ * no country, so it is left out. In no particular order: the counts don't depend on it.
+ */
+export async function loadFrequencyNames(db: DbOrTx): Promise<FrequencyName[]> {
+  const refusals = db
+    .select({ countryCode: fdaRefusal.countryCode, nameNorm: fdaRefusal.nameNorm })
+    .from(fdaRefusal)
+    .where(isNotNull(fdaRefusal.countryCode));
+  const listings = db
+    .select({ countryCode: importAlertListing.countryCode, nameNorm: importAlertListing.nameNorm })
+    .from(importAlertListing)
+    .where(isNotNull(importAlertListing.countryCode));
+  const auRows = db
+    .select({ countryCode: auFailingFood.countryCode, nameNorm: auFailingFood.nameNorm })
+    .from(auFailingFood)
+    .where(and(isNotNull(auFailingFood.countryCode), ne(auFailingFood.nameNorm, '')));
+  const firms = db
+    .select({ countryCode: firm.countryCode, nameNorm: firm.nameNorm })
+    .from(firm)
+    .where(and(isNotNull(firm.countryCode), notInArray(firm.id, mergedAway(db))));
+  // `union` keeps each country and name once.
+  return refusals.union(listings).union(auRows).union(firms);
 }
 
 /**
@@ -54,7 +87,7 @@ export async function loadFirms(db: DbOrTx): Promise<KnownFirm[]> {
       addressNorm: firm.addressNorm,
     })
     .from(firm)
-    .where(notInArray(firm.id, db.select({ id: firmAlias.oldId }).from(firmAlias)))
+    .where(notInArray(firm.id, mergedAway(db)))
     .orderBy(asc(firm.id));
   const feis = new Map<number, number[]>();
   for (const { fei, firmId } of await db.select().from(firmFei).orderBy(asc(firmFei.fei))) {
@@ -74,6 +107,24 @@ export async function loadFirms(db: DbOrTx): Promise<KnownFirm[]> {
 /** A firm's address columns were normalised when it was written, so they are taken as they are; null when all are. */
 function storedAddress(columns: NormalizedAddress): NormalizedAddress | null {
   return Object.values(columns).some((value) => value !== null) ? columns : null;
+}
+
+const NO_ADDRESS: NormalizedAddress = {
+  countryCode: null,
+  region: null,
+  city: null,
+  postalCode: null,
+  addressNorm: null,
+};
+
+/**
+ * A record's address: its parts normalised, in the country its row's `country_code` names. The sync stored that code
+ * normalised, and loadFrequencyNames counts the record's name under it, so the engine takes it as it is: a record is
+ * scored against the token frequencies of its own country.
+ */
+function recordAddress(parts: Omit<RawAddress, 'country'>, countryCode: string | null): NormalizedAddress | null {
+  const address = normalizeAddress(parts);
+  return countryCode === null ? address : { ...(address ?? NO_ADDRESS), countryCode };
 }
 
 const commodityIdsOf = (commodityId: number | null): number[] => (commodityId === null ? [] : [commodityId]);
@@ -106,14 +157,16 @@ async function loadRefusals(db: DbOrTx, opts: LoadOptions): Promise<LoadedRecord
       fei: row.fei,
       firmName: row.firmName,
       nameNorm: row.nameNorm,
-      address: normalizeAddress({
-        line1: row.addressLine1,
-        line2: row.addressLine2,
-        city: row.city,
-        region: row.region,
-        postalCode: row.postalCode,
-        country: row.countryCode,
-      }),
+      address: recordAddress(
+        {
+          line1: row.addressLine1,
+          line2: row.addressLine2,
+          city: row.city,
+          region: row.region,
+          postalCode: row.postalCode,
+        },
+        row.countryCode,
+      ),
       commodityIds: commodityIdsOf(row.commodityId),
       seenOn: row.seenOn,
     },
@@ -156,15 +209,17 @@ async function loadListings(db: DbOrTx, opts: LoadOptions): Promise<LoadedRecord
       fei: null,
       firmName: row.firmName,
       nameNorm: row.nameNorm,
-      address: normalizeAddress({
-        line1:
-          row.addressRaw === null
-            ? null
-            : stripLocationTail(row.addressRaw, { city: row.city, region: row.region, country: row.countryName }),
-        city: row.city,
-        region: row.region,
-        country: row.countryCode,
-      }),
+      address: recordAddress(
+        {
+          line1:
+            row.addressRaw === null
+              ? null
+              : stripLocationTail(row.addressRaw, { city: row.city, region: row.region, country: row.countryName }),
+          city: row.city,
+          region: row.region,
+        },
+        row.countryCode,
+      ),
       commodityIds: commodityIdsOf(row.commodityId),
       seenOn: row.seenOn,
     },
@@ -200,7 +255,7 @@ async function loadAuRows(db: DbOrTx, opts: LoadOptions): Promise<LoadedRecord[]
               fei: null,
               firmName: producerName,
               nameNorm,
-              address: normalizeAddress({ country: countryCode }),
+              address: recordAddress({}, countryCode),
               commodityIds: commodityIdsOf(commodityId),
               seenOn,
             },

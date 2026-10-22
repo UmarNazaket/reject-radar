@@ -203,6 +203,45 @@ describe('loadLinkInput, applyLinkPlan and propagateFirmIds', () => {
     ]);
   });
 
+  it('counts the names of every record, linked or not, and of every firm not merged away (P3-D4)', async () => {
+    const dongwei = await insertFirm(db, { displayName: 'Fujian Dongwei Food Co., Ltd.', countryCode: 'CN' });
+    const mergedAway = await insertFirm(db, { displayName: 'Fujian Dongwei Foods', countryCode: 'CN' });
+    await db.insert(firmAlias).values({ oldId: mergedAway, newId: dongwei });
+    await insertFirm(db, { displayName: 'Gurudev Spice Mills', countryCode: 'IN' });
+    // Linked records, under names their firm does not have.
+    await insertRefusal(db, { firmName: 'DONGWEI FOODSTUFF', countryCode: 'CN', firmId: dongwei, linkScore: '0.9100' });
+    await insertListing(db, { firmName: 'Fujian Dongwei', countryCode: 'CN', firmId: dongwei, linkScore: '0.9500' });
+    await insertAuRow(db, {
+      producerName: 'Dongwei Food Co.',
+      countryCode: 'CN',
+      firmId: dongwei,
+      linkScore: '0.9200',
+    });
+    // Unlinked records; a name given twice in a country counts once, in each country it is given in.
+    await insertRefusal(db, { firmName: 'Gurudev Spices', countryCode: 'IN' });
+    await insertListing(db, { firmName: 'GURUDEV SPICES', countryCode: 'IN' });
+    await insertAuRow(db, { producerName: 'Gurudev Spices Pvt Ltd', countryCode: 'NP' });
+    // No name: an Australian test without a producer, or with one written only in another script.
+    await insertAuRow(db, { producerName: null, countryCode: 'VN' });
+    await insertAuRow(db, { producerName: '越南海鲜', countryCode: 'VN' });
+
+    const { frequencyNames } = await loadLinkInput(db);
+
+    // In no particular order: by country, then name.
+    const byCountryAndName = [...frequencyNames].sort(
+      (a, b) => `${a.countryCode}`.localeCompare(`${b.countryCode}`) || (a.nameNorm < b.nameNorm ? -1 : 1),
+    );
+    expect(byCountryAndName).toEqual([
+      { countryCode: 'CN', nameNorm: 'dongwei food' },
+      { countryCode: 'CN', nameNorm: 'dongwei foodstuff' },
+      { countryCode: 'CN', nameNorm: 'fujian dongwei' },
+      { countryCode: 'CN', nameNorm: 'fujian dongwei food' },
+      { countryCode: 'IN', nameNorm: 'gurudev spice mills' },
+      { countryCode: 'IN', nameNorm: 'gurudev spices' },
+      { countryCode: 'NP', nameNorm: 'gurudev spices' },
+    ]);
+  });
+
   it('strips the Import Alert location tail and takes red-list commodities from the notice', async () => {
     const red = await insertListing(
       db,

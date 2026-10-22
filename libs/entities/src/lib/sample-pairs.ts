@@ -1,9 +1,8 @@
 import { firm } from '@rejectradar/db';
-import { decideLink, isDistinctiveName, type LinkConfig, MATCH_CONFIG } from '@rejectradar/matching';
+import { decideLink, type LinkConfig, MATCH_CONFIG } from '@rejectradar/matching';
 import { inArray } from 'drizzle-orm';
-import { CandidateIndex } from './candidate-index';
-import { type LoadedRecord, loadFirmRecords, loadFirms } from './load';
-import { compareForMatching, countryTokenFrequencies, type FirmView, latestRecord, rankCandidates } from './plan-links';
+import { type LoadedRecord, loadFirmRecords, loadFirms, loadFrequencyNames } from './load';
+import { compareForMatching, FirmCandidates, latestRecord } from './plan-links';
 import type { DbOrTx, FirmRecord, KnownFirm } from './types';
 
 /** The columns of `libs/matching/test/fixtures/labelled-pairs.csv`, which the precision gate reads (spec §8.5). */
@@ -124,36 +123,27 @@ export function sampleSummary(rows: readonly LabelledPair[]): {
 
 /**
  * Every record's pairs, in the order the records were loaded. A record gets the candidates and scores planLinks would
- * give it: the firms of its country, indexed by ascending id, and token frequencies counted over the firms and every
- * record (P3-D4). Each record is paired once with each of its candidates, so no pair repeats.
+ * give it, from the FirmCandidates planLinks builds: the firms of its country, and the token frequencies of the names
+ * loadLinkInput counts (P3-D4). Each record is paired once with each of its candidates, so no pair repeats.
  */
 async function candidatePairs(db: DbOrTx, cfg: LinkConfig): Promise<Pair[]> {
   const firms = await loadFirms(db);
   const loaded = await loadFirmRecords(db, { includeLinked: true });
-  const frequencies = countryTokenFrequencies(
-    [...firms, ...loaded.map(({ record }) => record)].map(({ nameNorm, address }) => ({
-      countryCode: address?.countryCode ?? null,
-      nameNorm,
-    })),
-  );
-  const indexes = indexByCountry(firms);
+  const candidates = new FirmCandidates(firms, await loadFrequencyNames(db), cfg);
   const founders = foundingRecords(loaded);
 
   const pairs: Pair[] = [];
   for (const { record, rawAddress } of representatives(loaded)) {
     const country = record.address?.countryCode;
     if (!country) continue;
-    const countryFrequencies = frequencies.get(country);
-    // What rankCandidates scores the record with; the CSV carries it so that the gate can rescore the pair.
-    const isDistinctive = isDistinctiveName(
-      record.nameNorm,
-      (token) => countryFrequencies?.get(token) ?? 0,
-      cfg.distinctiveTokenMaxFreq,
-    );
+    // What rank scores the record with; the CSV carries it so that the gate can rescore the pair.
+    const isDistinctive = candidates.isDistinctive(record);
     // Ruling R15: no FEI's refusal with a firm that holds an FEI, and no firm with its founding record.
     const isCandidate = ({ id, feis }: KnownFirm) =>
       (feis.length === 0 || record.fei === null) && founders.get(id) !== record;
-    const best = rankCandidates(record, indexes.get(country), countryFrequencies, cfg)
+    // loadFirms gives the firms by ascending id, so a candidate's `order` is its firm's place in `firms`.
+    const best = candidates
+      .rank(record)
       .map(({ firm: view, score }) => ({ candidate: firms[view.order], score }))
       .filter(({ candidate }) => isCandidate(candidate))
       .slice(0, CANDIDATES_PER_RECORD);
@@ -181,23 +171,6 @@ function representatives(loaded: readonly LoadedRecord[]): LoadedRecord[] {
   const refusals = loaded.flatMap(({ record }) => (record.fei === null ? [] : [record]));
   const latest = new Set([...groupBy(refusals, ({ fei }) => fei).values()].map((group) => latestRecord(group)));
   return loaded.filter(({ record }) => record.fei === null || latest.has(record));
-}
-
-/** A candidate index per country of the firms, added by ascending id as planLinks adds known firms. */
-function indexByCountry(firms: readonly KnownFirm[]): Map<string, CandidateIndex<FirmView>> {
-  const indexes = new Map<string, CandidateIndex<FirmView>>();
-  // A view's `order` is its firm's place in `firms`, which leads back from a candidate to the firm.
-  firms.forEach(({ id, nameNorm, address, commodityIds, feis }, order) => {
-    const country = address?.countryCode;
-    if (!country) return;
-    let index = indexes.get(country);
-    if (!index) {
-      index = new CandidateIndex<FirmView>();
-      indexes.set(country, index);
-    }
-    index.add(nameNorm, { ref: { kind: 'existing', id }, nameNorm, address, commodityIds, feis, order });
-  });
-  return indexes;
 }
 
 /** decideLink's band for a score, or near from 0.50 to the review band; null below that. */
