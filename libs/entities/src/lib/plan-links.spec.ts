@@ -484,8 +484,8 @@ describe('planLinks', () => {
 
   it('never opens a score_band review against an FEI holder for a new FEI', () => {
     // Firm 12 holds another FEI and shares the city, though no address, postal code or commodity: 0.7453 + 0.12 =
-    // 0.8653, the review band. A firm with another FEI is another establishment unless the postal code, or the address
-    // and the city, agree (ruling R17).
+    // 0.8653, the review band. A firm with another FEI is another establishment unless, in the review band, the postal
+    // code, or the address and the city, agree (ruling R17).
     const holder = knownFirm(
       12,
       'ZHANJIANG EVERGREEN AQUATIC PRODUCT',
@@ -519,9 +519,26 @@ describe('planLinks', () => {
     );
   });
 
-  it('opens no second_fei when the address matches but the city does not', () => {
-    // "5ta Calle Zona 1" is a street in many Guatemalan towns, and an address match ignores the city: the exact
-    // distinctive name and the address line score 1, but the plants are in two towns.
+  it('opens no second_fei in the review band when the address matches but the city does not', () => {
+    // "5ta Calle" is a street in many Guatemalan towns, and an address match ignores the city. The names, spelt two
+    // ways, and the address line score 0.6058 + 0.25 = 0.8558, the review band, where the city has to agree too
+    // (ruling R17, kept by R22): the plants are in two towns.
+    const holder = knownFirm(5, 'AGRO INDUSTRIAS SAN JUAN', sanJuanPlant, { feis: [3008880001] });
+    const r = refusal(
+      'r-1',
+      '2024-03-11',
+      'AGROINDUSTRIAS SAN JUAN S.A.',
+      { ...sanJuanPlant, city: 'Huehuetenango' },
+      { fei: 3008880002 },
+    );
+
+    expect(planLinks({ firms: [holder], records: [r] })).toEqual(ownFirm(r));
+  });
+
+  it('opens second_fei in the link band when the address matches though the city differs', () => {
+    // FDA's city field often holds a region ("Kerala"), a district or a misspelling, so the city is no test at 0.90 or
+    // more, where the name is close already (ruling R22, back to R13). The exact distinctive name and the address line
+    // score 1: a review, though the two cities differ.
     const holder = knownFirm(
       5,
       'FARMAMEDICA',
@@ -536,7 +553,17 @@ describe('planLinks', () => {
       { fei: 3008880002 },
     );
 
-    expect(planLinks({ firms: [holder], records: [r] })).toEqual(ownFirm(r));
+    expect(planLinks({ firms: [holder], records: [r] })).toEqual(
+      ownFirm(r, [
+        reviewOf(r, existing(5), 'second_fei', {
+          ...countryOnly,
+          nameSim: 1,
+          addressMatch: true,
+          exactDistinctiveName: true,
+          parts: { name: 0.75, location: 0.25, locationReason: 'address', product: 0, total: 1 },
+        }),
+      ]),
+    );
   });
 
   it('opens second_fei for a postal-code match in the review band', () => {

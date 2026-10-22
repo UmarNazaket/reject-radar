@@ -4,6 +4,7 @@ import {
   decideLink,
   isDistinctiveName,
   type LinkConfig,
+  type LinkDecision,
   type LinkEvidence,
   type LinkScoreParts,
   linkScoreParts,
@@ -224,12 +225,18 @@ export function earliestSeenOn(records: readonly FirmRecord[]): string {
 type Match = { decision: 'new' } | { decision: 'link' | 'review'; best: ScoredCandidate };
 
 /**
- * Ruling R17: a firm holding another FEI is at the new FEI's place when the postal code agrees, or the address and the
- * city do. An address match alone is not enough: it ignores the city, and a street such as "5ta Calle Zona 1" is in
- * many towns.
+ * Whether a firm holding another FEI is at the new FEI's place, which depends on the band its score falls in:
+ * - link band (rulings R13 and R22): the address or the postal code agrees. The name is close already, and FDA's city
+ *   field often holds a region ("Kerala"), a district or a misspelling, so asking for the city too lost likely
+ *   duplicates;
+ * - review band (ruling R17): the postal code agrees, or the address and the city do. With a weaker name an address
+ *   match alone is not enough: it ignores the city, and a street such as "5ta Calle Zona 1" is in many towns.
  */
-function samePlace({ postalMatch, addressMatch, cityMatch }: LinkEvidence): boolean {
-  return postalMatch || (addressMatch && cityMatch);
+function samePlace(
+  { postalMatch, addressMatch, cityMatch }: LinkEvidence,
+  band: Exclude<LinkDecision, 'new'>,
+): boolean {
+  return band === 'link' ? addressMatch || postalMatch : postalMatch || (addressMatch && cityMatch);
 }
 
 /** A new FEI joins `candidate` ('attach'), or gets a firm of its own, reviewed against `candidate` unless 'new'. */
@@ -304,10 +311,12 @@ class LinkPlanner {
   }
 
   /**
-   * P3-D5 as rulings R13 and R17 narrow it, for a new FEI's latest refusal (spec §8.2 step 1). The best firm without an
-   * FEI takes the FEI when it scores in the link band. Otherwise the FEI gets a firm of its own and at most one review:
+   * P3-D5 as rulings R13, R17 and R22 narrow it, for a new FEI's latest refusal (spec §8.2 step 1). The best firm
+   * without an FEI takes the FEI when it scores in the link band. Otherwise the FEI gets a firm of its own and at most
+   * one review:
    * - second_fei against the first firm holding another FEI that scores in the review band or above and is at the same
-   *   place (samePlace): FDA gives each establishment its own FEI, so another FEI elsewhere is another establishment;
+   *   place, which depends on its band (samePlace): FDA gives each establishment its own FEI, so another FEI elsewhere
+   *   is another establishment;
    * - score_band against the best firm without an FEI, when it scores in the review band.
    * When both qualify, the higher score opens its review, second_fei on a tie. A firm holding another FEI never gets a
    * score_band review.
@@ -317,9 +326,10 @@ class LinkPlanner {
     const band = ({ score }: ScoredCandidate) => decideLink(score, this.cfg);
     const withoutFei = ranked.find(({ firm }) => firm.feis.length === 0);
     if (withoutFei && band(withoutFei) === 'link') return { decision: 'attach', candidate: withoutFei };
-    const duplicate = ranked.find(
-      (candidate) => candidate.firm.feis.length > 0 && band(candidate) !== 'new' && samePlace(candidate.evidence),
-    );
+    const duplicate = ranked.find((candidate) => {
+      const decision = band(candidate);
+      return candidate.firm.feis.length > 0 && decision !== 'new' && samePlace(candidate.evidence, decision);
+    });
     const near = withoutFei && band(withoutFei) === 'review' ? withoutFei : undefined;
     if (duplicate && (!near || duplicate.score >= near.score)) return { decision: 'second_fei', candidate: duplicate };
     if (near) return { decision: 'score_band', candidate: near };
