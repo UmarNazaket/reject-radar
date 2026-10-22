@@ -24,8 +24,8 @@ export async function databaseSizeBytes(db: Database): Promise<number> {
 }
 
 /**
- * Spec §6.3: throws a SizeLimitError when the database is at or above `limit`. Every command that writes calls this
- * first (`runSync`, `entities:link`), so a full database stops them all, not only the syncs.
+ * Spec §6.3: throws a SizeLimitError when the database is at or above `limit`. `runSync` calls it before any sync work
+ * and the `entities:link` command before it links, so a full database stops the syncs and the linking alike.
  */
 export async function assertBelowSizeLimit(db: Database, limit = SIZE_LIMIT_BYTES): Promise<void> {
   const size = await databaseSizeBytes(db);
