@@ -23,9 +23,14 @@ import { type FixtureRecord, insertAuRow, insertFirm, insertListing, insertRefus
 
 const TODAY = '2026-10-22';
 const DONGWEI_FEI = 3001234567;
+const MEKONG_FEI = 3005551234;
 
 /** Each row as "<decision> <country> <score>": what a sample draws, whichever pairs the seed picks. */
 const drawn = (rows: readonly LabelledPair[]) => rows.map((row) => `${row.decision} ${row.country} ${row.score}`);
+
+/** A record and a firm as "<record key> <firm id>", as `pairsOf` writes each row. */
+const pair = (record: FixtureRecord, firmId: number) => `${record.key} ${firmId}`;
+const pairsOf = (rows: readonly LabelledPair[]) => rows.map(({ source_key, firm_id }) => `${source_key} ${firm_id}`);
 
 /** The firms each record is paired with, by record key, ids ascending. */
 function firmsByRecord(rows: readonly LabelledPair[]): Record<string, number[]> {
@@ -94,15 +99,17 @@ describe('samplePairs', () => {
 
   /**
    * Records of 6 countries, linked by linkEntities, and 50 Pakistani mills without records here, which make "al rahman
-   * rice mills" a generic name (P3-D4). Dongwei's FEI and Golden Harvest's first FEI each have an older refusal, which
-   * the FEI's latest refusal stands for. The pairs they give, by band:
-   * - link, all 1.0 (11): Viet Seafood's 3 Australian tests (VN), Dongwei's listing and test (CN), Gurudev's 2
-   *   listings (IN) and Los Nogales' listing and test (MX), each with its own firm, which has other records; and each
-   *   of Golden Harvest's 2 FEIs with the other FEI's firm (TH).
+   * rice mills" a generic name (P3-D4). Dongwei's and Mekong Delta Shrimp's FEIs each have an older refusal, which the
+   * FEI's latest refusal stands for. The pairs they give, by band:
+   * - link, all 1.0 (9): Viet Seafood's 3 later Australian tests (VN), Dongwei's listing and test (CN), Gurudev's later
+   *   listing (IN) and Los Nogales' test (MX), each with its own firm; and Golden Harvest's listing with the firms of
+   *   its 2 FEIs (TH).
    * - review (4): Zhanjiang Evergreen "Products" and "Product", in one city (CN, 0.8653), and Al Rahman Rice Mills, in
    *   two cities (PK, 0.81), each with the other's firm.
-   * - near (6): the 2 Al Rahman Rice Mills with the first 2 of the 50 mills (PK, 0.63); Mekong Delta Shrimp and Mekong
-   *   Delta Shrimp Export, each with the other's firm (VN, 0.5925).
+   * - near (6): the 2 Al Rahman Rice Mills with the first 2 of the 50 mills (PK, 0.63); Mekong Delta Shrimp's refusal
+   *   and the Mekong Delta Shrimp Export test, each with the other's firm (VN, 0.5925).
+   * No pair joins an FEI's refusal to a firm that holds an FEI, nor a firm without an FEI to its founding record
+   * (ruling R15): Dongwei's and Golden Harvest's refusals give none.
    */
   async function insertLinkedFixture() {
     const mills: number[] = [];
@@ -168,25 +175,35 @@ describe('samplePairs', () => {
       }),
     ];
 
+    // Stored before the earlier listing, which founded the firm all the same: planLinks goes by date.
+    const gurudevLater = await insertListing(
+      db,
+      {
+        alertNumber: '99-19',
+        firmName: 'Gurudev Spices',
+        countryCode: 'IN',
+        countryName: 'INDIA',
+        listedOn: '2023-02-01',
+      },
+      { notice: { commodityId: 202 } },
+    );
     const gurudev = [
       await insertListing(
         db,
         { firmName: 'GURUDEV SPICES', countryCode: 'IN', countryName: 'INDIA', listedOn: '2022-09-14' },
         { notice: { commodityId: 202 } },
       ),
-      await insertListing(
-        db,
-        {
-          alertNumber: '99-19',
-          firmName: 'Gurudev Spices',
-          countryCode: 'IN',
-          countryName: 'INDIA',
-          listedOn: '2023-02-01',
-        },
-        { notice: { commodityId: 202 } },
-      ),
+      gurudevLater,
     ];
 
+    // Stored and dated before the listing, which founded the firm all the same: planLinks takes Import Alert before
+    // Australia.
+    const nogalesTest = await insertAuRow(db, {
+      producerName: 'HACIENDA LOS NOGALES',
+      countryCode: 'MX',
+      reportMonth: '2021-08-01',
+      commodityId: 600,
+    });
     const nogales = [
       await insertListing(db, {
         firmName: 'Hacienda Los Nogales S.A. de C.V.',
@@ -196,12 +213,7 @@ describe('samplePairs', () => {
         countryName: 'MEXICO',
         listedOn: '2022-01-10',
       }),
-      await insertAuRow(db, {
-        producerName: 'HACIENDA LOS NOGALES',
-        countryCode: 'MX',
-        reportMonth: '2025-08-01',
-        commodityId: 600,
-      }),
+      nogalesTest,
     ];
 
     // One name and address under two FEIs: two firms, as FDA gives each establishment its own FEI.
@@ -213,21 +225,26 @@ describe('samplePairs', () => {
       countryCode: 'TH',
       commodityId: 1002,
     };
-    // An older refusal of the first FEI under another name, which would score 0.835 against the other FEI's firm. The
-    // FEI's latest refusal stands for it, though this one was stored first.
-    const harvestOlder = await insertRefusal(db, {
-      ...harvest,
-      fei: 3007654321,
-      firmName: 'GOLDEN HARVEST FOOD INDUSTRIES CO., LTD.',
-      refusalDate: '2024-01-09',
-    });
     const harvestFeis = [
       await insertRefusal(db, { ...harvest, fei: 3007654321, refusalDate: '2025-11-20' }),
       await insertRefusal(db, { ...harvest, fei: 3007654322, refusalDate: '2026-06-05' }),
     ];
+    // A listing of the name and address, which the engine could link to either FEI's firm: it took the first.
+    const harvestListing = await insertListing(
+      db,
+      {
+        firmName: 'Golden Harvest Foods Co., Ltd.',
+        addressRaw: '88 Rama II Road, BANGKOK THAILAND',
+        city: 'BANGKOK',
+        countryCode: 'TH',
+        countryName: 'THAILAND',
+        listedOn: '2025-03-03',
+      },
+      { notice: { commodityId: 1002 } },
+    );
 
     const vietSeafood: FixtureRecord[] = [];
-    for (const reportMonth of ['2026-01-01', '2026-02-01', '2026-04-01']) {
+    for (const reportMonth of ['2026-01-01', '2026-02-01', '2026-04-01', '2026-06-01']) {
       vietSeafood.push(
         await insertAuRow(db, { producerName: 'Viet Seafood Co.', countryCode: 'VN', reportMonth, commodityId: 1001 }),
       );
@@ -239,13 +256,23 @@ describe('samplePairs', () => {
       reportMonth: '2026-05-01',
       commodityId: 1001,
     });
+    // An FEI whose older refusal, stored first, is nearly the Export test's name and would score 0.7746 against its
+    // firm. The latest refusal, which stands for the FEI, scores 0.5925.
+    const mekongAt = {
+      fei: MEKONG_FEI,
+      addressLine1: '45 Tran Hung Dao',
+      city: 'CAN THO',
+      postalCode: '900000',
+      countryCode: 'VN',
+      commodityId: 1001,
+    };
+    const mekongOlder = await insertRefusal(db, {
+      ...mekongAt,
+      firmName: 'MEKONG DELTA SHRIMP EXPORTS CO., LTD.',
+      refusalDate: '2024-02-01',
+    });
     const mekong = [
-      await insertListing(db, {
-        firmName: 'Mekong Delta Shrimp Co., Ltd.',
-        countryCode: 'VN',
-        countryName: 'VIET NAM',
-        listedOn: '2024-03-04',
-      }),
+      await insertRefusal(db, { ...mekongAt, firmName: 'MEKONG DELTA SHRIMP CO., LTD.', refusalDate: '2025-07-01' }),
       await insertAuRow(db, {
         producerName: 'MEKONG DELTA SHRIMP EXPORT',
         countryCode: 'VN',
@@ -290,9 +317,10 @@ describe('samplePairs', () => {
       gurudev,
       nogales,
       harvestFeis,
-      harvestOlder,
+      harvestListing,
       vietSeafood,
       vietnamSeafoods,
+      mekongOlder,
       mekong,
       rahman,
       firmOf,
@@ -307,12 +335,13 @@ describe('samplePairs', () => {
     expect(rows.map((row) => Object.keys(row))).toEqual(rows.map(() => [...LABELLED_PAIR_COLUMNS]));
     expect(rows.map(({ pair_id }) => pair_id)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
     expect(drawn(rows)).toEqual([
-      // Half from the link band, the countries taking turns: Viet Nam (3 pairs) first, then the others (2) by code.
+      // Half from the link band, the countries taking turns, the most pairs first: Viet Nam (3), China and Thailand
+      // (2 each, by code), India and Mexico (1 each).
       'link VN 1.0000',
       'link CN 1.0000',
+      'link TH 1.0000',
       'link IN 1.0000',
       'link MX 1.0000',
-      'link TH 1.0000',
       // 30% from the review band, where China and Pakistan have 2 pairs each.
       'review CN 0.8653',
       'review PK 0.8100',
@@ -332,19 +361,19 @@ describe('samplePairs', () => {
   it("gives a band's shortfall to the other bands, link first", async () => {
     await insertLinkedFixture();
 
-    // 16 pairs: 8 link, 5 review and 3 near. The review band has only 4, so the link band gives one more.
+    // 16 pairs: 8 link, 5 review and 3 near. The review band has only 4, so the link band, which has 9, gives one more.
     const rows = await samplePairs(db, { count: 16, seed: 1 });
 
     expect(drawn(rows)).toEqual([
       'link VN 1.0000',
       'link CN 1.0000',
+      'link TH 1.0000',
       'link IN 1.0000',
       'link MX 1.0000',
-      'link TH 1.0000',
       'link VN 1.0000',
       'link CN 1.0000',
-      'link IN 1.0000',
-      'link MX 1.0000',
+      'link TH 1.0000',
+      'link VN 1.0000',
       'review CN 0.8653',
       'review PK 0.8100',
       'review CN 0.8653',
@@ -357,7 +386,6 @@ describe('samplePairs', () => {
 
   it('is reproducible for a seed', async () => {
     await insertLinkedFixture();
-    const pairs = (rows: readonly LabelledPair[]) => rows.map(({ source_key, firm_id }) => `${source_key} ${firm_id}`);
 
     const first = await samplePairs(db, { count: 10, seed: 1 });
 
@@ -365,27 +393,64 @@ describe('samplePairs', () => {
     // Another seed picks other pairs within a country, from the same bands and countries.
     const other = await samplePairs(db, { count: 10, seed: 2 });
     expect(drawn(other)).toEqual(drawn(first));
-    expect(pairs(other)).not.toEqual(pairs(first));
+    expect(pairsOf(other)).not.toEqual(pairsOf(first));
   });
 
   it('never pairs a record with its own firm', async () => {
     const f = await insertLinkedFixture();
-    const pair = (record: FixtureRecord, firmId: number) => `${record.key} ${firmId}`;
 
     // More than the fixture has: every pair.
-    const pairs = (await samplePairs(db, { count: 100, seed: 1 })).map((row) => `${row.source_key} ${row.firm_id}`);
+    const pairs = pairsOf(await samplePairs(db, { count: 100, seed: 1 }));
 
     // Not with a firm the record alone makes up.
-    for (const record of [...f.evergreen, ...f.mekong, ...f.rahman]) {
+    for (const record of [...f.evergreen, f.mekong[1], ...f.rahman, f.vietnamSeafoods]) {
       expect(pairs).not.toContain(pair(record, f.firmOf(record)));
     }
-    // Nor a refusal with the firm holding its FEI, though Dongwei's firm has 3 other records and Golden Harvest's first
-    // firm 1.
-    for (const record of [f.dongweiLatest, ...f.harvestFeis]) {
+    // Nor a refusal with the firm holding its FEI, though Dongwei's firm has 3 other records and Mekong's 1.
+    for (const record of [f.dongweiLatest, ...f.harvestFeis, f.mekong[0]]) {
       expect(pairs).not.toContain(pair(record, f.firmOf(record)));
     }
-    // A record's firm with other records is a pair to label: the auto-links are these.
-    for (const record of [f.dongweiListing, f.dongweiTest, ...f.gurudev, ...f.nogales, ...f.vietSeafood]) {
+    // A record's firm that is more than the record is a pair to label: the auto-links are these.
+    for (const record of [f.dongweiListing, f.harvestListing, f.gurudev[1], f.vietSeafood[1]]) {
+      expect(pairs).toContain(pair(record, f.firmOf(record)));
+    }
+  });
+
+  it("pairs an FEI's refusal only with firms that hold no FEI", async () => {
+    const f = await insertLinkedFixture();
+    const [harvest1, harvest2] = f.harvestFeis.map(f.firmOf);
+
+    const rows = await samplePairs(db, { count: 100, seed: 1 });
+
+    // The engine links a new FEI's refusals to the FEI's own firm or to a firm without an FEI, and gives another FEI's
+    // firm at most a second_fei review (P3-D5). So each Golden Harvest refusal, though it scores 1.0 against the other
+    // FEI's firm, gives no pair, while Mekong Delta Shrimp's is paired with the Export test's firm, which has no FEI.
+    expect(pairsOf(rows.filter(({ source }) => source === 'fda_refusal'))).toEqual([
+      pair(f.mekong[0], f.firmOf(f.mekong[1])),
+    ]);
+    // Other records are paired with firms holding an FEI: the engine could link the listing to either of these.
+    expect(pairsOf(rows)).toEqual(
+      expect.arrayContaining([pair(f.harvestListing, harvest1), pair(f.harvestListing, harvest2)]),
+    );
+  });
+
+  it('never pairs a firm without an FEI with its founding record', async () => {
+    const f = await insertLinkedFixture();
+
+    const pairs = pairsOf(await samplePairs(db, { count: 100, seed: 1 }));
+
+    // Such a firm took its name and address from its first record in planLinks' order (by source, then date, then
+    // key), which it copies: Gurudev's earlier listing, stored after the later one; Los Nogales' listing, stored and
+    // dated after its Australian test; and Viet Seafood's first test.
+    for (const record of [f.gurudev[0], f.nogales[0], f.vietSeafood[0]]) {
+      expect(pairs).not.toContain(pair(record, f.firmOf(record)));
+    }
+    // The firm's other records are pairs to label.
+    for (const record of [f.gurudev[1], f.nogales[1], ...f.vietSeafood.slice(1)]) {
+      expect(pairs).toContain(pair(record, f.firmOf(record)));
+    }
+    // A firm that holds an FEI keeps its pairs with the listings and tests linked to it.
+    for (const record of [f.dongweiListing, f.dongweiTest, f.harvestListing]) {
       expect(pairs).toContain(pair(record, f.firmOf(record)));
     }
   });
@@ -400,20 +465,20 @@ describe('samplePairs', () => {
 
     const rows = await samplePairs(db, { count: 100, seed: 1 });
 
-    // 11 link, 4 review and 6 near pairs: every pair the fixture has, each once.
-    expect(rows).toHaveLength(21);
-    // Not there: the older refusals of an FEI, which its latest refusal stands for; Dongwei's latest refusal, whose
-    // one candidate holds its FEI; and Vietnam Seafoods, whose one candidate scores below 0.50.
+    // 9 link, 4 review and 6 near pairs: every pair the fixture has, each once.
+    expect(rows).toHaveLength(19);
+    // Not there: the older refusals of an FEI, which its latest refusal stands for; Dongwei's and Golden Harvest's
+    // refusals, whose candidates all hold an FEI; the founding records of Gurudev's, Los Nogales' and Viet Seafood's
+    // firms; and Vietnam Seafoods, whose other candidate scores below 0.50.
     expect(firmsByRecord(rows)).toEqual({
       [f.dongweiListing.key]: [dongwei],
       [f.dongweiTest.key]: [dongwei],
       [f.evergreen[0].key]: [evergreenProduct],
       [f.evergreen[1].key]: [evergreenProducts],
-      ...Object.fromEntries(f.gurudev.map((record) => [record.key, [f.firmOf(record)]])),
-      ...Object.fromEntries(f.nogales.map((record) => [record.key, [f.firmOf(record)]])),
-      [f.harvestFeis[0].key]: [harvest2],
-      [f.harvestFeis[1].key]: [harvest1],
-      ...Object.fromEntries(f.vietSeafood.map((record) => [record.key, [f.firmOf(record)]])),
+      [f.gurudev[1].key]: [f.firmOf(f.gurudev[1])],
+      [f.nogales[1].key]: [f.firmOf(f.nogales[1])],
+      [f.harvestListing.key]: ascending(harvest1, harvest2),
+      ...Object.fromEntries(f.vietSeafood.slice(1).map((record) => [record.key, [f.firmOf(record)]])),
       [f.mekong[0].key]: [mekongExport],
       [f.mekong[1].key]: [mekong],
       // The other city's firm (0.81), then 2 of the 50 mills (0.63 each, the lowest ids first): 3 candidates at most.
@@ -458,31 +523,31 @@ describe('samplePairs', () => {
       label: '',
       notes: '',
     });
-    // An FDA refusal, whose address the source splits into fields.
-    expect(rowOf(f.harvestFeis[1], f.firmOf(f.harvestFeis[0]))).toEqual({
+    // An FDA refusal, whose address the source splits into fields, near a firm built from an Australian test: 0.5925.
+    expect(rowOf(f.mekong[0], f.firmOf(f.mekong[1]))).toEqual({
       pair_id: expect.any(String),
       source: 'fda_refusal',
-      source_key: f.harvestFeis[1].key,
-      country: 'TH',
-      record_raw_name: 'GOLDEN HARVEST FOODS CO., LTD.',
-      record_name_norm: 'golden harvest foods',
-      record_raw_address: '88 Rama II Road, BANGKOK, 10150',
-      record_address_norm: '88 rama ii road',
-      record_city: 'bangkok',
+      source_key: f.mekong[0].key,
+      country: 'VN',
+      record_raw_name: 'MEKONG DELTA SHRIMP CO., LTD.',
+      record_name_norm: 'mekong delta shrimp',
+      record_raw_address: '45 Tran Hung Dao, CAN THO, 900000',
+      record_address_norm: '45 tran hung dao',
+      record_city: 'can tho',
       record_region: '',
-      record_postal: '10150',
-      record_commodity_ids: '1002',
-      firm_id: String(f.firmOf(f.harvestFeis[0])),
-      firm_display_name: 'GOLDEN HARVEST FOODS CO., LTD.',
-      firm_name_norm: 'golden harvest foods',
-      firm_address_norm: '88 rama ii road',
-      firm_city: 'bangkok',
+      record_postal: '900000',
+      record_commodity_ids: '1001',
+      firm_id: String(f.firmOf(f.mekong[1])),
+      firm_display_name: 'MEKONG DELTA SHRIMP EXPORT',
+      firm_name_norm: 'mekong delta shrimp export',
+      firm_address_norm: '',
+      firm_city: '',
       firm_region: '',
-      firm_postal: '10150',
-      firm_commodity_ids: '1002',
+      firm_postal: '',
+      firm_commodity_ids: '',
       is_distinctive: 'true',
-      score: '1.0000',
-      decision: 'link',
+      score: '0.5925',
+      decision: 'new',
       label: '',
       notes: '',
     });
