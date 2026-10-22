@@ -14,6 +14,11 @@ deletes that turn the 0002 data into the new data. Run `taxonomy:remap` after de
 pick up the new rules. `seeds.spec.ts` pins 0002 to `taxonomySeedSql()`, so a change made here without that step fails
 the tests.
 
+`rules.ts` keeps one list per migration: `SEED_*_RULES` (0002) and `COVERAGE_*_RULES`
+(`0009_taxonomy_coverage.sql`, written by `scripts/write-coverage-migration.ts` and pinned to `taxonomyCoverageSql()`).
+`COMMODITY_RULES` and `HAZARD_RULES` concatenate them in insert order, which is the order of their database ids. The 0009
+rules only fill gaps: each one either reads a value no seeded rule matches or ranks after every seeded rule.
+
 ## Running unit tests
 
 Run `nx test taxonomy` to execute the unit tests via [Jest](https://jestjs.io).

@@ -480,6 +480,11 @@ describe('classifyRasff', () => {
     expect(classifyRasff(rules, item('Salmonella spp. in sesame seeds from India'), []).hazardIds).toContain(400);
   });
 
+  it('reads the subjects that the rules of migration 0009 cover', () => {
+    expect(classifyRasff(rules, item('Ergot on Triticale from Germany', 'feed materials'), [])).toEqual({ commodityId: 1700, hazardIds: [302] });
+    expect(classifyRasff(rules, item('Aflatoxins in walnuts from Ukraine', 'other food product / mixed'), [])).toEqual({ commodityId: 400, hazardIds: [300] });
+  });
+
   it('matches a hazard on its name first and on its category only when the name matches nothing', () => {
     const byName = classifyRasff(rules, item('Consignment of sesame seeds'), [hazard('Salmonella  - pathogenic micro-organisms', 'pathogenic micro-organisms')]);
     expect(byName.hazardIds).toContain(400);

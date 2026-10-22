@@ -1,8 +1,23 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { ancestorIds, COMMODITIES, COMMODITY_RULES, HAZARD_RULES, HAZARDS, OTHER_FOOD_ID, UNCLASSIFIED_ID } from '../index';
+import {
+  ancestorIds,
+  COMMODITIES,
+  COMMODITY_RULES,
+  COVERAGE_COMMODITY_RULES,
+  COVERAGE_HAZARD_RULES,
+  HAZARD_RULES,
+  HAZARDS,
+  OTHER_FOOD_ID,
+  SEED_COMMODITY_RULES,
+  SEED_HAZARD_RULES,
+  UNCLASSIFIED_ID,
+} from '../index';
 import { normalizeRuleText } from './match';
-import { taxonomySeedSql } from './seed-sql';
+import type { RuleSeed } from './rules';
+import { taxonomyCoverageSql, taxonomySeedSql } from './seed-sql';
+
+const migration = (file: string): string => readFileSync(path.join(__dirname, '../../../db/migrations', file), 'utf8');
 
 describe('seeded taxonomy', () => {
   it('has 38 commodities, 18 of them top level', () => {
@@ -80,13 +95,56 @@ describe('taxonomySeedSql', () => {
 
   /**
    * 0002_taxonomy_seed.sql is frozen once applied: a database that already ran it never runs it again, so editing it
-   * changes nothing there. If this test fails, a seed or rule in this library no longer matches what databases hold.
+   * changes nothing there. If this test fails, a seed or a `SEED_*_RULES` rule no longer matches what databases hold.
    * Never edit or regenerate 0002. Either revert the change, or ship it as a NEW custom drizzle migration that turns the
-   * 0002 data into the new data (inserts, updates, deletes), run `taxonomy:remap` after deploying it, and then point
-   * this test at a frozen copy of the 0002 seed so it keeps guarding 0002 itself.
+   * 0002 data into the new data (inserts, updates, deletes) and run `taxonomy:remap` after deploying it, as
+   * 0009_taxonomy_coverage did for `COVERAGE_*_RULES`.
    */
   it('matches the applied seed migration 0002_taxonomy_seed.sql byte for byte', () => {
-    const applied = readFileSync(path.join(__dirname, '../../../db/migrations/0002_taxonomy_seed.sql'), 'utf8');
-    expect(sql).toBe(applied);
+    expect(sql).toBe(migration('0002_taxonomy_seed.sql'));
+  });
+});
+
+describe('taxonomyCoverageSql', () => {
+  const sql = taxonomyCoverageSql();
+
+  it('inserts rules only', () => {
+    expect(sql).toContain('insert into commodity_rule ');
+    expect(sql).toContain('insert into hazard_rule ');
+    expect(sql).not.toMatch(/insert into (commodity|hazard) \(/);
+  });
+
+  /** Frozen like 0002 once applied: a later rule change ships as a migration of its own. */
+  it('matches the migration 0009_taxonomy_coverage.sql byte for byte', () => {
+    expect(sql).toBe(migration('0009_taxonomy_coverage.sql'));
+  });
+});
+
+describe('rules added after the seed', () => {
+  const highest = (rules: readonly RuleSeed[]): number => Math.max(...rules.map((rule) => rule.priority));
+  const seedHas = (seeds: readonly RuleSeed[], rule: RuleSeed): boolean =>
+    seeds.some(
+      (seed) =>
+        (seed.source === rule.source || seed.source === '*') &&
+        seed.field === rule.field &&
+        seed.matchType === rule.matchType &&
+        seed.pattern === rule.pattern,
+    );
+
+  it('come after the seeded rules, so databases hand them out in this order', () => {
+    expect(COMMODITY_RULES).toEqual([...SEED_COMMODITY_RULES, ...COVERAGE_COMMODITY_RULES]);
+    expect(HAZARD_RULES).toEqual([...SEED_HAZARD_RULES, ...COVERAGE_HAZARD_RULES]);
+  });
+
+  it('repeat no seeded pattern', () => {
+    for (const rule of COVERAGE_COMMODITY_RULES) expect(seedHas(SEED_COMMODITY_RULES, rule)).toBe(false);
+    for (const rule of COVERAGE_HAZARD_RULES) expect(seedHas(SEED_HAZARD_RULES, rule)).toBe(false);
+  });
+
+  /** A keyword can match a value a seeded rule matches too; ranking it last keeps every seeded classification. */
+  it('rank every added keyword after every seeded rule', () => {
+    const keywords = (rules: readonly RuleSeed[]) => rules.filter((rule) => rule.matchType === 'keyword');
+    for (const rule of keywords(COVERAGE_COMMODITY_RULES)) expect(rule.priority).toBeGreaterThan(highest(SEED_COMMODITY_RULES));
+    for (const rule of keywords(COVERAGE_HAZARD_RULES)) expect(rule.priority).toBeGreaterThan(highest(SEED_HAZARD_RULES));
   });
 });
