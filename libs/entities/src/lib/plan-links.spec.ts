@@ -1,8 +1,8 @@
-import type { FirmRecordSource } from '@rejectradar/contracts';
+import type { FirmRecordSource, MatchReviewReason } from '@rejectradar/contracts';
 import { type LinkEvidence, normalizeAddress, normalizeName, type RawAddress } from '@rejectradar/matching';
 import { CandidateIndex } from './candidate-index';
 import { countryTokenFrequencies, type FirmView, planLinks, rankCandidates } from './plan-links';
-import type { FirmRecord, FirmRef, KnownFirm, NewFirm, RecordLink, ReviewDraft } from './types';
+import type { FirmRecord, FirmRef, KnownFirm, LinkPlan, NewFirm, RecordLink, ReviewDraft } from './types';
 
 type RecordOptions = Partial<Pick<FirmRecord, 'fei' | 'commodityIds'>>;
 
@@ -75,6 +75,55 @@ const pluralInSameCity: ReviewDraft['evidence'] = {
   cityMatch: true,
   productOverlap: true,
   parts: { name: 0.7453, location: 0.12, locationReason: 'city', product: 0.03, total: 0.8953 },
+};
+
+/** A new FEI's only refusal `r` with a firm of its own: the firm, its link, the FEI, and `reviews`. */
+function ownFirm(r: FirmRecord, reviews: ReviewDraft[] = []): LinkPlan {
+  return {
+    newFirms: [newFirm(0, r)],
+    links: [linked(r, created(0), 1)],
+    feis: [{ fei: r.fei as number, firm: created(0), firstSeen: r.seenOn }],
+    reviews,
+  };
+}
+
+/** The review of `r`'s new firm against `candidate`, at the score `evidence` adds up to. */
+function reviewOf(
+  r: FirmRecord,
+  candidate: FirmRef,
+  reason: MatchReviewReason,
+  evidence: ReviewDraft['evidence'],
+): ReviewDraft {
+  return { source: r.source, key: r.key, firm: created(0), candidate, score: evidence.parts.total, reason, evidence };
+}
+
+/** "Zhanjiang Evergreen Aquatic Products" against a firm "… Aquatic Product" at its postal code, in its city. */
+const pluralAtPostalCode: ReviewDraft['evidence'] = {
+  ...countryOnly,
+  nameSim: 0.99375,
+  postalMatch: true,
+  cityMatch: true,
+  parts: { name: 0.7453, location: 0.15, locationReason: 'postal_code', product: 0, total: 0.8953 },
+};
+
+/** The same pair in the same city only. */
+const pluralInCityOnly: ReviewDraft['evidence'] = {
+  ...countryOnly,
+  nameSim: 0.99375,
+  cityMatch: true,
+  parts: { name: 0.7453, location: 0.12, locationReason: 'city', product: 0, total: 0.8653 },
+};
+
+/** Guatemala: the street "5ta Calle" with a house number, in zone 1 of Chimaltenango. */
+const sanJuanPlant: RawAddress = { line1: '5ta Calle 3-45 Zona 1', city: 'Chimaltenango', country: 'GT' };
+
+/** "Agroindustrias San Juan" against a firm "Agro Industrias San Juan" at its address and in its city. */
+const sanJuanAtAddress: ReviewDraft['evidence'] = {
+  ...countryOnly,
+  nameSim: expect.closeTo(0.8077, 4),
+  addressMatch: true,
+  cityMatch: true,
+  parts: { name: 0.6058, location: 0.25, locationReason: 'address', product: 0, total: 0.8558 },
 };
 
 /** `items` in an order fixed by `seed`: Fisher-Yates driven by a 32-bit linear congruential generator. */
@@ -358,10 +407,19 @@ describe('planLinks', () => {
     const listed = knownFirm(2, 'GURUDEVA SPICES', { city: 'Unjha', country: 'IN' });
     const r = refusal('r-1', '2024-04-20', 'GURUDEV SPICES PVT LTD', where, { fei: 3005550002 });
 
-    const { reviews } = planLinks({ firms: [holder, listed], records: [r] });
-    expect(reviews.map(({ candidate, reason, score }) => ({ candidate, reason, score }))).toEqual([
-      { candidate: existing(8), reason: 'second_fei', score: 1 },
-    ]);
+    // The higher score opens its review.
+    expect(planLinks({ firms: [holder, listed], records: [r] })).toEqual(
+      ownFirm(r, [
+        reviewOf(r, existing(8), 'second_fei', {
+          ...countryOnly,
+          nameSim: 1,
+          exactDistinctiveName: true,
+          postalMatch: true,
+          cityMatch: true,
+          parts: { name: 0.75, location: 0.25, locationReason: 'distinctive_exact_name', product: 0, total: 1 },
+        }),
+      ]),
+    );
   });
 
   it('creates a firm and a score_band review between 0.75 and 0.90', () => {
@@ -425,37 +483,145 @@ describe('planLinks', () => {
   });
 
   it('never opens a score_band review against an FEI holder for a new FEI', () => {
-    // Firm 12 holds another FEI and shares the postal code, though no commodity: 0.7453 + 0.15 = 0.8953. Below the link
-    // band a firm with another FEI is another establishment, even at the same postal code.
+    // Firm 12 holds another FEI and shares the city, though no address, postal code or commodity: 0.7453 + 0.12 =
+    // 0.8653, the review band. A firm with another FEI is another establishment unless the postal code, or the address
+    // and the city, agree (ruling R17).
+    const holder = knownFirm(
+      12,
+      'ZHANJIANG EVERGREEN AQUATIC PRODUCT',
+      { city: 'Zhanjiang', country: 'CN' },
+      { feis: [3001000001] },
+    );
+    const r = refusal(
+      'r-1',
+      '2024-05-06',
+      'ZHANJIANG EVERGREEN AQUATIC PRODUCTS CO., LTD',
+      { city: 'Zhanjiang', postalCode: '524000', country: 'CN' },
+      { fei: 3003000003 },
+    );
+
+    expect(planLinks({ firms: [holder], records: [r] })).toEqual(ownFirm(r));
+
+    // A firm without an FEI still gets its review, though it ranks below firm 12 on its id: the same score.
+    const listed = knownFirm(13, 'ZHANJIANG EVERGREEN AQUATIC PRODUCT', { city: 'Zhanjiang', country: 'CN' });
+    expect(planLinks({ firms: [holder, listed], records: [r] })).toEqual(
+      ownFirm(r, [reviewOf(r, existing(13), 'score_band', pluralInCityOnly)]),
+    );
+  });
+
+  it('opens second_fei for an FEI holder that matches by address and city in the review band', () => {
+    // One plant under two FEIs, its name spelt two ways: 0.6058 + 0.25 = 0.8558 (ruling R17).
+    const holder = knownFirm(5, 'AGRO INDUSTRIAS SAN JUAN', sanJuanPlant, { feis: [3008880001] });
+    const r = refusal('r-1', '2024-03-11', 'AGROINDUSTRIAS SAN JUAN S.A.', sanJuanPlant, { fei: 3008880002 });
+
+    expect(planLinks({ firms: [holder], records: [r] })).toEqual(
+      ownFirm(r, [reviewOf(r, existing(5), 'second_fei', sanJuanAtAddress)]),
+    );
+  });
+
+  it('opens no second_fei when the address matches but the city does not', () => {
+    // "5ta Calle Zona 1" is a street in many Guatemalan towns, and an address match ignores the city: the exact
+    // distinctive name and the address line score 1, but the plants are in two towns.
+    const holder = knownFirm(
+      5,
+      'FARMAMEDICA',
+      { line1: '5ta Calle Zona 1', city: 'Guatemala City', country: 'GT' },
+      { feis: [3008880001] },
+    );
+    const r = refusal(
+      'r-1',
+      '2024-03-11',
+      'FARMAMEDICA S.A.',
+      { line1: '5ta Calle Zona 1', city: 'Huehuetenango', country: 'GT' },
+      { fei: 3008880002 },
+    );
+
+    expect(planLinks({ firms: [holder], records: [r] })).toEqual(ownFirm(r));
+  });
+
+  it('opens second_fei for a postal-code match in the review band', () => {
+    // Firm 12 holds another FEI at the postal code, though no commodity: 0.7453 + 0.15 = 0.8953 (ruling R17).
     const where: RawAddress = { city: 'Zhanjiang', postalCode: '524000', country: 'CN' };
     const holder = knownFirm(12, 'ZHANJIANG EVERGREEN AQUATIC PRODUCT', where, { feis: [3001000001] });
     const r = refusal('r-1', '2024-05-06', 'ZHANJIANG EVERGREEN AQUATIC PRODUCTS CO., LTD', where, { fei: 3003000003 });
 
-    expect(planLinks({ firms: [holder], records: [r] })).toEqual({
-      newFirms: [newFirm(0, r)],
-      links: [linked(r, created(0), 1)],
-      feis: [{ fei: 3003000003, firm: created(0), firstSeen: '2024-05-06' }],
+    expect(planLinks({ firms: [holder], records: [r] })).toEqual(
+      ownFirm(r, [reviewOf(r, existing(12), 'second_fei', pluralAtPostalCode)]),
+    );
+  });
+
+  it('opens the higher-scoring review when a duplicate FEI and a firm without an FEI both qualify', () => {
+    const where: RawAddress = { city: 'Zhanjiang', postalCode: '524000', country: 'CN' };
+    const r = refusal('r-1', '2024-05-06', 'ZHANJIANG EVERGREEN AQUATIC PRODUCTS CO., LTD', where, { fei: 3003000003 });
+    const holder = knownFirm(12, 'ZHANJIANG EVERGREEN AQUATIC PRODUCT', where, { feis: [3001000001] });
+
+    // The duplicate scores higher: firm 12 at the postal code (0.8953), firm 13 in the city only (0.8653).
+    const inCity = knownFirm(13, 'ZHANJIANG EVERGREEN AQUATIC PRODUCT', { city: 'Zhanjiang', country: 'CN' });
+    expect(planLinks({ firms: [holder, inCity], records: [r] })).toEqual(
+      ownFirm(r, [reviewOf(r, existing(12), 'second_fei', pluralAtPostalCode)]),
+    );
+
+    // A tie goes to second_fei, though firm 11, without an FEI, ranks first on its id.
+    const atPostalCode = knownFirm(11, 'ZHANJIANG EVERGREEN AQUATIC PRODUCT', where);
+    expect(planLinks({ firms: [holder, atPostalCode], records: [r] })).toEqual(
+      ownFirm(r, [reviewOf(r, existing(12), 'second_fei', pluralAtPostalCode)]),
+    );
+
+    // The firm without an FEI scores higher: firm 6, a near name in the city (0.7464 + 0.12 = 0.8664), against firm 5,
+    // a duplicate by address and city (0.8558).
+    const plant = knownFirm(5, 'AGRO INDUSTRIAS SAN JUAN', sanJuanPlant, { feis: [3008880001] });
+    const nearName = knownFirm(6, 'AGROINDUSTRIA SAN JUAN', { city: 'Chimaltenango', country: 'GT' });
+    const sanJuan = refusal('r-2', '2024-03-11', 'AGROINDUSTRIAS SAN JUAN S.A.', sanJuanPlant, { fei: 3008880002 });
+    expect(planLinks({ firms: [plant, nearName], records: [sanJuan] })).toEqual(
+      ownFirm(sanJuan, [
+        reviewOf(sanJuan, existing(6), 'score_band', {
+          ...countryOnly,
+          nameSim: expect.closeTo(0.9952, 4),
+          cityMatch: true,
+          parts: { name: 0.7464, location: 0.12, locationReason: 'city', product: 0, total: 0.8664 },
+        }),
+      ]),
+    );
+  });
+
+  it('attaching to a link-band firm without an FEI still wins over any review', () => {
+    // Firm 5 holds another FEI and is a duplicate by exact name, address and city: 1. Firm 6 has no FEI and a near name
+    // at the address: 0.7464 + 0.25 = 0.9964, the link band, so it takes the FEI.
+    const holder = knownFirm(5, 'AGROINDUSTRIAS SAN JUAN', sanJuanPlant, { feis: [3008880001] });
+    const nearName = knownFirm(6, 'AGROINDUSTRIA SAN JUAN', sanJuanPlant);
+    const r = refusal('r-1', '2024-03-11', 'AGROINDUSTRIAS SAN JUAN S.A.', sanJuanPlant, { fei: 3008880002 });
+
+    expect(planLinks({ firms: [holder, nearName], records: [r] })).toEqual({
+      newFirms: [],
+      links: [linked(r, existing(6), 0.9964)],
+      feis: [{ fei: 3008880002, firm: existing(6), firstSeen: '2024-03-11' }],
       reviews: [],
     });
+  });
 
-    // A firm without an FEI still gets its review, though it ranks below firm 12: same city only, 0.7453 + 0.12.
-    const listed = knownFirm(13, 'ZHANJIANG EVERGREEN AQUATIC PRODUCT', { city: 'Zhanjiang', country: 'CN' });
-    expect(planLinks({ firms: [holder, listed], records: [r] }).reviews).toEqual([
-      {
-        source: 'fda_refusal',
-        key: 'r-1',
-        firm: created(0),
-        candidate: existing(13),
-        score: 0.8653,
-        reason: 'score_band',
-        evidence: {
+  it('opens score_band against a firm without an FEI when a link-band FEI holder matches by name alone', () => {
+    // Firm 8 holds another FEI and scores 1 by its exact distinctive name in the same city, but without an address or a
+    // postal code it is another plant. Firm 2 has no FEI and a near name in the city: 0.7406 + 0.12 = 0.8606.
+    const holder = knownFirm(8, 'GURUDEV SPICES', { city: 'Unjha', country: 'IN' }, { feis: [3005550001] });
+    const listed = knownFirm(2, 'GURUDEVA SPICES', { city: 'Unjha', country: 'IN' });
+    const r = refusal(
+      'r-1',
+      '2024-04-20',
+      'GURUDEV SPICES PVT LTD',
+      { city: 'Unjha', country: 'India' },
+      { fei: 3005550002 },
+    );
+
+    expect(planLinks({ firms: [holder, listed], records: [r] })).toEqual(
+      ownFirm(r, [
+        reviewOf(r, existing(2), 'score_band', {
           ...countryOnly,
-          nameSim: 0.99375,
+          nameSim: 0.9875,
           cityMatch: true,
-          parts: { name: 0.7453, location: 0.12, locationReason: 'city', product: 0, total: 0.8653 },
-        },
-      },
-    ]);
+          parts: { name: 0.7406, location: 0.12, locationReason: 'city', product: 0, total: 0.8606 },
+        }),
+      ]),
+    );
   });
 
   it('links the same exporter listed on three Import Alerts to one firm', () => {

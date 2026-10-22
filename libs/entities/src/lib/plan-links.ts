@@ -223,6 +223,15 @@ export function earliestSeenOn(records: readonly FirmRecord[]): string {
 /** The best candidate and the band its score falls in; below the review band no candidate matters. */
 type Match = { decision: 'new' } | { decision: 'link' | 'review'; best: ScoredCandidate };
 
+/**
+ * Ruling R17: a firm holding another FEI is at the new FEI's place when the postal code agrees, or the address and the
+ * city do. An address match alone is not enough: it ignores the city, and a street such as "5ta Calle Zona 1" is in
+ * many towns.
+ */
+function samePlace({ postalMatch, addressMatch, cityMatch }: LinkEvidence): boolean {
+  return postalMatch || (addressMatch && cityMatch);
+}
+
 /** A new FEI joins `candidate` ('attach'), or gets a firm of its own, reviewed against `candidate` unless 'new'. */
 type FeiMatch =
   | { decision: 'new' }
@@ -295,20 +304,25 @@ class LinkPlanner {
   }
 
   /**
-   * P3-D5 as ruling R13 narrows it, for a new FEI's latest refusal. The best firm without an FEI keeps the bands. A
-   * firm holding another FEI is another establishment unless the address agrees (spec §8.2 step 1), so it only ever
-   * gets a second_fei review, and only for a link-band score with the same address or postal code.
+   * P3-D5 as rulings R13 and R17 narrow it, for a new FEI's latest refusal (spec §8.2 step 1). The best firm without an
+   * FEI takes the FEI when it scores in the link band. Otherwise the FEI gets a firm of its own and at most one review:
+   * - second_fei against the first firm holding another FEI that scores in the review band or above and is at the same
+   *   place (samePlace): FDA gives each establishment its own FEI, so another FEI elsewhere is another establishment;
+   * - score_band against the best firm without an FEI, when it scores in the review band.
+   * When both qualify, the higher score opens its review, second_fei on a tie. A firm holding another FEI never gets a
+   * score_band review.
    */
   private matchNewFei(record: FirmRecord): FeiMatch {
     const ranked = this.candidates.rank(record);
+    const band = ({ score }: ScoredCandidate) => decideLink(score, this.cfg);
     const withoutFei = ranked.find(({ firm }) => firm.feis.length === 0);
-    if (withoutFei && withoutFei.score >= this.cfg.autoLink) return { decision: 'attach', candidate: withoutFei };
-    const sameAddress = ranked.find(
-      ({ firm, score, evidence }) =>
-        firm.feis.length > 0 && score >= this.cfg.autoLink && (evidence.addressMatch || evidence.postalMatch),
+    if (withoutFei && band(withoutFei) === 'link') return { decision: 'attach', candidate: withoutFei };
+    const duplicate = ranked.find(
+      (candidate) => candidate.firm.feis.length > 0 && band(candidate) !== 'new' && samePlace(candidate.evidence),
     );
-    if (sameAddress) return { decision: 'second_fei', candidate: sameAddress };
-    if (withoutFei && withoutFei.score >= this.cfg.review) return { decision: 'score_band', candidate: withoutFei };
+    const near = withoutFei && band(withoutFei) === 'review' ? withoutFei : undefined;
+    if (duplicate && (!near || duplicate.score >= near.score)) return { decision: 'second_fei', candidate: duplicate };
+    if (near) return { decision: 'score_band', candidate: near };
     return { decision: 'new' };
   }
 
