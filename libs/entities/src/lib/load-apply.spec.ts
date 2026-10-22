@@ -203,6 +203,30 @@ describe('loadLinkInput, applyLinkPlan and propagateFirmIds', () => {
     ]);
   });
 
+  it('gives an FEI left on a merged-away firm to the firm it was merged into', async () => {
+    const dongwei = await insertFirm(db, { displayName: 'Fujian Dongwei Food Co., Ltd.', countryCode: 'CN' });
+    const mergedAway = await insertFirm(db, { displayName: 'Fujian Dongwei Foods', countryCode: 'CN' });
+    await db.insert(firmAlias).values({ oldId: mergedAway, newId: dongwei });
+    // A firm_fei row that still names the merged-away firm. Dropped, its FEI would look new to a run, which would give
+    // it another firm.
+    await db.insert(firmFei).values([
+      { fei: 3009876543, firmId: dongwei },
+      { fei: 3001234567, firmId: mergedAway },
+    ]);
+
+    const { firms } = await loadLinkInput(db);
+
+    expect(firms).toEqual([
+      {
+        id: dongwei,
+        nameNorm: 'fujian dongwei food',
+        address: { countryCode: 'CN', region: null, city: null, postalCode: null, addressNorm: null },
+        commodityIds: [],
+        feis: [3001234567, 3009876543],
+      },
+    ]);
+  });
+
   it('counts the names of every record, linked or not, and of every firm not merged away (P3-D4)', async () => {
     const dongwei = await insertFirm(db, { displayName: 'Fujian Dongwei Food Co., Ltd.', countryCode: 'CN' });
     const mergedAway = await insertFirm(db, { displayName: 'Fujian Dongwei Foods', countryCode: 'CN' });

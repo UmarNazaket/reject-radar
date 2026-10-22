@@ -73,7 +73,11 @@ export async function loadFirmRecords(db: DbOrTx, opts: LoadOptions): Promise<Lo
   return [...(await loadRefusals(db, opts)), ...(await loadListings(db, opts)), ...(await loadAuRows(db, opts))];
 }
 
-/** The firms not merged away (P3-D9), by ascending id, each with the FEIs it holds, ascending. */
+/**
+ * The firms not merged away (P3-D9), by ascending id, each with the FEIs it holds, ascending. A merge moves the merged
+ * firm's FEIs to the kept firm; an FEI whose row still names a merged-away firm is held by the firm it was merged into,
+ * which its alias names (aliases are one hop).
+ */
 export async function loadFirms(db: DbOrTx): Promise<KnownFirm[]> {
   const rows = await db
     .select({
@@ -89,8 +93,13 @@ export async function loadFirms(db: DbOrTx): Promise<KnownFirm[]> {
     .from(firm)
     .where(notInArray(firm.id, mergedAway(db)))
     .orderBy(asc(firm.id));
+  const holders = await db
+    .select({ fei: firmFei.fei, firmId: sql<number>`coalesce(${firmAlias.newId}, ${firmFei.firmId})`.mapWith(Number) })
+    .from(firmFei)
+    .leftJoin(firmAlias, eq(firmAlias.oldId, firmFei.firmId))
+    .orderBy(asc(firmFei.fei));
   const feis = new Map<number, number[]>();
-  for (const { fei, firmId } of await db.select().from(firmFei).orderBy(asc(firmFei.fei))) {
+  for (const { fei, firmId } of holders) {
     const held = feis.get(firmId);
     if (held) held.push(fei);
     else feis.set(firmId, [fei]);

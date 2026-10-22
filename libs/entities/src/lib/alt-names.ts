@@ -13,18 +13,21 @@ function* chunks<T>(items: readonly T[], size: number): Generator<T[]> {
 }
 
 /**
- * Sets `alt_names` on each of `firmIds` (P3-D6): the other raw names its records give the firm, compared without case
- * and spelt as first seen; only names that normalise to a usable name, never the display name; sorted by code unit, at
- * most 20. A firm is written only when its names changed. Returns how many firms were written.
+ * Sets `alt_names` (P3-D6) on every firm not merged away (P3-D9), or only on those of `firmIds`: the other raw names its
+ * records give the firm, compared without case and spelt as first seen; only names that normalise to a usable name,
+ * never the display name; sorted by code unit, at most 20. A firm is written only when its names changed. Returns how
+ * many firms were written.
  */
-export async function refreshFirmAltNames(tx: DbOrTx, firmIds: readonly number[]): Promise<number> {
-  if (firmIds.length === 0) return 0;
-  const ids = sql`${sql.param([...firmIds])}::bigint[]`;
+export async function refreshFirmAltNames(tx: DbOrTx, firmIds?: readonly number[]): Promise<number> {
+  if (firmIds?.length === 0) return 0;
+  const onlyAsked = firmIds === undefined ? sql.empty() : sql`and id = any(${sql.param([...firmIds])}::bigint[])`;
+  // The firms to refresh: those not merged away, and only those asked for when the caller names them.
+  const targets = sql`select id from firm where id not in (select old_id from firm_alias) ${onlyAsked}`;
   const firms = await tx
     .select({ id: firm.id, displayName: firm.displayName, altNames: firm.altNames })
     .from(firm)
-    .where(sql`${firm.id} = any(${ids})`);
-  const rawNames = await recordNames(tx, ids);
+    .where(sql`${firm.id} in (${targets})`);
+  const rawNames = await recordNames(tx, targets);
   const changed = firms.flatMap(({ id, displayName, altNames }) => {
     const names = altNamesOf(displayName, rawNames.get(id) ?? []);
     return sameNames(names, altNames) ? [] : [{ id, names }];
@@ -46,12 +49,12 @@ export async function refreshFirmAltNames(tx: DbOrTx, firmIds: readonly number[]
 }
 
 /**
- * The raw names of the records of the firms in `ids`, per firm, each once and in the order first seen: FDA refusals,
- * then Import Alert listings, then Australian failed tests, each in stored order.
+ * The raw names of the records of the firms `targets` selects, per firm, each once and in the order first seen: FDA
+ * refusals, then Import Alert listings, then Australian failed tests, each in stored order.
  */
-async function recordNames(tx: DbOrTx, ids: SQL): Promise<Map<number, string[]>> {
+async function recordNames(tx: DbOrTx, targets: SQL): Promise<Map<number, string[]>> {
   const { rows } = await tx.execute<{ firm_id: string; name: string }>(sql`
-    with targets (id) as (select unnest(${ids}))
+    with targets as (${targets})
     select firm_id, name
     from (
       select distinct on (firm_id, name) firm_id, name, source_rank, id

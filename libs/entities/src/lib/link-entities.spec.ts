@@ -280,6 +280,26 @@ describe('linkEntities', () => {
     expect(firmId).toBe(await firmOfFei(DONGWEI_FEI));
   });
 
+  it('drops the name of a record that left a firm from its alternative names', async () => {
+    const { auRows } = await insertFixture();
+    await linkEntities(db, { today: TODAY });
+    const dongwei = await firmOfFei(DONGWEI_FEI);
+    const altNamesOf = async (id: number) =>
+      (await db.select({ altNames: firm.altNames }).from(firm).where(eq(firm.id, id)))[0].altNames;
+    expect(await altNamesOf(dongwei)).toEqual(['FUJIAN DONGWEI FOOD CO LTD', 'FUJIAN DONGWEI FOOD CO.,LTD']);
+    // A sync corrects the Australian test's country, which clears its firm (P3-D8): the next run links it in Taiwan.
+    await db
+      .update(auFailingFood)
+      .set({ countryCode: 'TW', firmId: null, linkScore: null })
+      .where(eq(auFailingFood.sourceKey, auRows[0].key));
+
+    await linkEntities(db, { today: TODAY });
+
+    expect((await recordFirms())[`au_ifis/${auRows[0].key}`]).not.toBe(dongwei);
+    // Dongwei gained no record and no FEI in this run, yet its names lose the test's.
+    expect(await altNamesOf(dongwei)).toEqual(['FUJIAN DONGWEI FOOD CO LTD']);
+  });
+
   // Review Focus 3.
   it('never offers a merged-away firm', async () => {
     await insertFixture();
