@@ -1,5 +1,5 @@
-import { auFailingFood, changeEvent, notice, prepareTestDatabase, sourceFile, sourceSyncRun } from '@rejectradar/db';
-import { insertFirm } from '@rejectradar/entities';
+import { auFailingFood, changeEvent, matchReview, notice, prepareTestDatabase, sourceFile, sourceSyncRun } from '@rejectradar/db';
+import { insertEvent, insertFirm } from '@rejectradar/entities';
 import { count, desc, eq, inArray } from 'drizzle-orm';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -403,6 +403,7 @@ describe('Australian sync', () => {
     await handle.close();
   });
   beforeEach(async () => {
+    await handle.db.delete(matchReview);
     await handle.db.delete(changeEvent);
     await handle.db.delete(notice);
     await handle.db.delete(auFailingFood);
@@ -659,6 +660,29 @@ describe('Australian sync', () => {
       firmId,
       linkScore: '0.9000',
     });
+  });
+
+  it('a corrected Australian record keeps its events and reviews', async () => {
+    await syncAuIfis(backend(), options);
+    const before = parseAuCsv(fixture('july-2026.csv'), '2026-07-01')[1];
+    expect((await handle.db.select().from(changeEvent).where(eq(changeEvent.sourceKey, before.sourceKey))).map((e) => e.kind)).toEqual(['au_failed_test']);
+    const firmId = await link([before.sourceKey]);
+    const review = { firmId, candidateFirmId: await insertFirm(handle.db), score: '0.8100' };
+    // An Import Alert listing's review and event under the same key are about another record.
+    await handle.db.insert(matchReview).values([
+      { ...review, source: 'au_ifis', sourceKey: before.sourceKey },
+      { ...review, source: 'import_alert', sourceKey: before.sourceKey },
+    ]);
+    await insertEvent(handle.db, { source: 'import_alert', sourceKey: before.sourceKey });
+    const after = parseAuCsv(correctedJuly(), '2026-07-01')[1];
+
+    expect(await syncAuIfis(backend({ [URL_JULY]: correctedJuly() }), options)).toMatchObject({ rowsUpdated: 1, eventsEmitted: 0 });
+
+    const keyOfRow = ({ source, sourceKey }: { source: string; sourceKey: string }) => `${source} ${sourceKey === after.sourceKey ? 'new key' : 'old key'}`;
+    const eventKeys = await handle.db.select({ source: changeEvent.source, sourceKey: changeEvent.sourceKey }).from(changeEvent).where(inArray(changeEvent.sourceKey, [before.sourceKey, after.sourceKey]));
+    expect(eventKeys.map(keyOfRow).sort()).toEqual(['au_ifis new key', 'import_alert old key']);
+    const reviewKeys = await handle.db.select({ source: matchReview.source, sourceKey: matchReview.sourceKey }).from(matchReview);
+    expect(reviewKeys.map(keyOfRow).sort()).toEqual(['au_ifis new key', 'import_alert old key']);
   });
 
   it('an Australian record whose country code changes loses its firm', async () => {

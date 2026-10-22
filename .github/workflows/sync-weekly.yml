@@ -60,7 +60,9 @@ jobs:
           FDA_API_USER: ${{ secrets.FDA_API_USER }}
           FDA_API_KEY: ${{ secrets.FDA_API_KEY }}
         run: node dist/apps/ingest/main.js sync:fda-refusals
+      # Runs even after a failed sync, so that records stored earlier still get their firms and firm facts still age.
       - name: entities:link
+        if: ${{ !cancelled() }}
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
@@ -115,7 +117,9 @@ jobs:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:au-ifis
+      # Runs even after a failed sync, so that records stored earlier still get their firms and firm facts still age.
       - name: entities:link
+        if: ${{ !cancelled() }}
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}

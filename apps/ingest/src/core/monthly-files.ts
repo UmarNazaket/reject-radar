@@ -1,4 +1,4 @@
-import { changeEvent, notice } from '@rejectradar/db';
+import { changeEvent, matchReview, notice } from '@rejectradar/db';
 import type { RuleSet } from '@rejectradar/taxonomy';
 import { and, eq, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn, PgInsertValue, PgTable, PgUpdateSetSource } from 'drizzle-orm/pg-core';
@@ -40,7 +40,8 @@ export interface MonthlyFileSource<R extends MonthlyRow, TTable extends PgTable>
   countryNameColumn: PgColumn;
   /**
    * Firm-level sources only, whose table has `firmId` and `linkScore`: the typed-row columns a record is linked to its
-   * firm on (P3-D8). A load that changes them on a stored row clears its link, so `entities:link` relinks it.
+   * firm on (P3-D8). A load that changes them on a stored row clears its link, so `entities:link` relinks it. Only these
+   * sources' records have match reviews, which follow a corrected row to its new key.
    */
   linkIdentity?: PgColumn[];
   /** Reads one downloaded file; an error is reported with the file's URL. */
@@ -144,8 +145,9 @@ async function upsertTyped<TTable extends PgTable>(
  *
  * A row key hashes the row's values, so a corrected row gets a new key. Inside a file loaded before, a new key whose
  * date, country (as the file writes it), product (and producer) match a key the file no longer holds is that row
- * corrected: the typed row and its notice move to the new key in place (the notice keeps its id) and no event is
- * emitted. Every other new row emits an event; so does every row of a file never loaded before.
+ * corrected: the typed row, its notice (which keeps its id), its change events and, for a firm-level source, its match
+ * reviews move to the new key in place, and no event is emitted. Every other new row emits an event; so does every row
+ * of a file never loaded before.
  *
  * `rowsRead` counts the rows of the files loaded in this run; `rowsInserted`, `rowsUpdated` and `rowsDeleted` count
  * typed rows (a moved row counts as updated).
@@ -213,10 +215,15 @@ export async function syncMonthlyFiles<R extends MonthlyRow, TTable extends PgTa
             )
           : new Map<string, StoredNotice>();
 
-        // Corrected rows move to their new key first, so the upserts below update them instead of inserting.
+        // Corrected rows move to their new key first, so the upserts below update them instead of inserting. Their change
+        // events follow, and so do the match reviews of a firm-level source's records (the UK has none).
         for (const [newKey, old] of corrections) {
           await tx.execute(sql`update ${spec.table} set ${sql.identifier(spec.keyColumn.name)} = ${newKey} where ${spec.keyColumn} = ${old.sourceKey}`);
           await tx.update(notice).set({ sourceKey: newKey }).where(eq(notice.id, old.id));
+          await tx.update(changeEvent).set({ sourceKey: newKey }).where(and(eq(changeEvent.source, spec.source), eq(changeEvent.sourceKey, old.sourceKey)));
+          if (spec.linkIdentity !== undefined) {
+            await tx.update(matchReview).set({ sourceKey: newKey }).where(and(eq(matchReview.source, spec.source), eq(matchReview.sourceKey, old.sourceKey)));
+          }
         }
 
         const updatedKeys = new Set(corrections.keys());

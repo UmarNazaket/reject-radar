@@ -1,5 +1,5 @@
 import type { AlertList, EventKind } from '@rejectradar/contracts';
-import { importAlert, importAlertListing, importAlertListingProduct, notice } from '@rejectradar/db';
+import { changeEvent, importAlert, importAlertListing, importAlertListingProduct, matchReview, notice } from '@rejectradar/db';
 import { normalizeName } from '@rejectradar/matching';
 import { classifyCommodity, classifyHazards, UNCLASSIFIED_ID, type RuleSet } from '@rejectradar/taxonomy';
 import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
@@ -423,9 +423,12 @@ export async function syncImportAlerts(
         }
       }
 
-      // A re-keyed listing keeps its notice: move the notice to the new key before the notices are upserted.
+      // A re-keyed listing keeps its notice, its change events and its match reviews: move them to the new key before
+      // the notices are upserted.
       for (const [newKey, row] of rekeyed) {
         await tx.update(notice).set({ sourceKey: newKey }).where(and(eq(notice.source, 'import_alert'), eq(notice.sourceKey, row.listingKey)));
+        await tx.update(changeEvent).set({ sourceKey: newKey }).where(and(eq(changeEvent.source, 'import_alert'), eq(changeEvent.sourceKey, row.listingKey)));
+        await tx.update(matchReview).set({ sourceKey: newKey }).where(and(eq(matchReview.source, 'import_alert'), eq(matchReview.sourceKey, row.listingKey)));
       }
 
       // Listings.

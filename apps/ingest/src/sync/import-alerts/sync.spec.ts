@@ -1,5 +1,5 @@
-import { changeEvent, importAlert, importAlertListing, importAlertListingProduct, notice, prepareTestDatabase, sourceSyncRun } from '@rejectradar/db';
-import { insertFirm } from '@rejectradar/entities';
+import { changeEvent, importAlert, importAlertListing, importAlertListingProduct, matchReview, notice, prepareTestDatabase, sourceSyncRun } from '@rejectradar/db';
+import { insertEvent, insertFirm } from '@rejectradar/entities';
 import { count, desc, eq, inArray } from 'drizzle-orm';
 import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -80,6 +80,7 @@ describe('Import Alert sync', () => {
     await handle.close();
   });
   beforeEach(async () => {
+    await handle.db.delete(matchReview);
     await handle.db.delete(changeEvent);
     await handle.db.delete(notice);
     await handle.db.delete(importAlert);
@@ -704,6 +705,30 @@ ${block}`));
       expect(await run()).toMatchObject({ rowsInserted: 0, rowsUpdated: 1 });
       // The address is not part of a listing's identity.
       expect(await listing(newKey)).toMatchObject({ addressRaw: expect.stringContaining('Road 9'), firmId, linkScore: '0.9000' });
+    });
+
+    it('a listing re-keyed for an edited address keeps its events and reviews', async () => {
+      await run();
+      expect((await events()).filter((e) => e.sourceKey === firstKey).map((e) => e.kind)).toEqual(['import_alert_listed']);
+      const firmId = await link([firstKey]);
+      const review = { firmId, candidateFirmId: await insertFirm(handle.db), score: '0.8100' };
+      // An Australian test's review and event under the same key are about another record.
+      await handle.db.insert(matchReview).values([
+        { ...review, source: 'import_alert', sourceKey: firstKey },
+        { ...review, source: 'au_ifis', sourceKey: firstKey },
+      ]);
+      await insertEvent(handle.db, { source: 'au_ifis', sourceKey: firstKey });
+      const edited = ORIGINAL['99-19'].replace('Bazaar Kandharyellow Carvansera', 'Bazaar Kandhar Yellow Carvansera Road 9');
+      const newKey = keyOf('99-19', parsed('99-19', edited).listings[0]);
+      serve('99-19', edited);
+
+      expect(await run()).toMatchObject({ rowsInserted: 0, rowsUpdated: 1, eventsEmitted: 0 });
+
+      const keyOfRow = ({ source, sourceKey }: { source: string; sourceKey: string }) => `${source} ${sourceKey === newKey ? 'new key' : 'old key'}`;
+      const eventKeys = await handle.db.select({ source: changeEvent.source, sourceKey: changeEvent.sourceKey }).from(changeEvent).where(inArray(changeEvent.sourceKey, [firstKey, newKey]));
+      expect(eventKeys.map(keyOfRow).sort()).toEqual(['au_ifis old key', 'import_alert new key']);
+      const reviewKeys = await handle.db.select({ source: matchReview.source, sourceKey: matchReview.sourceKey }).from(matchReview);
+      expect(reviewKeys.map(keyOfRow).sort()).toEqual(['au_ifis old key', 'import_alert new key']);
     });
   });
 

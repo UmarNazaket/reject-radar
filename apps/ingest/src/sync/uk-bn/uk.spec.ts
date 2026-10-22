@@ -1,5 +1,5 @@
 import { changeEvent, notice, prepareTestDatabase, sourceFile, sourceSyncRun, ukBorderNotification } from '@rejectradar/db';
-import { count, desc, eq } from 'drizzle-orm';
+import { count, desc, eq, inArray } from 'drizzle-orm';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SyncDeps } from '../../core/deps';
@@ -339,6 +339,18 @@ describe('UK sync', () => {
     expect(moved.title).toContain('Microbiological contamination');
     const [event] = await handle.db.select().from(changeEvent).where(eq(changeEvent.noticeId, oldNotice.id));
     expect(event).toBeDefined();
+  });
+
+  it('moves the events of a corrected row to its new key', async () => {
+    await syncUkBn(backend(), options);
+    const before = parseUkCsv(APRIL_2026, '2026-04')[1];
+    const corrected = editedApril2026(',Composition,', ',Microbiological contamination,');
+    const after = parseUkCsv(corrected, '2026-04')[1];
+
+    await syncUkBn(backend({ [URL_2026]: corrected }), options);
+
+    const keys = await handle.db.select({ source: changeEvent.source, sourceKey: changeEvent.sourceKey }).from(changeEvent).where(inArray(changeEvent.sourceKey, [before.sourceKey, after.sourceKey]));
+    expect(keys).toEqual([{ source: 'uk_bn', sourceKey: after.sourceKey }]);
   });
 
   it('pairs a corrected row on the country as the file names it, not on its stored code', async () => {
