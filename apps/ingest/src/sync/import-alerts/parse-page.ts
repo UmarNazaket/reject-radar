@@ -53,6 +53,16 @@ export interface ParsedAlert {
 const NOTES_MAX = 1000;
 const ALERT_NUMBER = /\d{2}-\d+/;
 
+/**
+ * The `<a name="…Firm">` anchor that opens each firm list. Only the Red and Green Lists are synced (spec §6.3); the
+ * Yellow List (intensified surveillance) is known so its firms are skipped instead of landing on the list before it.
+ */
+const LIST_ANCHORS = new Map<string, AlertList | 'yellow'>([
+  ['RedFirm', 'red'],
+  ['GreenFirm', 'green'],
+  ['YellowFirm', 'yellow'],
+]);
+
 const stripQuotes = (value: string): string => value.replace(/^["“”\s]+|["“”\s]+$/g, '');
 const afterLabel = (text: string, label: RegExp): string => collapse(text.replace(label, ''));
 
@@ -115,7 +125,7 @@ function parseProduct(el: Selection): ParsedListingProduct {
 }
 
 /**
- * Parses one Import Alert page into its text sections and Red/Green List firms. Throws
+ * Parses one Import Alert page into its text sections and Red/Green List firms (Yellow List firms are skipped). Throws
  * `PageStructureError` rather than return a partial result when the layout is not what it expects.
  */
 export function parseAlertPage(html: string, url: string): ParsedAlert {
@@ -140,7 +150,8 @@ export function parseAlertPage(html: string, url: string): ParsedAlert {
   const chargeText = sectionText($, 'Charge');
 
   const listings: ParsedListing[] = [];
-  let list: AlertList | null = null;
+  let yellowBlocks = 0;
+  let list: AlertList | 'yellow' | null = null;
   let country: string | null = null;
   let listing: ParsedListing | null = null;
   let product: ParsedListingProduct | null = null;
@@ -157,10 +168,12 @@ export function parseAlertPage(html: string, url: string): ParsedAlert {
   // The header sections, country headings, firm blocks and products are all siblings of one container.
   for (const node of nameHeading.parent().children().toArray()) {
     const el = $(node);
-    const isRed = el.find('a[name="RedFirm"]').length > 0;
-    if (isRed || el.find('a[name="GreenFirm"]').length > 0) {
+    const anchor = el.find('a[name$="Firm"]').first().attr('name');
+    if (anchor !== undefined) {
+      const section = LIST_ANCHORS.get(anchor);
+      if (section === undefined) return fail(`unknown firm list anchor a[name=${anchor}]`);
       closeProduct();
-      list = isRed ? 'red' : 'green';
+      list = section;
       listing = null;
       continue;
     }
@@ -178,6 +191,10 @@ export function parseAlertPage(html: string, url: string): ParsedAlert {
       listing = null;
       if (list === null) {
         return fail('firm blocks found but no a[name=RedFirm] or a[name=GreenFirm] list anchor precedes them');
+      }
+      if (list === 'yellow') {
+        yellowBlocks += 1;
+        continue;
       }
       if (country === null) return fail('firm block found before any country heading');
       const firmName = collapse(el.find('div.div-name.floatleft').first().text());
@@ -221,8 +238,8 @@ export function parseAlertPage(html: string, url: string): ParsedAlert {
   closeProduct();
 
   const firmBlocks = $('div.div-info').length;
-  if (firmBlocks !== listings.length) {
-    return fail(`the page has ${firmBlocks} firm blocks but ${listings.length} were parsed`);
+  if (firmBlocks !== listings.length + yellowBlocks) {
+    return fail(`the page has ${firmBlocks} firm blocks but ${listings.length} were parsed and ${yellowBlocks} skipped on the Yellow List`);
   }
 
   const textSha256 = createHash('sha256')
