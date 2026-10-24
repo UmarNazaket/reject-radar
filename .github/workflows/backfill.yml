@@ -92,7 +92,7 @@ jobs:
       # A page-structure failure saves the page under INGEST_FAILURE_DIR (default tmp/ingest-failures).
       - name: Upload the page that failed to parse
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ingest-failures-backfill-${{ github.run_id }}-${{ github.run_attempt }}
           path: tmp/ingest-failures
