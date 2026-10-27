@@ -73,6 +73,7 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
+  @RateLimit({ name: 'reset-ip', limit: 20, windowMs: HOUR_MS, key: 'ip' })
   resetPassword(@Body(new ZodValidationPipe(resetPasswordRequest)) body: ResetPasswordRequest): Promise<StatusResponse> {
     return this.passwordResets.reset(body);
   }

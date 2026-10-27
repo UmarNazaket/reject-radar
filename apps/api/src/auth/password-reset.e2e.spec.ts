@@ -1,6 +1,7 @@
 import { translate } from '@rejectradar/i18n';
 import { sql } from 'drizzle-orm';
 import { signUpVerified, startTestApp, type TestApp } from '../testing/test-app';
+import * as passwords from './passwords';
 
 const EMAIL = 'ayesha.khan@example.com';
 const OLD_PASSWORD = 'zarfeen-rice-2026';
@@ -160,5 +161,31 @@ describe('password reset', () => {
     expect((await forgot(EMAIL).expect(503)).body.code).toBe('EMAIL_CAP_REACHED');
     expect((await forgot('nobody@example.com').expect(503)).body.code).toBe('EMAIL_CAP_REACHED');
     expect(t.mail.sent).toHaveLength(0);
+  });
+
+  it('refuses an unknown, a used or an expired token without hashing the new password', async () => {
+    await signUpVerified(t, { email: EMAIL });
+    const used = await requestLink();
+    await reset(used).expect(200);
+    const expired = await requestLink();
+    await t.db.execute(sql`update email_token set expires_at = now() - interval '1 second' where purpose = 'reset' and used_at is null`);
+
+    const hashes = jest.spyOn(passwords, 'hashPassword');
+    try {
+      for (const token of ['x'.repeat(43), used, expired]) {
+        const res = await reset(token, 'another-harvest-2028').expect(400);
+        expect(res.body.code).toBe('INVALID_TOKEN');
+      }
+      expect(hashes).not.toHaveBeenCalled();
+    } finally {
+      hashes.mockRestore();
+    }
+  });
+
+  it('limits reset password to 20 an hour per IP', async () => {
+    for (let i = 1; i <= 20; i++) expect((await reset(`junk-token-${i}`.padEnd(43, 'x')).expect(400)).body.code).toBe('INVALID_TOKEN');
+    const res = await reset('junk-token-21'.padEnd(43, 'x')).expect(429);
+    expect(res.body.code).toBe('RATE_LIMITED');
+    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
   });
 });

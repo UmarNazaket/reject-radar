@@ -233,6 +233,29 @@ describe('invites', () => {
     await session.get('/v1/me').expect(200);
   });
 
+  it('an unverified existing user who accepts is verified by the link', async () => {
+    const member = await joinByInvite(t, owner.session, { email: 'member@example.com', role: 'member' });
+    await owner.session.delete(`/v1/org/members/${member.userId}`).expect(204);
+    await t.db.execute(sql`update app_user set email_verified_at = null where id = ${member.userId}`);
+    await invite('member@example.com', 'member').expect(201);
+
+    const res = await accept({ token: tokenFor('member@example.com'), password: PASSWORD }).expect(200);
+    expect(res.body).toMatchObject({ user: { id: member.userId, emailVerified: true }, org: { id: owner.orgId } });
+    expect((await userRow('member@example.com')).verified).toBe(true);
+  });
+
+  it('an unverified member accepting an invite to their own account is verified by the link', async () => {
+    const member = await joinByInvite(t, owner.session, { email: 'member@example.com', role: 'member' });
+    await t.db.execute(sql`update app_user set email_verified_at = null where id = ${member.userId}`);
+    await t.db.execute(sql`
+      insert into invite (id, org_id, email, role, token_hash, invited_by, expires_at)
+      values (gen_random_uuid(), ${owner.orgId}, 'member@example.com', 'admin', ${sha256Hex('v'.repeat(43))}, ${owner.userId}, now() + interval '1 day')`);
+
+    const res = await accept({ token: 'v'.repeat(43), password: PASSWORD }).expect(200);
+    expect(res.body).toMatchObject({ role: 'member', user: { id: member.userId, emailVerified: true } });
+    expect((await userRow('member@example.com')).verified).toBe(true);
+  });
+
   it('wrong passwords on accept count toward the lockout', async () => {
     const member = await joinByInvite(t, owner.session, { email: 'member@example.com', role: 'member' });
     await owner.session.delete(`/v1/org/members/${member.userId}`).expect(204);
