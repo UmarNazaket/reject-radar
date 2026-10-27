@@ -55,24 +55,27 @@ export class MembersService {
       .select({ userId: membership.userId, role: membership.role })
       .from(membership)
       .where(byOrg(membership, { orgId }))
+      // A fixed order, so two requests locking the same account never wait on each other's rows crosswise.
+      .orderBy(asc(membership.userId))
       .for('update');
     return rows as MemberRow[];
   }
 
   /**
-   * Sets a member's role. Only an owner grants `owner` or changes an owner's role, and the account always keeps an
-   * owner. The invariant is checked before the caller's rights, on the locked rows, and the caller's role is the one
-   * read under the lock: a request that waited behind a demotion of its own caller is judged by what the account is now.
+   * Sets a member's role. Only an owner grants `owner` or changes an owner's role (403 for anyone else, whatever the
+   * account looks like), and the account always keeps an owner (409). The caller's rights come first, from the role
+   * the guard loaded; the owner count follows on the locked rows; the caller's role is then read again under the
+   * lock, so a request that waited behind a demotion of its own caller is judged by what the account is now.
    */
   async changeRole(ctx: RequestContext, userId: string, role: Role): Promise<void> {
     await this.db.transaction(async (tx) => {
       const members = await this.lockMembers(tx, ctx.orgId);
       const target = members.find((m) => m.userId === userId);
       if (!target) throw notFound();
+      const mayChange = (actor: Role) => actor !== 'member' && (actor === 'owner' || (role !== 'owner' && target.role !== 'owner'));
+      if (!mayChange(ctx.role)) throw forbidden();
       if (target.role === 'owner' && role !== 'owner' && ownersOf(members) <= 1) throw lastOwner();
-
-      const actor = actorOf(members, ctx);
-      if (actor === 'member' || (actor !== 'owner' && (role === 'owner' || target.role === 'owner'))) throw forbidden();
+      if (!mayChange(actorOf(members, ctx))) throw forbidden();
 
       await tx
         .update(membership)
@@ -90,10 +93,10 @@ export class MembersService {
       const members = await this.lockMembers(tx, ctx.orgId);
       const target = members.find((m) => m.userId === userId);
       if (!target) throw notFound();
+      const mayRemove = (actor: Role) => actor === 'owner' || (target.role !== 'owner' && (actor === 'admin' || userId === ctx.userId));
+      if (!mayRemove(ctx.role)) throw forbidden();
       if (target.role === 'owner' && ownersOf(members) <= 1) throw lastOwner();
-
-      const actor = actorOf(members, ctx);
-      if (actor !== 'owner' && (target.role === 'owner' || (userId !== ctx.userId && actor === 'member'))) throw forbidden();
+      if (!mayRemove(actorOf(members, ctx))) throw forbidden();
 
       await tx.delete(membership).where(byOrg(membership, ctx, eq(membership.userId, userId)));
       await this.sessions.revokeAllForUser(tx, userId);
