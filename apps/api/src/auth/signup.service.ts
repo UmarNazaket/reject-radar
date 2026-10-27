@@ -1,15 +1,14 @@
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { ApiEnv, Locale, SignupRequest, StatusResponse } from '@rejectradar/contracts';
 import { appUser, type Database, membership, org, subscription } from '@rejectradar/db';
 import { eq, sql } from 'drizzle-orm';
-import { AppError } from '../common/errors';
 import { uuidv7 } from '../common/ids';
 import { API_ENV } from '../config/env';
 import { DB } from '../database/database.module';
 import { MailerService } from '../mail/mailer.service';
 import { renderEmail } from '../mail/templates/render';
 import { EmailTokensService } from './email-tokens.service';
-import { hashPassword, isCommonPassword } from './passwords';
+import { commonPasswordError, hashPassword, isCommonPassword } from './passwords';
 
 const EMAIL_UNIQUE_INDEX = 'app_user_email_lower_uq';
 const CHECK_EMAIL: StatusResponse = { status: 'check_email' };
@@ -17,7 +16,7 @@ const CHECK_EMAIL: StatusResponse = { status: 'check_email' };
 type Outcome = { created: true; userId: string; token: string } | { created: false };
 
 /** True when `error` (or the error it wraps; Drizzle wraps the driver's) is the unique violation on the email index. */
-function isDuplicateEmail(error: unknown): boolean {
+export function isDuplicateEmail(error: unknown): boolean {
   for (let current: unknown = error, depth = 0; current && typeof current === 'object' && depth < 5; depth++) {
     const { code, constraint, cause } = current as { code?: unknown; constraint?: unknown; cause?: unknown };
     if (code === '23505' && constraint === EMAIL_UNIQUE_INDEX) return true;
@@ -43,7 +42,7 @@ export class SignupService {
    */
   async signup(body: SignupRequest): Promise<StatusResponse> {
     if (isCommonPassword(body.password)) {
-      throw new AppError(HttpStatus.BAD_REQUEST, 'COMMON_PASSWORD', 'This password is too common. Choose a different one.');
+      throw commonPasswordError();
     }
     // Refuse before changing anything, so a person who cannot be emailed is not left with an account.
     await this.mailer.assertCapacity('verify');

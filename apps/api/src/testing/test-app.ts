@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
-import { apiEnvSchema, type ApiEnv, type Locale, parseEnv } from '@rejectradar/contracts';
+import { apiEnvSchema, type ApiEnv, type InviteRole, type Locale, parseEnv } from '@rejectradar/contracts';
 import { appUser, type Database, membership, prepareTestDatabase } from '@rejectradar/db';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import request from 'supertest';
 import type { AppOverrides } from '../app/app-overrides';
 import { createApp } from '../bootstrap';
@@ -202,6 +202,33 @@ export async function signUpVerified(
     .select({ userId: appUser.id, orgId: membership.orgId })
     .from(appUser)
     .innerJoin(membership, eq(membership.userId, appUser.id))
-    .where(sql`lower(${appUser.email}) = ${who.email.trim().toLowerCase()}`);
+    .where(and(sql`lower(${appUser.email}) = ${who.email.trim().toLowerCase()}`, eq(membership.role, 'owner')));
   return { session, userId: row.userId, orgId: row.orgId };
+}
+
+export interface NewMember {
+  email: string;
+  role: InviteRole;
+  name?: string;
+  password?: string;
+  locale?: Locale;
+}
+
+/**
+ * Has `owner` (a signed-in session of an owner or admin) invite `who`, follows the link in the invite email and
+ * accepts as a new person. The returned session is logged in as the new member.
+ */
+export async function joinByInvite(
+  t: TestApp,
+  owner: TestSession,
+  who: NewMember,
+): Promise<{ session: TestSession; userId: string; token: string }> {
+  await owner.post('/v1/org/invites').send({ email: who.email, role: who.role }).expect(201);
+  const token = t.mail.linkIn(t.mail.lastTo(who.email)).pathname.split('/').pop() as string;
+  const session = t.session();
+  const res = await session
+    .post('/v1/invites/accept')
+    .send({ token, name: who.name ?? 'Invited Person', password: who.password ?? 'basmati-export-77', locale: who.locale })
+    .expect(200);
+  return { session, userId: (res.body as { user: { id: string } }).user.id, token };
 }
