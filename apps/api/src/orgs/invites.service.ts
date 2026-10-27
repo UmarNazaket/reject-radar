@@ -132,7 +132,8 @@ export class InvitesService {
    * Joins the account the invite names and opens a session. The invite is locked first, so two accepts of one link
    * take turns and the second finds it used. Then:
    * - an address that has a user needs that user's password (a wrong one counts toward the lockout, like a failed
-   *   login), and the user must have no account yet (P4-D1);
+   *   login), and the user must have no other account (P4-D1); a user already in the invite's own account just uses
+   *   the invite up and signs in, with their role unchanged;
    * - a new address needs a name and a password that is not common, and the link verifies it (P4-D8).
    * A wrong password is returned from the transaction rather than thrown, so that counting it commits.
    * `ALREADY_MEMBER` is never answered here: it belongs to the authenticated `POST /org/invites` alone.
@@ -181,12 +182,15 @@ export class InvitesService {
       .for('update');
 
     let userId: string;
+    let alreadyJoined = false;
     if (existing) {
       const matches = await verifyPassword(existing.passwordHash, body.password);
       if (existing.locked) return { kind: 'locked' };
       if (!matches) return { kind: 'wrong_password', userId: existing.id };
       const [account] = await tx.select({ orgId: membership.orgId }).from(membership).where(eq(membership.userId, existing.id)).limit(1);
-      if (account) throw alreadyInAccount();
+      // Another account: P4-D1 refuses. This account: nothing to join, so the invite is used up and the role stays as it is.
+      if (account && account.orgId !== pending.orgId) throw alreadyInAccount();
+      alreadyJoined = account !== undefined;
       await tx
         .update(appUser)
         .set({ failedLogins: 0, lockedUntil: null })
@@ -206,7 +210,7 @@ export class InvitesService {
       });
     }
 
-    await tx.insert(membership).values({ orgId: pending.orgId, userId, role: pending.role });
+    if (!alreadyJoined) await tx.insert(membership).values({ orgId: pending.orgId, userId, role: pending.role });
     await tx.update(invite).set({ acceptedAt: sql`now()` }).where(eq(invite.id, pending.id));
     const tokens = await this.sessions.startSession(tx, userId, pending.orgId);
     return { kind: 'ok', me: await loadMe(tx, userId, { orgId: pending.orgId }), ...tokens };

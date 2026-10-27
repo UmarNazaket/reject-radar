@@ -268,9 +268,30 @@ describe('invites', () => {
     await t.db.execute(sql`
       insert into invite (id, org_id, email, role, token_hash, invited_by, expires_at)
       values (gen_random_uuid(), ${owner.orgId}, 'member@example.com', 'admin', ${sha256Hex('m'.repeat(43))}, ${owner.userId}, now() + interval '1 day')`);
-    const res = await accept({ token: 'm'.repeat(43), password: PASSWORD }).expect(409);
-    expect(res.body.code).toBe('ALREADY_IN_ACCOUNT');
-    expect(member.userId).toBeDefined();
+    const wrong = await accept({ token: 'm'.repeat(43), password: WRONG }).expect(401);
+    expect(wrong.body.code).toBe('INVALID_CREDENTIALS');
+    const session = t.session();
+    const res = await accept({ token: 'm'.repeat(43), password: PASSWORD }, session).expect(200);
+    expect(res.body).toMatchObject({ role: 'member', user: { id: member.userId }, org: { id: owner.orgId } });
+    await session.get('/v1/me').expect(200);
+  });
+
+  it('accepting an invite to the account you are already in is idempotent and keeps your role', async () => {
+    const member = await joinByInvite(t, owner.session, { email: 'member@example.com', role: 'member' });
+    await t.db.execute(sql`
+      insert into invite (id, org_id, email, role, token_hash, invited_by, expires_at)
+      values (gen_random_uuid(), ${owner.orgId}, 'member@example.com', 'admin', ${sha256Hex('m'.repeat(43))}, ${owner.userId}, now() + interval '1 day')`);
+
+    const session = t.session();
+    const res = await accept({ token: 'm'.repeat(43), password: PASSWORD }, session).expect(200);
+    expect(meResponse.parse(res.body)).toMatchObject({ role: 'member', user: { id: member.userId }, org: { id: owner.orgId } });
+    expect(session.cookie('rr_at')).toBeDefined();
+    expect(await membershipsOf('member@example.com')).toEqual([{ org_id: owner.orgId, role: 'member' }]);
+    const rows = await inviteRows();
+    expect(rows.filter((r) => r.accepted_at !== null).map((r) => r.id)).toHaveLength(2);
+
+    const again = await accept({ token: 'm'.repeat(43), password: PASSWORD }).expect(400);
+    expect(again.body.code).toBe('INVALID_TOKEN');
   });
 
   it('the same person accepting two invites at once joins one account', async () => {

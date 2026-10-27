@@ -102,8 +102,31 @@ describe('account settings and members', () => {
     expect(await ownerCount(solo.orgId)).toBe(1);
   });
 
+  /**
+   * Holds the account's membership rows locked while `fire` sends its requests, then lets go. Both requests are past
+   * their guards (and judged owners) by the time they queue for the lock, so the race is the one the lock decides,
+   * not a matter of which request's guard happens to run after the other's commit.
+   */
+  const raceBehindLock = async <T>(fire: () => Promise<T>): Promise<T> => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let locked!: () => void;
+    const ready = new Promise<void>((resolve) => (locked = resolve));
+    const holder = t.db.transaction(async (tx) => {
+      await tx.execute(sql`select 1 from membership where org_id = ${orgId} for update`);
+      locked();
+      await held;
+    });
+    await ready;
+    const pending = fire();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    release();
+    await holder;
+    return pending;
+  };
+
   it('two owners demoting each other at once leave one owner', async () => {
-    const results = await Promise.all([patchRole(owner, owner2, 'admin'), patchRole(owner2, owner, 'admin')]);
+    const results = await raceBehindLock(() => Promise.all([patchRole(owner, owner2, 'admin'), patchRole(owner2, owner, 'admin')]));
     const statuses = results.map((r) => r.status).sort();
     expect(statuses).toEqual([204, 409]);
     const failed = results.find((r) => r.status === 409);
@@ -112,12 +135,49 @@ describe('account settings and members', () => {
   });
 
   it('two owners removing each other at once leave one owner', async () => {
-    const results = await Promise.all([
-      owner.session.delete(`/v1/org/members/${owner2.userId}`),
-      owner2.session.delete(`/v1/org/members/${owner.userId}`),
-    ]);
+    const results = await raceBehindLock(() =>
+      Promise.all([owner.session.delete(`/v1/org/members/${owner2.userId}`), owner2.session.delete(`/v1/org/members/${owner.userId}`)]),
+    );
     expect(results.map((r) => r.status).sort()).toEqual([204, 409]);
     expect(await ownerCount()).toBe(1);
+  });
+
+  it('an admin can remove another admin and demote themselves', async () => {
+    const admin2 = await joinByInvite(t, owner.session, { email: 'admin2@example.com', role: 'admin' });
+    await admin.session.delete(`/v1/org/members/${admin2.userId}`).expect(204);
+    expect(await roleOf(admin2.userId)).toBeUndefined();
+    await patchRole(admin, admin, 'member').expect(204);
+    expect(await roleOf(admin.userId)).toBe('member');
+  });
+
+  describe('in an account with one owner', () => {
+    let solo: Person & { orgId: string };
+    let soloAdmin: Person;
+    let soloMember: Person;
+
+    beforeEach(async () => {
+      solo = await signUpVerified(t, { email: 'solo@example.com' });
+      soloAdmin = await joinByInvite(t, solo.session, { email: 'solo.admin@example.com', role: 'admin' });
+      soloMember = await joinByInvite(t, solo.session, { email: 'solo.member@example.com', role: 'member' });
+    });
+
+    it('an admin touching the owner gets 403 FORBIDDEN, not LAST_OWNER', async () => {
+      expect((await patchRole(soloAdmin, solo, 'member').expect(403)).body.code).toBe('FORBIDDEN');
+      expect((await soloAdmin.session.delete(`/v1/org/members/${solo.userId}`).expect(403)).body.code).toBe('FORBIDDEN');
+      expect((await patchRole(soloAdmin, soloMember, 'owner').expect(403)).body.code).toBe('FORBIDDEN');
+    });
+
+    it('a member removing the owner gets 403 FORBIDDEN, not LAST_OWNER', async () => {
+      expect((await soloMember.session.delete(`/v1/org/members/${solo.userId}`).expect(403)).body.code).toBe('FORBIDDEN');
+      expect((await soloMember.session.delete(`/v1/org/members/${soloAdmin.userId}`).expect(403)).body.code).toBe('FORBIDDEN');
+      expect(await ownerCount(solo.orgId)).toBe(1);
+    });
+
+    it('the owner demoting or removing themselves gets 409 LAST_OWNER', async () => {
+      expect((await patchRole(solo, solo, 'admin').expect(409)).body.code).toBe('LAST_OWNER');
+      expect((await solo.session.delete(`/v1/org/members/${solo.userId}`).expect(409)).body.code).toBe('LAST_OWNER');
+      expect(await ownerCount(solo.orgId)).toBe(1);
+    });
   });
 
   it('a member can leave', async () => {
@@ -137,7 +197,7 @@ describe('account settings and members', () => {
 
     const me = await member.session.get('/v1/me').expect(401);
     expect(me.body.code).toBe('INVALID_SESSION');
-    await member.session.post('/v1/auth/refresh').expect(401);
+    expect((await member.session.post('/v1/auth/refresh').expect(401)).body.code).toBe('INVALID_SESSION');
     const login = await t.session().post('/v1/auth/login').send({ email: 'member@example.com', password: PASSWORD }).expect(403);
     expect(login.body.code).toBe('NO_MEMBERSHIP');
     const stillThere = await t.db.execute<{ n: number }>(sql`select count(*)::int as n from app_user where lower(email) = 'member@example.com'`);
