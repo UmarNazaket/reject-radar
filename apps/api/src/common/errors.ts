@@ -2,7 +2,7 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logge
 import type { Request, Response } from 'express';
 import { requestIdFor } from './request-id';
 
-const CODE_BY_STATUS: Readonly<Record<number, string>> = {
+export const CODE_BY_STATUS: Readonly<Record<number, string>> = {
   400: 'BAD_REQUEST',
   401: 'UNAUTHORIZED',
   403: 'FORBIDDEN',
