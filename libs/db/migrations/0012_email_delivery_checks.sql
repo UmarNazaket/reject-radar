@@ -1,0 +1,2 @@
+ALTER TABLE "email_delivery" ADD CONSTRAINT "email_delivery_kind_ck" CHECK (kind in ('verify', 'reset', 'invite', 'account_exists', 'instant_alert', 'digest', 'payment_failed'));--> statement-breakpoint
+ALTER TABLE "email_delivery" ADD CONSTRAINT "email_delivery_status_ck" CHECK (status in ('sending', 'sent', 'failed', 'paused'));

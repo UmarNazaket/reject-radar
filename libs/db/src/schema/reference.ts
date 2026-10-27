@@ -31,14 +31,11 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { oneOf } from './checks';
 
 const emptyTextArray = sql`'{}'::text[]`;
 const emptyIntArray = sql`'{}'::int[]`;
 const emptyObject = sql`'{}'::jsonb`;
-
-/** `column in ('a', 'b')` built from a contracts union, so the database enforces the same values as the code. */
-const oneOf = (column: string, values: readonly string[]) =>
-  sql.raw(`${column} in (${values.map((value) => `'${value}'`).join(', ')})`);
 
 // ── Taxonomy (fixed IDs, seeded in phase 2) ─────────────────────────────────
 

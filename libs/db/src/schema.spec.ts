@@ -61,6 +61,21 @@ describe('database schema (spec §7)', () => {
     ).rejects.toMatchObject({ code: '23505' });
   });
 
+  it.each([
+    ['kind', 'bogus', 'email_delivery_kind_ck'],
+    ['status', 'queued', 'email_delivery_status_ck'],
+  ])('rejects email_delivery.%s = %p through %s', async (column, value, constraint) => {
+    const values = { kind: 'verify', status: 'sent', [column]: value };
+    await expect(
+      client.query('insert into email_delivery (id, to_email, kind, status) values ($1, $2, $3, $4)', [
+        '0192c7a0-0000-7000-8000-0000000000e1',
+        'someone@example.com',
+        values.kind,
+        values.status,
+      ]),
+    ).rejects.toMatchObject({ code: '23514', constraint });
+  });
+
   it('defaults a new user to English', async () => {
     const { rows } = await client.query<{ locale: string }>("select locale from app_user where email = 'Owner@Example.com'");
     expect(rows[0].locale).toBe('en');
