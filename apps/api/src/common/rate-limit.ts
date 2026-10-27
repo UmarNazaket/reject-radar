@@ -20,17 +20,28 @@ export interface LimitResult {
 /** Entries whose window has passed are swept at most this often, so a key that is never seen again does not linger. */
 const SWEEP_INTERVAL_MS = 60_000;
 /**
- * Hard ceiling on live counters. Once the map holds this many, a key it does not already hold is refused with the
- * normal 429 until the sweep frees room, so memory stays bounded however many distinct keys arrive. 100,000 keys of at
- * most a few hundred characters each are tens of megabytes.
+ * Hard ceiling on live counters, so memory stays bounded however many distinct keys arrive. 100,000 keys of at most a
+ * few hundred characters each are tens of megabytes. At the ceiling a new key evicts the oldest counter rather than
+ * being refused: refusing would let one caller fill the map and lock every other caller out.
  */
 const MAX_KEYS = 100_000;
 /** Optional provider that overrides the ceiling; tests pass a small one to the constructor instead. */
 export const RATE_LIMIT_MAX_KEYS = Symbol('RATE_LIMIT_MAX_KEYS');
 
+/** One counter a request spends from: its key, how many hits the window allows and how long the window is. */
+export interface LimitHit {
+  key: string;
+  limit: number;
+  windowMs: number;
+}
+
 /**
  * In-memory fixed-window counter. The window opens at a key's first hit and its counter is dropped once the window
  * has passed. State is per process: a restart only resets the windows (P4-D5).
+ *
+ * A request is checked against all of its counters before any is written (`hitAll`), so a refused request creates no
+ * counter and spends none. The map is kept in order of window start (a key whose window restarts moves to the end),
+ * so when it is full the first key is the oldest counter and is the one evicted to make room.
  */
 @Injectable()
 export class FixedWindowLimiter {
@@ -39,19 +50,32 @@ export class FixedWindowLimiter {
 
   constructor(@Optional() @Inject(RATE_LIMIT_MAX_KEYS) private readonly maxKeys: number = MAX_KEYS) {}
 
+  /** One counter; the same as `hitAll` with a single hit. */
   hit(key: string, limit: number, windowMs: number, now: number = Date.now()): LimitResult {
+    return this.hitAll([{ key, limit, windowMs }], now);
+  }
+
+  /**
+   * Spends one hit from every counter, or none. If any counter has a live window that is already at its limit, nothing
+   * is written and the answer carries the longest time left among the refusing windows. Otherwise each counter opens
+   * a fresh window (when it has none or its window has passed) and is incremented.
+   */
+  hitAll(hits: readonly LimitHit[], now: number = Date.now()): LimitResult {
     this.sweep(now);
-    let entry = this.windows.get(key);
-    if (entry === undefined && this.windows.size >= this.maxKeys) {
-      // Full even after the sweep: refuse rather than grow. Room comes back at the next sweep.
-      return { allowed: false, retryAfterSec: Math.ceil(SWEEP_INTERVAL_MS / 1000) };
+    let retryAfterSec = 0;
+    for (const { key, limit } of hits) {
+      const entry = this.windows.get(key);
+      if (entry !== undefined && entry.resetAt > now && entry.count >= limit) {
+        retryAfterSec = Math.max(retryAfterSec, Math.max(1, Math.ceil((entry.resetAt - now) / 1000)));
+      }
     }
-    if (entry === undefined || entry.resetAt <= now) {
-      entry = { count: 0, resetAt: now + windowMs };
-      this.windows.set(key, entry);
+    if (retryAfterSec > 0) return { allowed: false, retryAfterSec };
+
+    for (const { key, windowMs } of hits) {
+      let entry = this.windows.get(key);
+      if (entry === undefined || entry.resetAt <= now) entry = this.open(key, now + windowMs);
+      entry.count += 1;
     }
-    if (entry.count >= limit) return { allowed: false, retryAfterSec: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)) };
-    entry.count += 1;
     return { allowed: true, retryAfterSec: 0 };
   }
 
@@ -64,6 +88,18 @@ export class FixedWindowLimiter {
   /** Number of live counters (for tests). */
   get size(): number {
     return this.windows.size;
+  }
+
+  /** Starts a window for the key as the newest entry, evicting the oldest counter first when the map is full. */
+  private open(key: string, resetAt: number): { count: number; resetAt: number } {
+    this.windows.delete(key); // an expired entry is replaced; deleting first keeps insertion order meaningful
+    if (this.windows.size >= this.maxKeys) {
+      const oldest = this.windows.keys().next();
+      if (!oldest.done) this.windows.delete(oldest.value);
+    }
+    const entry = { count: 0, resetAt };
+    this.windows.set(key, entry);
+    return entry;
   }
 
   private sweep(now: number): void {
@@ -127,11 +163,10 @@ export class RateLimitGuard implements CanActivate {
     if (!rules?.length) return true;
     const http = context.switchToHttp();
     const req = http.getRequest<LimitedRequest>();
-    // Every rule is hit (no short-circuit), so one request spends from each of its counters.
-    const results = rules.map((rule) => this.limiter.hit(`${rule.name}|${keyValue(rule, req)}`, rule.limit, rule.windowMs));
-    const refused = results.filter((result) => !result.allowed);
-    if (refused.length === 0) return true;
-    http.getResponse<Response>().setHeader('Retry-After', String(Math.max(...refused.map((result) => result.retryAfterSec))));
+    // All rules are checked together: a refused request spends from none of its counters and creates none.
+    const result = this.limiter.hitAll(rules.map((rule) => ({ key: `${rule.name}|${keyValue(rule, req)}`, limit: rule.limit, windowMs: rule.windowMs })));
+    if (result.allowed) return true;
+    http.getResponse<Response>().setHeader('Retry-After', String(result.retryAfterSec));
     throw new AppError(HttpStatus.TOO_MANY_REQUESTS, 'RATE_LIMITED', 'Too many requests. Try again later.');
   }
 }
