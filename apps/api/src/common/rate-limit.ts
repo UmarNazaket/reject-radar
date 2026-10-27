@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, HttpStatus, Injectable, SetMetadata } from '@nestjs/common';
+import { CanActivate, ExecutionContext, HttpStatus, Inject, Injectable, Optional, SetMetadata } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
 import { AppError } from './errors';
@@ -19,6 +19,14 @@ export interface LimitResult {
 
 /** Entries whose window has passed are swept at most this often, so a key that is never seen again does not linger. */
 const SWEEP_INTERVAL_MS = 60_000;
+/**
+ * Hard ceiling on live counters. Once the map holds this many, a key it does not already hold is refused with the
+ * normal 429 until the sweep frees room, so memory stays bounded however many distinct keys arrive. 100,000 keys of at
+ * most a few hundred characters each are tens of megabytes.
+ */
+const MAX_KEYS = 100_000;
+/** Optional provider that overrides the ceiling; tests pass a small one to the constructor instead. */
+export const RATE_LIMIT_MAX_KEYS = Symbol('RATE_LIMIT_MAX_KEYS');
 
 /**
  * In-memory fixed-window counter. The window opens at a key's first hit and its counter is dropped once the window
@@ -29,9 +37,15 @@ export class FixedWindowLimiter {
   private readonly windows = new Map<string, { count: number; resetAt: number }>();
   private lastSweep: number | undefined;
 
+  constructor(@Optional() @Inject(RATE_LIMIT_MAX_KEYS) private readonly maxKeys: number = MAX_KEYS) {}
+
   hit(key: string, limit: number, windowMs: number, now: number = Date.now()): LimitResult {
     this.sweep(now);
     let entry = this.windows.get(key);
+    if (entry === undefined && this.windows.size >= this.maxKeys) {
+      // Full even after the sweep: refuse rather than grow. Room comes back at the next sweep.
+      return { allowed: false, retryAfterSec: Math.ceil(SWEEP_INTERVAL_MS / 1000) };
+    }
     if (entry === undefined || entry.resetAt <= now) {
       entry = { count: 0, resetAt: now + windowMs };
       this.windows.set(key, entry);
@@ -67,9 +81,21 @@ export const RateLimit = (...rules: RateLimitRule[]): MethodDecorator & ClassDec
 /** What the guard reads of the request; `context` is set by the auth guard (RequestContext). */
 type LimitedRequest = Request & { context?: { userId: string } };
 
+/** The longest address a valid request can carry (RFC 5321 path limit); anything longer is junk. */
+const MAX_EMAIL_LENGTH = 254;
+/**
+ * Shared key for an email that cannot be valid. Guards run before the zod pipe, so the raw body value would otherwise
+ * become part of a key kept for the whole window; junk is still counted, collectively.
+ */
+const INVALID_EMAIL = '(invalid)';
+
+/** The trimmed, lowercased email; `undefined` when the body has none, `(invalid)` when it is not a plausible one. */
 function emailOf(req: LimitedRequest): string | undefined {
   const email = (req.body as { email?: unknown } | undefined)?.email;
-  return typeof email === 'string' ? email.trim().toLowerCase() : undefined;
+  if (email === undefined) return undefined;
+  if (typeof email !== 'string') return INVALID_EMAIL;
+  const normalised = email.trim().toLowerCase();
+  return normalised.length > MAX_EMAIL_LENGTH ? INVALID_EMAIL : normalised;
 }
 
 /** The value a rule counts by. A missing email or signed-in user falls back to the IP (the caller is not known yet). */

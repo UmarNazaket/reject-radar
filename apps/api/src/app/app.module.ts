@@ -9,7 +9,7 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { CsrfGuard } from '../auth/guards/csrf.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
-import { reqSerializer, resSerializer } from '../common/logging';
+import { errSerializer, reqSerializer, resSerializer } from '../common/logging';
 import { FixedWindowLimiter, RateLimitGuard } from '../common/rate-limit';
 import { requestIdFor } from '../common/request-id';
 import { API_ENV } from '../config/env';
@@ -23,7 +23,8 @@ function pinoOptions(env: ApiEnv, allowTransport: boolean): Options {
   return {
     level: env.LOG_LEVEL,
     genReqId: requestIdFor,
-    serializers: { req: reqSerializer, res: resSerializer },
+    // Every logger shares these, Nest's `Logger` included (nestjs-pino), so `{ err }` never carries query params.
+    serializers: { req: reqSerializer, res: resSerializer, err: errSerializer },
     // The serializers already drop these; redaction stays as a second guard.
     redact: ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]'],
     // pino-http evaluates this at request start and again when the response finishes, by which time AuthGuard has set the context.

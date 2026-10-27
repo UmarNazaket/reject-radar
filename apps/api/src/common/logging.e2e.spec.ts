@@ -1,5 +1,6 @@
-import type { INestApplication } from '@nestjs/common';
+import { type INestApplication, Logger } from '@nestjs/common';
 import { prepareTestDatabase } from '@rejectradar/db';
+import { DrizzleQueryError } from 'drizzle-orm';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Socket } from 'node:net';
 import { Writable } from 'node:stream';
@@ -94,5 +95,25 @@ describe('request logging', () => {
       ip: '203.0.113.9',
       headers: { origin: 'http://localhost:4200', 'user-agent': 'ua' },
     });
+  });
+
+  it("drops query params from errors logged through Nest's Logger", async () => {
+    chunks.length = 0;
+    const hash = '$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNoaGFzaA';
+    const cause = Object.assign(new Error('duplicate key value violates unique constraint "app_user_email_idx"'), {
+      code: '23505',
+      detail: 'Key (lower(email))=(leak.check@example.com) already exists.',
+    });
+    const err = new DrizzleQueryError('insert into "app_user" ("email", "password_hash") values ($1, $2)', ['leak.check@example.com', hash], cause);
+    // createApp buffers Nest's logs until the app listens; flush them so the static Logger writes to pino now.
+    app.flushLogs();
+    new Logger('LoggingSpec').error({ err, requestId: 'req-err' }, 'Request failed');
+
+    await logged('req-err');
+    const text = chunks.join('');
+    expect(text).not.toContain('leak.check@example.com');
+    expect(text).not.toContain(hash);
+    expect(text).toContain('Failed query: insert into');
+    expect(text).toContain('23505');
   });
 });

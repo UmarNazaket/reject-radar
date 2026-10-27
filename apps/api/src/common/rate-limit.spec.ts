@@ -40,6 +40,23 @@ describe('FixedWindowLimiter', () => {
     limiter.hit('later', 1, 1000, 10 * 60_000);
     expect(limiter.size).toBe(1);
   });
+
+  it('refuses a new key once the map is at its ceiling, but still counts the keys it holds', () => {
+    const limiter = new FixedWindowLimiter(3);
+    for (const key of ['a', 'b', 'c']) expect(limiter.hit(key, 5, 1000, 0).allowed).toBe(true);
+    const refused = limiter.hit('d', 5, 1000, 0);
+    expect(refused.allowed).toBe(false);
+    expect(refused.retryAfterSec).toBeGreaterThanOrEqual(1);
+    expect(limiter.size).toBe(3);
+    expect(limiter.hit('a', 5, 1000, 0).allowed).toBe(true);
+  });
+
+  it('makes room again once the swept windows have passed', () => {
+    const limiter = new FixedWindowLimiter(3);
+    for (const key of ['a', 'b', 'c']) limiter.hit(key, 5, 1000, 0);
+    expect(limiter.hit('d', 5, 1000, 10 * 60_000).allowed).toBe(true);
+    expect(limiter.size).toBe(1);
+  });
 });
 
 describe('RateLimitGuard', () => {
@@ -121,13 +138,35 @@ describe('RateLimitGuard', () => {
     expect(guard.canActivate(contextFor(target, { ip: '2.2.2.2', body: { email: 'ayesha@example.com' } }).context)).toBe(true);
   });
 
-  it('keys ip+email on the IP alone when the body has no string email', () => {
+  it('keys ip+email on the IP alone when the body has no email', () => {
     const { guard } = setup();
     const target = route(login);
     guard.canActivate(contextFor(target, { ip: '1.1.1.1', body: {} }).context);
-    guard.canActivate(contextFor(target, { ip: '1.1.1.1', body: { email: 42 } }).context);
-    expect(() => guard.canActivate(contextFor(target, { ip: '1.1.1.1' }).context)).toThrow(AppError);
+    guard.canActivate(contextFor(target, { ip: '1.1.1.1' }).context);
+    expect(() => guard.canActivate(contextFor(target, { ip: '1.1.1.1', body: { other: 'x' } }).context)).toThrow(AppError);
     expect(guard.canActivate(contextFor(target, { ip: '2.2.2.2', body: {} }).context)).toBe(true);
+  });
+
+  it('puts a non-string or over-long email into one shared invalid bucket per rule', () => {
+    const { guard, limiter } = setup();
+    const hit = jest.spyOn(limiter, 'hit');
+    const byEmail = route({ name: 'forgot-email', limit: 2, windowMs: 60_000, key: 'email' });
+    const long = `${'a'.repeat(288)}@example.com`; // 300 characters
+    expect(long).toHaveLength(300);
+    guard.canActivate(contextFor(byEmail, { ip: '1.1.1.1', body: { email: long } }).context);
+    expect(hit).toHaveBeenLastCalledWith('forgot-email|(invalid)', 2, 60_000);
+    // a different junk value from another IP spends from the same bucket
+    guard.canActivate(contextFor(byEmail, { ip: '2.2.2.2', body: { email: 42 } }).context);
+    expect(hit).toHaveBeenLastCalledWith('forgot-email|(invalid)', 2, 60_000);
+    expect(() => guard.canActivate(contextFor(byEmail, { ip: '3.3.3.3', body: { email: `b${long}` } }).context)).toThrow(AppError);
+    expect(limiter.size).toBe(1);
+    // ip+email keeps the IP and replaces only the email
+    guard.canActivate(contextFor(route(login), { ip: '1.1.1.1', body: { email: long } }).context);
+    expect(hit).toHaveBeenLastCalledWith('login|1.1.1.1|(invalid)', 2, 60_000);
+    // 254 characters is still a real key
+    const longest = `${'a'.repeat(242)}@example.com`;
+    guard.canActivate(contextFor(byEmail, { ip: '1.1.1.1', body: { email: longest } }).context);
+    expect(hit).toHaveBeenLastCalledWith(`forgot-email|${longest}`, 2, 60_000);
   });
 
   it('counts every rule on a route and refuses with the largest Retry-After', () => {
