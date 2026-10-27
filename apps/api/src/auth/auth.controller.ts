@@ -6,6 +6,8 @@ import {
   type LoginRequest,
   loginRequest,
   type MeResponse,
+  type ResetPasswordRequest,
+  resetPasswordRequest,
   type SignupRequest,
   signupRequest,
   type StatusResponse,
@@ -19,6 +21,7 @@ import { ZodValidationPipe } from '../common/zod-pipe';
 import { API_ENV } from '../config/env';
 import { clearSessionCookies, REFRESH_COOKIE, setSessionCookies } from './cookies';
 import { Public } from './decorators';
+import { PasswordResetService } from './password-reset.service';
 import { SessionsService } from './sessions.service';
 import { SignupService } from './signup.service';
 
@@ -30,6 +33,7 @@ const HOUR_MS = 3_600_000;
 export class AuthController {
   constructor(
     private readonly signups: SignupService,
+    private readonly passwordResets: PasswordResetService,
     private readonly sessions: SessionsService,
     @Inject(API_ENV) private readonly env: ApiEnv,
   ) {}
@@ -55,6 +59,22 @@ export class AuthController {
   )
   resendVerification(@Body(new ZodValidationPipe(emailOnlyRequest)) body: EmailOnlyRequest): Promise<StatusResponse> {
     return this.signups.resendVerification(body.email);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @RateLimit(
+    { name: 'forgot-email', limit: 5, windowMs: HOUR_MS, key: 'email' },
+    { name: 'forgot-ip', limit: 20, windowMs: HOUR_MS, key: 'ip' },
+  )
+  forgotPassword(@Body(new ZodValidationPipe(emailOnlyRequest)) body: EmailOnlyRequest): Promise<StatusResponse> {
+    return this.passwordResets.forgot(body.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  resetPassword(@Body(new ZodValidationPipe(resetPasswordRequest)) body: ResetPasswordRequest): Promise<StatusResponse> {
+    return this.passwordResets.reset(body);
   }
 
   @Post('login')
