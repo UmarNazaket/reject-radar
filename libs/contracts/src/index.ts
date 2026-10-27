@@ -4,3 +4,4 @@ export * from './lib/locales';
 export * from './lib/destinations';
 export * from './lib/ingestion';
 export * from './lib/firms';
+export * from './lib/email';

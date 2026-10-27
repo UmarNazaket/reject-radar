@@ -7,6 +7,7 @@ import { requestIdFor } from '../common/request-id';
 import { API_ENV } from '../config/env';
 import { DatabaseModule } from '../database/database.module';
 import { HealthModule } from '../health/health.module';
+import { MailModule } from '../mail/mail.module';
 import type { AppOverrides } from './app-overrides';
 
 function pinoOptions(env: ApiEnv, allowTransport: boolean): Options {
@@ -30,6 +31,7 @@ export class AppModule {
       imports: [
         LoggerModule.forRoot({ pinoHttp: overrides.logStream ? [pinoOptions(env, false), overrides.logStream] : pinoOptions(env, true) }),
         DatabaseModule.register(env.DATABASE_URL),
+        MailModule.register(env, overrides),
         HealthModule,
       ],
       providers: [{ provide: API_ENV, useValue: env }],

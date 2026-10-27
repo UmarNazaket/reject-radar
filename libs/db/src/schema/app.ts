@@ -1,3 +1,4 @@
+import { EMAIL_DELIVERY_STATUSES, EMAIL_KINDS } from '@rejectradar/contracts';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
@@ -15,6 +16,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { oneOf } from './checks';
 import { changeEvent, commodity, firm, hazard } from './reference';
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
@@ -219,7 +221,11 @@ export const emailDelivery = pgTable(
     error: text('error'),
     createdAt: createdAt(),
   },
-  (t) => [index('email_delivery_created_idx').on(t.createdAt)],
+  (t) => [
+    index('email_delivery_created_idx').on(t.createdAt),
+    check('email_delivery_kind_ck', oneOf('kind', EMAIL_KINDS)),
+    check('email_delivery_status_ck', oneOf('status', EMAIL_DELIVERY_STATUSES)),
+  ],
 );
 
 export const bulkJob = pgTable(
