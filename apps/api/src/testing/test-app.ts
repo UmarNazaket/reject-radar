@@ -76,7 +76,7 @@ const UNSAFE_METHODS: ReadonlySet<Method> = new Set(['post', 'put', 'patch', 'de
 export class TestSession {
   private readonly jar = new Map<string, string>();
 
-  constructor(private readonly app: INestApplication) {}
+  constructor(private readonly app: Pick<INestApplication, 'getHttpServer'>) {}
 
   get(path: string): Test {
     return this.request('get', path);
@@ -101,8 +101,16 @@ export class TestSession {
 
   private request(method: Method, path: string): Test {
     const test = request(this.app.getHttpServer())[method](path);
-    if (this.jar.size > 0) test.set('Cookie', [...this.jar].map(([name, value]) => `${name}=${value}`).join('; '));
     if (UNSAFE_METHODS.has(method)) test.set('X-RejectRadar-CSRF', '1');
+    // The Cookie header is built when the request is sent, not when it is created, so a request created before an
+    // earlier response arrived still carries that response's cookies. A spec that sets `Cookie` itself keeps its value.
+    const end = test.end.bind(test) as Test['end'];
+    test.end = (callback) => {
+      if (this.jar.size > 0 && test.get('Cookie') === undefined) {
+        test.set('Cookie', [...this.jar].map(([name, value]) => `${name}=${value}`).join('; '));
+      }
+      return end(callback);
+    };
     test.on('response', (res: { headers: Record<string, unknown> }) => this.store(res.headers['set-cookie']));
     return test;
   }
@@ -111,16 +119,16 @@ export class TestSession {
     const lines = Array.isArray(header) ? (header as string[]) : typeof header === 'string' ? [header] : [];
     for (const line of lines) {
       const [pair, ...attributes] = line.split(';').map((part) => part.trim());
-      const eq = pair.indexOf('=');
-      if (eq <= 0) continue;
-      const name = pair.slice(0, eq);
+      const separator = pair.indexOf('=');
+      if (separator <= 0) continue;
+      const name = pair.slice(0, separator);
       const gone = attributes.some((attribute) => {
         const [key, value = ''] = attribute.split('=');
         const lower = key.toLowerCase();
         return (lower === 'max-age' && Number(value) <= 0) || (lower === 'expires' && Date.parse(value) <= Date.now());
       });
       if (gone) this.jar.delete(name);
-      else this.jar.set(name, pair.slice(eq + 1));
+      else this.jar.set(name, pair.slice(separator + 1));
     }
   }
 }
