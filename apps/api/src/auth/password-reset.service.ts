@@ -48,13 +48,16 @@ export class PasswordResetService {
 
   /**
    * Sets a new password with a reset link (P4-D11). A common password is refused before the link is spent, so the
-   * person can try again with the same link. Spending the link, the new password, clearing the lockout, verifying the
-   * address (a reset proves control of the inbox) and ending every session are one transaction.
+   * person can try again with the same link. A link that is not live is refused before the password is hashed, so junk
+   * tokens cost one indexed read rather than an argon2 hash; `consume` re-checks it under lock. Spending the link, the
+   * new password, clearing the lockout, verifying the address (a reset proves control of the inbox) and ending every
+   * session are one transaction.
    */
   async reset(body: ResetPasswordRequest): Promise<StatusResponse> {
     if (isCommonPassword(body.password)) {
       throw commonPasswordError();
     }
+    await this.tokens.assertLive(this.db, body.token, 'reset');
     const passwordHash = await hashPassword(body.password);
     await this.db.transaction(async (tx) => {
       const { userId } = await this.tokens.consume(tx, body.token, 'reset');

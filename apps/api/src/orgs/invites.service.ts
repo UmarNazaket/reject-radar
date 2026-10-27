@@ -191,10 +191,16 @@ export class InvitesService {
       // Another account: P4-D1 refuses. This account: nothing to join, so the invite is used up and the role stays as it is.
       if (account && account.orgId !== pending.orgId) throw alreadyInAccount();
       alreadyJoined = account !== undefined;
+      // The link reached this inbox, so it verifies the address, as it does for a new person (P4-D8).
       await tx
         .update(appUser)
-        .set({ failedLogins: 0, lockedUntil: null })
-        .where(and(eq(appUser.id, existing.id), sql`(${appUser.failedLogins} <> 0 or ${appUser.lockedUntil} is not null)`));
+        .set({ failedLogins: 0, lockedUntil: null, emailVerifiedAt: sql`coalesce(${appUser.emailVerifiedAt}, now())` })
+        .where(
+          and(
+            eq(appUser.id, existing.id),
+            sql`(${appUser.failedLogins} <> 0 or ${appUser.lockedUntil} is not null or ${appUser.emailVerifiedAt} is null)`,
+          ),
+        );
       userId = existing.id;
     } else {
       if (body.name === undefined) throw new AppError(HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'Your name is needed to create your account.');
