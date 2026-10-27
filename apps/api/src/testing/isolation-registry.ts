@@ -59,6 +59,12 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
     path: `/v1/auth/${name}`,
     reason: 'Authentication acts on the person named by the email, token or cookie it carries, and holds no account data.',
   })),
+  { method: 'GET', path: '/v1/dev/emails', reason: 'Dev-only email preview; never mounted in production.' },
+  {
+    method: 'GET',
+    path: '/v1/dev/emails/:template/:locale',
+    reason: 'Dev-only email preview; never mounted in production.',
+  },
   { method: 'GET', path: '/v1/health', reason: 'Liveness probe; reads no data.' },
   { method: 'GET', path: '/v1/health/ready', reason: 'Readiness probe; checks the database connection and reads no account data.' },
   { method: 'POST', path: '/v1/invites/preview', reason: 'The invite token in the body decides the account; the caller needs no session.' },
