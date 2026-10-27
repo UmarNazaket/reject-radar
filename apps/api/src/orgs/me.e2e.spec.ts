@@ -1,6 +1,6 @@
 import { meResponse } from '@rejectradar/contracts';
-import { appUser, org } from '@rejectradar/db';
-import { eq } from 'drizzle-orm';
+import { appUser, membership, org } from '@rejectradar/db';
+import { and, eq } from 'drizzle-orm';
 import request from 'supertest';
 import { signUpVerified, startTestApp, type TestApp } from '../testing/test-app';
 
@@ -67,6 +67,23 @@ describe('GET and PATCH /me behind the guards', () => {
     await session.patch('/v1/me').send({}).expect(400);
     const [unchanged] = await t.db.select({ locale: appUser.locale }).from(appUser).where(eq(appUser.id, userId));
     expect(unchanged.locale).toBe('bn');
+  });
+
+  it('GET and PATCH /v1/me report the session account when the user also belongs to another', async () => {
+    const { session, userId, orgId } = await signUpVerified(t, { email: 'me.twoorgs@example.com', company: 'First Mills' });
+    // P4-D1 (one account per user) is app code only; the schema would allow this row.
+    const otherOrgId = '0197a3f0-0000-7000-8000-000000000001';
+    await t.db.insert(org).values({ id: otherOrgId, name: 'Other Mills' });
+    await t.db.insert(membership).values({ orgId: otherOrgId, userId, role: 'member' });
+    // Rewriting the session's row moves it after the other one in the table, so an unscoped lookup would find the other first.
+    await t.db.update(membership).set({ role: 'owner' }).where(and(eq(membership.orgId, orgId), eq(membership.userId, userId)));
+
+    for (let i = 0; i < 5; i++) {
+      const res = await session.get('/v1/me').expect(200);
+      expect(meResponse.parse(res.body)).toMatchObject({ org: { id: orgId, name: 'First Mills' }, role: 'owner' });
+    }
+    const patched = await session.patch('/v1/me').send({ name: 'Two Orgs' }).expect(200);
+    expect(meResponse.parse(patched.body)).toMatchObject({ org: { id: orgId }, role: 'owner' });
   });
 
   it('the old access cookie is refused right after logout', async () => {
