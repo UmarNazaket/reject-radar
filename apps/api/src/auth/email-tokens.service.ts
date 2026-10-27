@@ -7,17 +7,22 @@ import { uuidv7 } from '../common/ids';
 import { randomToken, sha256Hex } from '../common/tokens';
 import type { Tx } from '../database/tx';
 
-const HOUR_MS = 3_600_000;
+const HOUR_SEC = 3600;
 /** Verification links last 24 hours, reset links 1 hour (spec §12). */
-const LIFETIME_MS: Readonly<Record<EmailTokenPurpose, number>> = { verify: 24 * HOUR_MS, reset: HOUR_MS };
+const LIFETIME_SEC: Readonly<Record<EmailTokenPurpose, number>> = { verify: 24 * HOUR_SEC, reset: HOUR_SEC };
 
 const invalidToken = () => new AppError(HttpStatus.BAD_REQUEST, 'INVALID_TOKEN', 'This link is invalid or has expired.');
 
 /** Single-use links sent by email. Only the SHA-256 of a token is stored, so a database read never yields a usable link. */
 @Injectable()
 export class EmailTokensService {
-  /** Makes a new token for the user and marks their earlier unused tokens of that purpose used. Returns the raw token. */
+  /**
+   * Makes a new token for the user and marks their earlier unused tokens of that purpose used. Returns the raw token.
+   * The user row is locked first: two parallel calls take turns, so the second one sees the first one's committed
+   * token and invalidates it, and exactly one token stays live. The expiry uses the database clock, like `consume`.
+   */
   async issue(tx: Tx, userId: string, purpose: EmailTokenPurpose): Promise<string> {
+    await tx.execute(sql`select 1 from app_user where id = ${userId} for update`);
     await tx
       .update(emailToken)
       .set({ usedAt: sql`now()` })
@@ -28,7 +33,7 @@ export class EmailTokensService {
       userId,
       purpose,
       tokenHash: sha256Hex(raw),
-      expiresAt: new Date(Date.now() + LIFETIME_MS[purpose]),
+      expiresAt: sql`now() + make_interval(secs => ${LIFETIME_SEC[purpose]})`,
     });
     return raw;
   }
