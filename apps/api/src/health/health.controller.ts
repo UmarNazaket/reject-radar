@@ -1,8 +1,10 @@
 import { Controller, Get, HttpStatus, Inject, Logger } from '@nestjs/common';
 import type { Pool } from 'pg';
+import { Public } from '../auth/decorators';
 import { AppError } from '../common/errors';
 import { PG_POOL } from '../database/database.module';
 
+@Public()
 @Controller('health')
 export class HealthController {
   private readonly logger = new Logger(HealthController.name);

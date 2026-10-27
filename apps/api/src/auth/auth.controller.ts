@@ -18,11 +18,14 @@ import { RateLimit } from '../common/rate-limit';
 import { ZodValidationPipe } from '../common/zod-pipe';
 import { API_ENV } from '../config/env';
 import { clearSessionCookies, REFRESH_COOKIE, setSessionCookies } from './cookies';
+import { Public } from './decorators';
 import { SessionsService } from './sessions.service';
 import { SignupService } from './signup.service';
 
 const HOUR_MS = 3_600_000;
 
+// Every auth route works without a session; CSRF still applies to the unsafe ones.
+@Public()
 @Controller('auth')
 export class AuthController {
   constructor(

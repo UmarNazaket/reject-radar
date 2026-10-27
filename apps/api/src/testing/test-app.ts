@@ -147,11 +147,12 @@ export interface TestApp {
 /**
  * Boots the whole API on its own test database (`rejectradar_test_<suffix>`, wiped and migrated) with a fake mail
  * transport and `LOG_LEVEL=silent` (nestjs-pino keeps one logger per process). `suffix` must be unique to the spec file.
+ * `env` overrides or adds variables, as `testEnv`'s `extra` does (a spec that reads the logs sets `LOG_LEVEL`).
  */
-export async function startTestApp(suffix: string, overrides: AppOverrides = {}): Promise<TestApp> {
+export async function startTestApp(suffix: string, overrides: AppOverrides = {}, env: Record<string, string> = {}): Promise<TestApp> {
   const url = await prepareTestDatabase(suffix);
   const mail = new FakeTransport();
-  const app = await createApp(testEnv(url), { mailTransport: mail, ...overrides });
+  const app = await createApp(testEnv(url, env), { mailTransport: mail, ...overrides });
   await app.init();
   return {
     app,
