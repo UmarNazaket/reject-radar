@@ -142,6 +142,35 @@ describe('parseAlertPage', () => {
     expect(page.number).toBe('99-19');
   });
 
+  it('skips the Yellow List and parses the Green List after it', () => {
+    const page = parseAlertPage(fixture('21-11.html'), 'https://www.accessdata.fda.gov/cms_ia/importalert_64.html');
+    expect(page.number).toBe('21-11');
+    expect(page.title).toBe('Detention Without Physical Examination of Ackees Due to Hypoglycin A');
+    expect(page.publishedOn).toBe('2025-04-25');
+    expect(page.listings.map((l) => l.firmName)).toEqual(['Fruit Processors Ltd.', 'ANTILLEAN CANNING S.A.']);
+    expect(page.listings.every((l) => l.list === 'green')).toBe(true);
+    expect(page.listings[0]).toMatchObject({ countryName: 'BELIZE', countryCode: 'BZ', city: 'Dangriga', region: 'BZ-SC', listedOn: '2009-12-18' });
+    expect(page.listings[0].products).toEqual([
+      expect.objectContaining({ productCode: '21SEE13', industryCode: '21', description: 'Canned Ackees', notes: null }),
+    ]);
+    expect(page.listings[1].products[0].notes).toBe('3/21/05; Address update 6/3/10');
+  });
+
+  const ALBANIA = '<div class="center"><h4>ALBANIA</h4></div>';
+  const listAnchor = (name: string) => `<div class="center"><a name="${name}"></a><h4>${name} list</h4></div>${ALBANIA}`;
+
+  it('keeps Yellow List firms off the Red List before it', () => {
+    expect(html).toContain(ALBANIA);
+    const page = parseAlertPage(html.replace(ALBANIA, listAnchor('YellowFirm')), URL_99_19);
+    expect(page.listings.map((l) => [l.list, l.countryName])).toEqual([['red', 'AFGHANISTAN']]);
+  });
+
+  it('rejects a list anchor it does not know', () => {
+    const unknown = html.replace(ALBANIA, listAnchor('OrangeFirm'));
+    expect(() => parseAlertPage(unknown, URL_99_19)).toThrow(PageStructureError);
+    expect(() => parseAlertPage(unknown, URL_99_19)).toThrow(/OrangeFirm/);
+  });
+
   it('rejects a page with firm blocks but no list anchor', () => {
     const broken = fixture('broken-no-anchor.html');
     let error: unknown;
