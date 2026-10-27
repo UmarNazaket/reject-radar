@@ -1,6 +1,6 @@
 # i18n
 
-This library was generated with [Nx](https://nx.dev).
+An [Nx](https://nx.dev) library, set up like `libs/taxonomy` and `libs/entities`.
 
 Flat ICU message catalogs (`en`, `ur`, `hi`, `bn`) and a server-side `translate`. English is written by hand; the other
 three are machine drafts (`CATALOG_STATUS`) until a native speaker reviews them.
