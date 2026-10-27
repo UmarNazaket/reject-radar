@@ -20,7 +20,7 @@ const REFRESH_GRACE_SEC = 10;
 
 const CREDENTIALS_MESSAGE = 'Email or password is incorrect. After 5 failed attempts, sign-in is paused for 15 minutes.';
 
-const invalidCredentials = () => new AppError(HttpStatus.UNAUTHORIZED, 'INVALID_CREDENTIALS', CREDENTIALS_MESSAGE);
+export const invalidCredentials = () => new AppError(HttpStatus.UNAUTHORIZED, 'INVALID_CREDENTIALS', CREDENTIALS_MESSAGE);
 const invalidSession = () => new AppError(HttpStatus.UNAUTHORIZED, 'INVALID_SESSION', 'Your session has ended. Sign in again.');
 const refreshRace = () =>
   new AppError(HttpStatus.UNAUTHORIZED, 'REFRESH_RACE', 'This session was refreshed a moment ago. Retry the request.');
@@ -183,9 +183,9 @@ export class SessionsService {
 
   /**
    * One atomic statement, so parallel wrong passwords cannot lose a count: the fifth failure locks the account for
-   * 15 minutes and starts the count again.
+   * 15 minutes and starts the count again. Login and invite acceptance both count a wrong password here.
    */
-  private async recordFailure(userId: string): Promise<void> {
+  async recordFailure(userId: string): Promise<void> {
     const reached = sql`${appUser.failedLogins} + 1 >= ${MAX_FAILED_LOGINS}`;
     await this.db
       .update(appUser)

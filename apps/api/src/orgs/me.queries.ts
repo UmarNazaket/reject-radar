@@ -11,7 +11,7 @@ import type { Tx } from '../database/tx';
  * Pass the request context on an authenticated route: the membership is then the one in the session's account,
  * not whichever the database returns first. Login and sign-up have no context yet and pass none.
  */
-export async function loadMe(db: Database | Tx, userId: string, scope?: RequestContext): Promise<MeResponse> {
+export async function loadMe(db: Database | Tx, userId: string, scope?: Pick<RequestContext, 'orgId'>): Promise<MeResponse> {
   const [row] = await db
     .select({
       id: appUser.id,

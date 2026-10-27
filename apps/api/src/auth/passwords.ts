@@ -1,4 +1,6 @@
+import { HttpStatus } from '@nestjs/common';
 import { argon2id, hash, verify } from 'argon2';
+import { AppError } from '../common/errors';
 import { COMMON_PASSWORDS } from './common-passwords';
 
 /** argon2id at the OWASP minimum: 19 MiB, 2 passes, 1 lane (spec 12). */
@@ -21,6 +23,10 @@ export async function verifyPassword(storedHash: string, plain: string): Promise
 export function isCommonPassword(plain: string): boolean {
   return COMMON_PASSWORDS.has(plain.toLowerCase());
 }
+
+/** The refusal for a password on the common list; sign-up, reset and invite acceptance all answer with it. */
+export const commonPasswordError = (): AppError =>
+  new AppError(HttpStatus.BAD_REQUEST, 'COMMON_PASSWORD', 'This password is too common. Choose a different one.');
 
 /**
  * A fixed argon2id hash (same parameters) of a random value that was thrown away. Login verifies against it when the

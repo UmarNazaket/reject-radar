@@ -1,14 +1,13 @@
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { ApiEnv, Locale, ResetPasswordRequest, StatusResponse } from '@rejectradar/contracts';
 import { appUser, type Database } from '@rejectradar/db';
 import { eq, sql } from 'drizzle-orm';
-import { AppError } from '../common/errors';
 import { API_ENV } from '../config/env';
 import { DB } from '../database/database.module';
 import { MailerService } from '../mail/mailer.service';
 import { renderEmail } from '../mail/templates/render';
 import { EmailTokensService } from './email-tokens.service';
-import { hashPassword, isCommonPassword } from './passwords';
+import { commonPasswordError, hashPassword, isCommonPassword } from './passwords';
 import { SessionsService } from './sessions.service';
 
 /** The same body for a known and an unknown address (no enumeration, spec §12). */
@@ -54,7 +53,7 @@ export class PasswordResetService {
    */
   async reset(body: ResetPasswordRequest): Promise<StatusResponse> {
     if (isCommonPassword(body.password)) {
-      throw new AppError(HttpStatus.BAD_REQUEST, 'COMMON_PASSWORD', 'This password is too common. Choose a different one.');
+      throw commonPasswordError();
     }
     const passwordHash = await hashPassword(body.password);
     await this.db.transaction(async (tx) => {

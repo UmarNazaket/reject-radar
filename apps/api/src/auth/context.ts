@@ -25,6 +25,6 @@ export type ContextRequest = Request & { context?: RequestContext };
  * The `where` clause of an account-owned table: the caller's `orgId` plus any further conditions. Services filter
  * these tables through this and nothing else, so a query can never reach another account's rows.
  */
-export function byOrg<T extends { orgId: AnyPgColumn }>(table: T, ctx: RequestContext, ...conditions: (SQL | undefined)[]): SQL {
+export function byOrg<T extends { orgId: AnyPgColumn }>(table: T, ctx: Pick<RequestContext, 'orgId'>, ...conditions: (SQL | undefined)[]): SQL {
   return and(eq(table.orgId, ctx.orgId), ...conditions) as SQL;
 }
