@@ -2,6 +2,7 @@ import { translate } from '@rejectradar/i18n';
 import { sql } from 'drizzle-orm';
 import { signUpVerified, startTestApp, type TestApp } from '../testing/test-app';
 import * as passwords from './passwords';
+import { SessionsService } from './sessions.service';
 
 const EMAIL = 'ayesha.khan@example.com';
 const OLD_PASSWORD = 'zarfeen-rice-2026';
@@ -188,4 +189,42 @@ describe('password reset', () => {
     expect(res.body.code).toBe('RATE_LIMITED');
     expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
   });
+
+  it('a reset and a refresh of the same user at once both complete, without a deadlock', async () => {
+    // reset-password locks app_user and then revokes the user's refresh_token rows; refresh locks its refresh_token row
+    // and then inserts the next one, which takes a FOR KEY SHARE lock on app_user (the foreign key). The pauses make
+    // that interleaving certain: the reset holds the user row while it waits for the refresh's row, and the refresh then
+    // needs the user row. FOR UPDATE on app_user conflicts with that key-share lock (40P01); FOR NO KEY UPDATE does not.
+    const sessions = t.app.get(SessionsService);
+    const revokeAll = sessions.revokeAllForUser.bind(sessions);
+    const findAccount = (sessions as unknown as { findAccount: (...args: unknown[]) => Promise<unknown> }).findAccount.bind(sessions);
+    jest.spyOn(sessions, 'revokeAllForUser').mockImplementation(async (tx, userId) => {
+      await tx.execute(sql`select pg_sleep(0.3)`);
+      return revokeAll(tx, userId);
+    });
+    jest.spyOn(sessions as unknown as { findAccount: (...args: unknown[]) => Promise<unknown> }, 'findAccount').mockImplementation(async (...args) => {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      return findAccount(...args);
+    });
+
+    try {
+      await signUpVerified(t, { email: EMAIL });
+      let password = OLD_PASSWORD;
+      for (let round = 0; round < 3; round++) {
+        t.resetRateLimits();
+        const token = await requestLink();
+        const session = t.session();
+        await session.post('/v1/auth/login').send({ email: EMAIL, password }).expect(200);
+        const next = `basmati-harvest-${2027 + round}`;
+
+        const [resetRes, refreshRes] = await Promise.all([reset(token, next), session.post('/v1/auth/refresh')]);
+
+        expect(resetRes.status).toBe(200);
+        expect([204, 401]).toContain(refreshRes.status);
+        password = next;
+      }
+    } finally {
+      jest.restoreAllMocks();
+    }
+  }, 60_000);
 });
