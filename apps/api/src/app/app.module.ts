@@ -1,8 +1,11 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import type { ApiEnv } from '@rejectradar/contracts';
 import { LoggerModule } from 'nestjs-pino';
 import type { Options } from 'pino-http';
+import { AuthModule } from '../auth/auth.module';
 import { reqSerializer, resSerializer } from '../common/logging';
+import { FixedWindowLimiter, RateLimitGuard } from '../common/rate-limit';
 import { requestIdFor } from '../common/request-id';
 import { API_ENV } from '../config/env';
 import { DatabaseModule } from '../database/database.module';
@@ -32,9 +35,15 @@ export class AppModule {
         LoggerModule.forRoot({ pinoHttp: overrides.logStream ? [pinoOptions(env, false), overrides.logStream] : pinoOptions(env, true) }),
         DatabaseModule.register(env.DATABASE_URL),
         MailModule.register(env, overrides),
+        AuthModule,
         HealthModule,
       ],
-      providers: [{ provide: API_ENV, useValue: env }],
+      providers: [
+        { provide: API_ENV, useValue: env },
+        FixedWindowLimiter,
+        // The first global guard; the CSRF, auth, role and verified-email guards go ahead of it (guards run before pipes).
+        { provide: APP_GUARD, useClass: RateLimitGuard },
+      ],
       exports: [API_ENV],
     };
   }

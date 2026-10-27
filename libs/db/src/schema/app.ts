@@ -1,4 +1,14 @@
-import { EMAIL_DELIVERY_STATUSES, EMAIL_KINDS } from '@rejectradar/contracts';
+import {
+  BILLING_INTERVALS,
+  EMAIL_DELIVERY_STATUSES,
+  EMAIL_KINDS,
+  EMAIL_TOKEN_PURPOSES,
+  INVITE_ROLES,
+  LOCALES,
+  PLAN_IDS,
+  ROLES,
+  SUBSCRIPTION_STATUSES,
+} from '@rejectradar/contracts';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
@@ -43,7 +53,10 @@ export const appUser = pgTable(
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('app_user_email_lower_uq').on(sql`lower(${t.email})`)],
+  (t) => [
+    uniqueIndex('app_user_email_lower_uq').on(sql`lower(${t.email})`),
+    check('app_user_locale_ck', oneOf('locale', LOCALES)),
+  ],
 );
 
 export const membership = pgTable(
@@ -54,7 +67,11 @@ export const membership = pgTable(
     role: text('role').notNull(),
     createdAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.orgId, t.userId] }), index('membership_user_idx').on(t.userId)],
+  (t) => [
+    primaryKey({ columns: [t.orgId, t.userId] }),
+    index('membership_user_idx').on(t.userId),
+    check('membership_role_ck', oneOf('role', ROLES)),
+  ],
 );
 
 export const invite = pgTable(
@@ -70,7 +87,13 @@ export const invite = pgTable(
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('invite_token_hash_uq').on(t.tokenHash), index('invite_org_idx').on(t.orgId)],
+  (t) => [
+    uniqueIndex('invite_token_hash_uq').on(t.tokenHash),
+    index('invite_org_idx').on(t.orgId),
+    // Finds an account's pending invite for an email, whatever its case (P4-D8, P4-D12).
+    index('invite_org_email_idx').on(t.orgId, sql`lower(${t.email})`),
+    check('invite_role_ck', oneOf('role', INVITE_ROLES)),
+  ],
 );
 
 export const refreshToken = pgTable(
@@ -103,7 +126,11 @@ export const emailToken = pgTable(
     usedAt: timestamp('used_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('email_token_hash_uq').on(t.tokenHash), index('email_token_user_idx').on(t.userId)],
+  (t) => [
+    uniqueIndex('email_token_hash_uq').on(t.tokenHash),
+    index('email_token_user_idx').on(t.userId),
+    check('email_token_purpose_ck', oneOf('purpose', EMAIL_TOKEN_PURPOSES)),
+  ],
 );
 
 export const subscription = pgTable(
@@ -118,7 +145,12 @@ export const subscription = pgTable(
     currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex('subscription_paddle_sub_uq').on(t.paddleSubscriptionId)],
+  (t) => [
+    uniqueIndex('subscription_paddle_sub_uq').on(t.paddleSubscriptionId),
+    check('subscription_plan_ck', oneOf('plan', PLAN_IDS)),
+    check('subscription_status_ck', oneOf('status', SUBSCRIPTION_STATUSES)),
+    check('subscription_interval_ck', oneOf('interval', BILLING_INTERVALS)),
+  ],
 );
 
 export const paddleEvent = pgTable('paddle_event', {

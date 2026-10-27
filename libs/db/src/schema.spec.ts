@@ -76,6 +76,24 @@ describe('database schema (spec §7)', () => {
     ).rejects.toMatchObject({ code: '23514', constraint });
   });
 
+  it.each([
+    ['membership.role', 'membership_role_ck', "insert into membership (org_id, user_id, role) values ($1, '0192c7a0-0000-7000-8000-000000000001', 'viewer')", [ORG_A]],
+    ['app_user.locale', 'app_user_locale_ck', "insert into app_user (id, email, password_hash, name, locale) values ('0192c7a0-0000-7000-8000-000000000003', 'fr@example.com', 'h', 'F', 'fr')", []],
+    ['invite.role', 'invite_role_ck', "insert into invite (id, org_id, email, role, token_hash, expires_at) values ('0192c7a0-0000-7000-8000-0000000000f1', $1, 'i@example.com', 'owner', 'th1', now())", [ORG_A]],
+    ['email_token.purpose', 'email_token_purpose_ck', "insert into email_token (id, user_id, purpose, token_hash, expires_at) values ('0192c7a0-0000-7000-8000-0000000000f2', '0192c7a0-0000-7000-8000-000000000001', 'login', 'th2', now())", []],
+    ['subscription.plan', 'subscription_plan_ck', "insert into subscription (org_id, plan, status) values ($1, 'gold', 'active')", [ORG_A]],
+    ['subscription.status', 'subscription_status_ck', "insert into subscription (org_id, plan, status) values ($1, 'free', 'done')", [ORG_A]],
+    ['subscription.interval', 'subscription_interval_ck', "insert into subscription (org_id, plan, status, interval) values ($1, 'free', 'active', 'week')", [ORG_A]],
+  ])('rejects %s through %s', async (_column, constraint, statement, params) => {
+    await expect(client.query(statement, params)).rejects.toMatchObject({ code: '23514', constraint });
+  });
+
+  it('lets an invite be looked up by account and lowercase email', async () => {
+    const { rows } = await client.query<{ indexdef: string }>("select indexdef from pg_indexes where indexname = 'invite_org_email_idx'");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].indexdef).toContain('lower(email)');
+  });
+
   it('defaults a new user to English', async () => {
     const { rows } = await client.query<{ locale: string }>("select locale from app_user where email = 'Owner@Example.com'");
     expect(rows[0].locale).toBe('en');
