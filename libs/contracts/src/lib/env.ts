@@ -13,18 +13,58 @@ export function strongSecret(name: string) {
     });
 }
 
+/** An origin such as https://app.example.com, normalised with `URL` (lowercase host, default port dropped, no trailing slash). */
 const origin = z
   .string()
   .trim()
-  .transform((value) => value.replace(/\/+$/, ''))
-  .refine((value) => /^https?:\/\/[^/\s]+$/.test(value), {
-    message: 'must be an origin such as https://app.example.com (no path)',
+  .transform((value, ctx) => {
+    const reject = (message: string) => {
+      ctx.addIssue({ code: 'custom', message });
+      return z.NEVER;
+    };
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return reject('must be an origin such as https://app.example.com');
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return reject('must start with http:// or https://');
+    if (url.username || url.password) return reject('must not contain credentials');
+    if (url.pathname !== '/' || value.includes('?') || value.includes('#')) {
+      return reject('must be an origin such as https://app.example.com (no path, query or fragment)');
+    }
+    return url.origin;
   });
+
+/** `Name <address>` or a bare address: goes into the From header, so no line breaks or stray angle brackets. */
+const mailFrom = z
+  .string()
+  .trim()
+  .refine(
+    (value) => {
+      const match = /^(?:[^<>\r\n]+<([^<>\s]+)>|([^<>\s]+))$/.exec(value);
+      const address = match?.[1] ?? match?.[2];
+      return address !== undefined && z.email().safeParse(address).success;
+    },
+    { message: 'must be an address such as alerts@example.com or "Name <alerts@example.com>"' },
+  );
 
 const databaseUrl = z
   .string()
   .trim()
   .regex(/^postgres(ql)?:\/\/\S+$/, 'must be a postgres:// connection string');
+
+/** An optional credential: unset or blank means "not provided"; a value must not be a known placeholder. */
+function optionalCredential(name: string, hint: string) {
+  return z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .refine((value) => value === undefined || !(PLACEHOLDER.test(value) || PLACEHOLDER.test(value.replace(/^re_/i, ''))), {
+      message: `${name} looks like a placeholder; ${hint}`,
+    });
+}
 
 export const apiEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -33,28 +73,38 @@ export const apiEnvSchema = z.object({
   DATABASE_URL: databaseUrl,
   JWT_SECRET: strongSecret('JWT_SECRET'),
   APP_ORIGIN: origin,
+  /** `smtp` posts to MAIL_SMTP_URL (Mailpit locally); `resend` uses the Resend API. Production allows only `resend`. */
+  MAIL_TRANSPORT: z.enum(['smtp', 'resend']).default('smtp'),
+  MAIL_SMTP_URL: z
+    .string()
+    .trim()
+    .regex(/^smtps?:\/\/\S+$/, 'must be an smtp:// or smtps:// URL')
+    .default('smtp://127.0.0.1:1025'),
+  RESEND_API_KEY: optionalCredential('RESEND_API_KEY', 'use the key from the Resend dashboard or leave it empty'),
+  MAIL_FROM: mailFrom,
+  /** Proxies between the client and the API whose X-Forwarded-For we trust, so `req.ip` is the client (P4-D14). */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+}).superRefine((env, ctx) => {
+  if (env.MAIL_TRANSPORT === 'resend' && !env.RESEND_API_KEY) {
+    ctx.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'is required when MAIL_TRANSPORT=resend' });
+  }
+  if (env.NODE_ENV === 'production' && env.MAIL_TRANSPORT !== 'resend') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['MAIL_TRANSPORT'],
+      message: 'must be "resend" in production (smtp is for local development)',
+    });
+  }
 });
 
 export type ApiEnv = z.output<typeof apiEnvSchema>;
-
-/** An optional credential: unset or blank means "not provided"; a value must not be a known placeholder. */
-function optionalCredential(name: string) {
-  return z
-    .string()
-    .trim()
-    .optional()
-    .transform((value) => (value ? value : undefined))
-    .refine((value) => value === undefined || !PLACEHOLDER.test(value), {
-      message: `${name} looks like a placeholder; use the credential FDA issued or leave it empty`,
-    });
-}
 
 export const ingestEnvSchema = z.object({
   DATABASE_URL: databaseUrl,
   /** Goes into the User-Agent of every request so source operators can reach us (spec §6.3 rule 5). */
   INGEST_CONTACT_EMAIL: z.string().trim().pipe(z.email()),
-  FDA_API_USER: optionalCredential('FDA_API_USER'),
-  FDA_API_KEY: optionalCredential('FDA_API_KEY'),
+  FDA_API_USER: optionalCredential('FDA_API_USER', 'use the credential FDA issued or leave it empty'),
+  FDA_API_KEY: optionalCredential('FDA_API_KEY', 'use the credential FDA issued or leave it empty'),
   INGEST_FAILURE_DIR: z.string().trim().min(1).default('tmp/ingest-failures'),
 });
 
