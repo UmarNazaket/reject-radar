@@ -172,8 +172,8 @@ export interface NewAccount {
 }
 
 /**
- * Signs an account up and opens the link in its verify email. Until the login route exists the returned session has
- * no cookies; it only carries the ids of the new user and account.
+ * Signs an account up, opens the link in its verify email and logs in. The returned session carries the `rr_at` and
+ * `rr_rt` cookies of a verified owner; `userId` and `orgId` are the ids of the new user and account.
  */
 export async function signUpVerified(
   t: TestApp,
@@ -192,6 +192,10 @@ export async function signUpVerified(
     .expect(202);
   const token = t.mail.linkIn(t.mail.lastTo(who.email)).searchParams.get('token');
   await session.post('/v1/auth/verify-email').send({ token }).expect(200);
+  await session
+    .post('/v1/auth/login')
+    .send({ email: who.email, password: who.password ?? 'zarfeen-rice-2026' })
+    .expect(200);
 
   const [row] = await t.db
     .select({ userId: appUser.id, orgId: membership.orgId })
