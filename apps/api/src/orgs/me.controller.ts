@@ -14,7 +14,7 @@ export class MeController {
 
   @Get()
   get(@CurrentContext() ctx: RequestContext): Promise<MeResponse> {
-    return loadMe(this.db, ctx.userId);
+    return loadMe(this.db, ctx.userId, ctx);
   }
 
   /** Changes the caller's own name and language. `app_user` has no `org_id`: a user only ever edits themselves. */
@@ -24,6 +24,6 @@ export class MeController {
     @Body(new ZodValidationPipe(patchMeRequest)) body: PatchMeRequest,
   ): Promise<MeResponse> {
     await this.db.update(appUser).set({ name: body.name, locale: body.locale }).where(eq(appUser.id, ctx.userId));
-    return loadMe(this.db, ctx.userId);
+    return loadMe(this.db, ctx.userId, ctx);
   }
 }
