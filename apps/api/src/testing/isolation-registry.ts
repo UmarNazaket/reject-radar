@@ -67,6 +67,7 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   },
   { method: 'GET', path: '/v1/health', reason: 'Liveness probe; reads no data.' },
   { method: 'GET', path: '/v1/health/ready', reason: 'Readiness probe; checks the database connection and reads no account data.' },
+  { method: 'GET', path: '/v1/taxonomy', reason: 'Reference data; the same for every caller.' },
   { method: 'POST', path: '/v1/invites/preview', reason: 'The invite token in the body decides the account; the caller needs no session.' },
   { method: 'POST', path: '/v1/invites/accept', reason: 'The invite token in the body decides the account; the caller needs no session.' },
 ];

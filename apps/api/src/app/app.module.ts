@@ -18,6 +18,7 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { HealthModule } from '../health/health.module';
 import { MailModule } from '../mail/mail.module';
 import { OrgsModule } from '../orgs/orgs.module';
+import { TaxonomyModule } from '../taxonomy/taxonomy.module';
 import type { AppOverrides } from './app-overrides';
 
 function pinoOptions(env: ApiEnv, allowTransport: boolean): Options {
@@ -53,6 +54,7 @@ export class AppModule {
         EntitlementsModule,
         HealthModule,
         OrgsModule,
+        TaxonomyModule,
       ],
       providers: [
         { provide: API_ENV, useValue: env },

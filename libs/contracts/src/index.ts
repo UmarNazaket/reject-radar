@@ -8,3 +8,4 @@ export * from './lib/email';
 export * from './lib/accounts';
 export * from './lib/product';
 export * from './lib/entitlements';
+export * from './lib/taxonomy';
