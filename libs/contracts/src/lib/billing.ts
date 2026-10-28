@@ -1,5 +1,6 @@
-import type { BillingInterval } from './accounts';
+import type { BillingInterval, SubscriptionStatus } from './accounts';
 import type { ApiEnv } from './env';
+import type { PlanId, PlanLimits } from './plans';
 
 /** Which Paddle environment the API talks to. Staging runs `NODE_ENV=production` with `sandbox` (P7-D10). */
 export const PADDLE_ENVS = ['sandbox', 'production'] as const;
@@ -49,4 +50,49 @@ export function priceCatalog(env: PriceEnv): PriceCatalog {
       return entry.priceId;
     },
   };
+}
+
+/** One plan on the public price list (P7-D11). `prices` holds the Paddle price ids and is null for Free and Enterprise. */
+export interface PlanSummary {
+  id: PlanId;
+  name: string;
+  monthlyPriceUsd: number | null;
+  yearlyPriceUsd: number | null;
+  limits: PlanLimits;
+  prices: { month: string; year: string } | null;
+}
+
+export interface PlansResponse {
+  plans: PlanSummary[];
+}
+
+/** Where an account's plan comes from: an admin's `plan_override`, a paid Paddle subscription, or nothing (P7-D11). */
+export type PlanSource = 'override' | 'subscription' | 'free';
+
+/** What the account has used this UTC month, next to the limits in `SubscriptionResponse`. */
+export interface BillingUsage {
+  period: string;
+  lookups: number;
+  bulkRows: number;
+  apiCalls: number;
+  watchlist: number;
+  members: number;
+}
+
+/** `GET /billing/subscription`: the resolved plan, the Paddle state behind it, and this month's usage (P7-D11). */
+export interface SubscriptionResponse {
+  plan: PlanId;
+  source: PlanSource;
+  /** The Paddle subscription's status; null while the account has never had one. */
+  status: SubscriptionStatus | null;
+  interval: BillingInterval | null;
+  currentPeriodEnd: string | null;
+  /** A scheduled cancellation, when there is one. */
+  cancelAt: string | null;
+  /** True once the account has a Paddle customer, so the portal is available. */
+  hasBillingAccount: boolean;
+  /** True for an owner: only an owner starts checkout or opens the portal. */
+  canManage: boolean;
+  limits: PlanLimits;
+  usage: BillingUsage;
 }

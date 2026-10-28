@@ -1,7 +1,7 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import type { InviteRole, MembersResponse, Role } from '@rejectradar/contracts';
 import { appUser, type Database, invite, membership } from '@rejectradar/db';
-import { asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { asc, count, eq, gt, isNull, sql } from 'drizzle-orm';
 import { byOrg, type RequestContext } from '../auth/context';
 import { SessionsService } from '../auth/sessions.service';
 import { AppError } from '../common/errors';
@@ -43,6 +43,12 @@ export class MembersService {
       members: members.map((m) => ({ ...m, role: m.role as Role, joinedAt: m.joinedAt.toISOString() })),
       invites: invites.map((i) => ({ ...i, role: i.role as InviteRole, expiresAt: i.expiresAt.toISOString() })),
     };
+  }
+
+  /** How many people belong to the account; open invites are not counted (they are not seats yet, P5-D3). */
+  async count(orgId: string): Promise<number> {
+    const [row] = await this.db.select({ members: count() }).from(membership).where(byOrg(membership, { orgId }));
+    return row.members;
   }
 
   /**

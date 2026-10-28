@@ -1,5 +1,5 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { isPlanId, PLANS, type PlanId, type PlanLimitDetails, type PlanLimits, type PlanUpgradeDetails, utcPeriod } from '@rejectradar/contracts';
+import { isPlanId, PLANS, type PlanId, type PlanLimitDetails, type PlanLimits, type PlanSource, type PlanUpgradeDetails, utcPeriod } from '@rejectradar/contracts';
 import { type Database, lookupLog, org, subscription, usageCounter } from '@rejectradar/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { AppError } from '../common/errors';
@@ -34,17 +34,23 @@ const upgradeRequired = (details: PlanUpgradeDetails) =>
 export class EntitlementsService {
   constructor(@Inject(DB) private readonly db: Database) {}
 
-  /** `plan_override`, then a subscription that is `active` or `trialing`, otherwise `free`. */
-  async resolvePlan(orgId: string, executor: Executor = this.db): Promise<{ plan: PlanId; limits: PlanLimits }> {
+  /** `plan_override`, then a subscription that is `active` or `trialing`, otherwise `free`; `source` says which one decided. */
+  async resolvePlan(orgId: string, executor: Executor = this.db): Promise<{ plan: PlanId; limits: PlanLimits; source: PlanSource }> {
     const [row] = await executor
       .select({ override: org.planOverride, plan: subscription.plan, status: subscription.status })
       .from(org)
       .leftJoin(subscription, eq(subscription.orgId, org.id))
       .where(eq(org.id, orgId));
     let plan: PlanId = 'free';
-    if (row?.override && isPlanId(row.override)) plan = row.override;
-    else if (row?.plan && row.status && PAID_STATUSES.includes(row.status) && isPlanId(row.plan)) plan = row.plan;
-    return { plan, limits: PLANS[plan] };
+    let source: PlanSource = 'free';
+    if (row?.override && isPlanId(row.override)) {
+      plan = row.override;
+      source = 'override';
+    } else if (row?.plan && row.status && PAID_STATUSES.includes(row.status) && isPlanId(row.plan) && row.plan !== 'free') {
+      plan = row.plan;
+      source = 'subscription';
+    }
+    return { plan, limits: PLANS[plan], source };
   }
 
   /** Refuses the `used + 1`th watched item or member when the plan's limit is `used` already. */

@@ -10,7 +10,7 @@ import {
   type WatchlistResponse,
 } from '@rejectradar/contracts';
 import { type Database, notice, topicMatchesItem, uuidv7, watchlistItem } from '@rejectradar/db';
-import { eq, sql } from 'drizzle-orm';
+import { count, eq, sql } from 'drizzle-orm';
 import { byOrg, type RequestContext } from '../auth/context';
 import { toCsvRow } from '../common/csv';
 import { AppError } from '../common/errors';
@@ -79,6 +79,12 @@ export class WatchlistsService {
   async list(ctx: RequestContext): Promise<WatchlistResponse> {
     const [items, { limits }] = await Promise.all([this.load(ctx), this.entitlements.resolvePlan(ctx.orgId)]);
     return { items, used: items.length, limit: limits.watchlistSize };
+  }
+
+  /** How many places the account's watchlist holds. */
+  async count(orgId: string): Promise<number> {
+    const [row] = await this.db.select({ items: count() }).from(watchlistItem).where(byOrg(watchlistItem, { orgId }));
+    return row.items;
   }
 
   async add(ctx: RequestContext, body: CreateWatchlistItemRequest): Promise<WatchlistItem> {

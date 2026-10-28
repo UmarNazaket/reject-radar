@@ -10,6 +10,7 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { CsrfGuard } from '../auth/guards/csrf.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
+import { BillingModule } from '../billing/billing.module';
 import { errSerializer, reqSerializer, resSerializer } from '../common/logging';
 import { FixedWindowLimiter, RateLimitGuard } from '../common/rate-limit';
 import { requestIdFor } from '../common/request-id';
@@ -58,6 +59,7 @@ export class AppModule {
         MailModule.register(env, overrides),
         AlertsModule,
         AuthModule,
+        BillingModule,
         EntitlementsModule,
         FirmsModule,
         HealthModule,
