@@ -64,6 +64,7 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   { method: 'PUT', path: '/v1/me/notification-prefs', body: () => ({ instantHigh: false, digest: 'weekly' }) },
   { method: 'GET', path: '/v1/billing/subscription' },
   { method: 'POST', path: '/v1/billing/checkout', body: () => ({ plan: 'pro', interval: 'month' }) },
+  { method: 'POST', path: '/v1/billing/portal' },
 ];
 
 export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }[] = [

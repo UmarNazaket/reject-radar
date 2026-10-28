@@ -95,6 +95,7 @@
   "errors.ALREADY_WATCHED": "یہ پہلے ہی آپ کی واچ لسٹ میں ہے۔",
   "errors.ALREADY_SUBSCRIBED": "آپ کے اکاؤنٹ کی سبسکرپشن پہلے سے موجود ہے۔ اسے تبدیل یا منسوخ کرنے کے لیے بلنگ پورٹل استعمال کریں۔",
   "errors.INVALID_SIGNATURE": "درخواست کے دستخط درست نہیں ہیں۔",
+  "errors.NO_BILLING_ACCOUNT": "آپ کے اکاؤنٹ کا ابھی کوئی بلنگ اکاؤنٹ نہیں ہے۔ پہلے کوئی پلان منتخب کریں۔",
 
   "taxonomy.commodity.cereals": "اناج",
   "taxonomy.commodity.rice": "چاول",

@@ -9,6 +9,7 @@ import {
   PLANS,
   type PlanSummary,
   type PlansResponse,
+  type PortalResponse,
   priceCatalog,
   type PriceCatalog,
   type SubscriptionResponse,
@@ -22,13 +23,14 @@ import { DB } from '../database/database.module';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { MembersService } from '../orgs/members.service';
 import { WatchlistsService } from '../watchlists/watchlists.service';
+import { PADDLE_GATEWAY, type PaddleGateway } from './paddle/gateway';
 
 const isPaidPlan = (id: string): id is PaidPlanId => (PAID_PLAN_IDS as readonly string[]).includes(id);
 
 /** A Paddle subscription in one of these statuses is still billing the account, so a second checkout would double-charge it (P7-D8). */
 const BILLING_STATUSES: ReadonlySet<string> = new Set(['active', 'trialing', 'past_due']);
 
-/** What an account pays for and how much of it is used (spec §10, P7-D11), and what the owner needs to start a purchase (P7-D8). Webhooks and the portal join it in later tasks. */
+/** What an account pays for and how much of it is used (spec §10, P7-D11), what the owner needs to start a purchase (P7-D8) and the way into Paddle's portal (P7-D9). */
 @Injectable()
 export class BillingService {
   private readonly catalog: PriceCatalog;
@@ -40,6 +42,7 @@ export class BillingService {
     private readonly entitlements: EntitlementsService,
     private readonly members: MembersService,
     private readonly watchlists: WatchlistsService,
+    @Inject(PADDLE_GATEWAY) private readonly paddle: PaddleGateway,
   ) {
     this.catalog = priceCatalog(env);
     this.checkoutEnv = env;
@@ -100,5 +103,19 @@ export class BillingService {
       environment: this.checkoutEnv.PADDLE_ENV,
       successUrl: `${this.checkoutEnv.APP_ORIGIN}/app/settings/billing?checkout=success`,
     };
+  }
+
+  /**
+   * A Paddle customer-portal URL for the owner's account (P7-D9). It needs a Paddle customer; the session lists the
+   * account's current subscription, or none once it is canceled, so the owner can still reach invoices and payment details.
+   */
+  async portal(ctx: RequestContext): Promise<PortalResponse> {
+    const [row] = await this.db
+      .select({ customerId: subscription.paddleCustomerId, subscriptionId: subscription.paddleSubscriptionId, status: subscription.status })
+      .from(subscription)
+      .where(byOrg(subscription, ctx));
+    if (!row?.customerId) throw new AppError(HttpStatus.CONFLICT, 'NO_BILLING_ACCOUNT', 'The account has no Paddle customer yet; subscribe to a plan first');
+    const subscriptionIds = row.subscriptionId && row.status !== 'canceled' ? [row.subscriptionId] : [];
+    return { url: await this.paddle.createPortalSession(row.customerId, subscriptionIds) };
   }
 }

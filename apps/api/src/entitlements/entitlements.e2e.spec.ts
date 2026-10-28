@@ -49,7 +49,7 @@ describe('entitlements', () => {
     expect(limits.lookupsPerMonth).toBe(10);
   });
 
-  it('a subscription that is active, trialing or past_due sets the plan', async () => {
+  it('past_due counts as paid; paused and canceled count as free', async () => {
     await subscribe('pro', 'trialing');
     expect((await service.resolvePlan(orgId)).plan).toBe('pro');
     await subscribe('business', 'active');
@@ -58,6 +58,8 @@ describe('entitlements', () => {
     await subscribe('business', 'past_due');
     expect((await service.resolvePlan(orgId)).plan).toBe('business');
     await subscribe('business', 'paused');
+    expect((await service.resolvePlan(orgId)).plan).toBe('free');
+    await subscribe('business', 'canceled');
     expect((await service.resolvePlan(orgId)).plan).toBe('free');
   });
 

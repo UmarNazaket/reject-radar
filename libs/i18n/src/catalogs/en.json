@@ -95,6 +95,7 @@
   "errors.ALREADY_WATCHED": "This is already on your watchlist.",
   "errors.ALREADY_SUBSCRIBED": "Your account already has a subscription. Use the billing portal to change or cancel it.",
   "errors.INVALID_SIGNATURE": "The request signature is not valid.",
+  "errors.NO_BILLING_ACCOUNT": "Your account has no billing history yet. Subscribe to a plan first.",
 
   "taxonomy.commodity.cereals": "Cereals",
   "taxonomy.commodity.rice": "Rice",

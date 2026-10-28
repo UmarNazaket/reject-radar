@@ -102,6 +102,11 @@ export interface SubscriptionResponse {
 export const checkoutRequest = z.object({ plan: z.enum(PAID_PLAN_IDS), interval: z.enum(BILLING_INTERVALS) });
 export type CheckoutRequest = z.infer<typeof checkoutRequest>;
 
+/** `POST /billing/portal`: where the owner manages the subscription, payment method and invoices in Paddle's customer portal (P7-D9). */
+export interface PortalResponse {
+  url: string;
+}
+
 /** What the web app's Paddle.js overlay needs to open checkout (spec §10.2, P7-D8). */
 export interface CheckoutResponse {
   priceId: string;

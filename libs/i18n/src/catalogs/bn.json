@@ -95,6 +95,7 @@
   "errors.ALREADY_WATCHED": "এটি ইতিমধ্যে আপনার ওয়াচলিস্টে আছে।",
   "errors.ALREADY_SUBSCRIBED": "আপনার অ্যাকাউন্টের সাবস্ক্রিপশন ইতিমধ্যে আছে। এটি পরিবর্তন বা বাতিল করতে বিলিং পোর্টাল ব্যবহার করুন।",
   "errors.INVALID_SIGNATURE": "অনুরোধের স্বাক্ষর বৈধ নয়।",
+  "errors.NO_BILLING_ACCOUNT": "আপনার অ্যাকাউন্টের এখনও কোনো বিলিং অ্যাকাউন্ট নেই। প্রথমে একটি প্ল্যান বেছে নিন।",
 
   "taxonomy.commodity.cereals": "শস্য",
   "taxonomy.commodity.rice": "চাল",

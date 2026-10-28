@@ -4,6 +4,7 @@ import {
   checkoutRequest,
   type CheckoutResponse,
   type PlansResponse,
+  type PortalResponse,
   type SubscriptionResponse,
 } from '@rejectradar/contracts';
 import type { RequestContext } from '../auth/context';
@@ -11,7 +12,7 @@ import { CurrentContext, Public, RequireVerifiedEmail, Roles } from '../auth/dec
 import { ZodValidationPipe } from '../common/zod-pipe';
 import { BillingService } from './billing.service';
 
-/** Plans, subscription and checkout for the billing page. The price list is public; the subscription is any member's to read; only an owner buys. */
+/** Plans, subscription and checkout for the billing page. The price list is public; the subscription is any member's to read; only an owner buys or opens the portal. */
 @Controller('billing')
 export class BillingController {
   constructor(private readonly billing: BillingService) {}
@@ -36,5 +37,12 @@ export class BillingController {
     @Body(new ZodValidationPipe(checkoutRequest)) body: CheckoutRequest,
   ): Promise<CheckoutResponse> {
     return this.billing.checkout(ctx, body);
+  }
+
+  @Post('portal')
+  @HttpCode(HttpStatus.OK)
+  @Roles('owner')
+  portal(@CurrentContext() ctx: RequestContext): Promise<PortalResponse> {
+    return this.billing.portal(ctx);
   }
 }
