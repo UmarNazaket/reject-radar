@@ -69,7 +69,19 @@ jobs:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js entities:link
-      # P5: alerts:run
+      # Runs even after a failed step, so that events already stored still become alerts. It exits 3 when a
+      # firm-level event has stayed unlinked for 48 hours (the cursor waits behind it), which emails the owner.
+      - name: alerts:run
+        if: ${{ !cancelled() }}
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+          APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+          MAIL_TRANSPORT: resend
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          NODE_ENV: production
+        run: node dist/apps/ingest/main.js alerts:run
 
   uk-bn:
     runs-on: ubuntu-latest
@@ -94,7 +106,19 @@ jobs:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js sync:uk-bn
-      # P5: alerts:run
+      # Runs even after a failed step, so that events already stored still become alerts. It exits 3 when a
+      # firm-level event has stayed unlinked for 48 hours (the cursor waits behind it), which emails the owner.
+      - name: alerts:run
+        if: ${{ !cancelled() }}
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+          APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+          MAIL_TRANSPORT: resend
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          NODE_ENV: production
+        run: node dist/apps/ingest/main.js alerts:run
 
   au-ifis:
     runs-on: ubuntu-latest
@@ -128,4 +152,16 @@ jobs:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
         run: node dist/apps/ingest/main.js entities:link
-      # P5: alerts:run
+      # Runs even after a failed step, so that events already stored still become alerts. It exits 3 when a
+      # firm-level event has stayed unlinked for 48 hours (the cursor waits behind it), which emails the owner.
+      - name: alerts:run
+        if: ${{ !cancelled() }}
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+          APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+          MAIL_TRANSPORT: resend
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          NODE_ENV: production
+        run: node dist/apps/ingest/main.js alerts:run

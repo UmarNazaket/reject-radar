@@ -9,6 +9,8 @@ module.exports = {
   transform: {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }],
   },
+  // @rejectradar/mail pulls in @rejectradar/i18n and so intl-messageformat, which ships ES modules only: ts-jest compiles it as well.
+  transformIgnorePatterns: ['node_modules/(?!(intl-messageformat|@formatjs)/)'],
   moduleFileExtensions: ['ts', 'js', 'html'],
   coverageDirectory: '../../coverage/apps/ingest',
 };
