@@ -10,3 +10,4 @@ export * from './lib/product';
 export * from './lib/entitlements';
 export * from './lib/taxonomy';
 export * from './lib/notices';
+export * from './lib/firm-api';

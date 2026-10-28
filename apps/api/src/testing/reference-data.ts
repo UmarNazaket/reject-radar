@@ -60,13 +60,13 @@ export async function seedReferenceData(db: Database): Promise<ReferenceFixture>
     displayName: ZARFEEN,
     countryCode: 'PK',
     region: 'Punjab',
-    city: 'Lahore',
+    city: 'lahore',
     postalCode: '54000',
     addressNorm: '12 industrial estate kot lakhpat lahore punjab 54000 pk',
   });
-  const alRahmanLahore = await insertFirm(db, { displayName: 'Al Rahman Rice Mills', countryCode: 'PK', city: 'Lahore' });
-  const alRahmanKarachi = await insertFirm(db, { displayName: 'Al Rahman Rice Mills', countryCode: 'PK', city: 'Karachi' });
-  const mergedAway = await insertFirm(db, { displayName: 'Zarfeen Rice Mills Pvt Ltd', countryCode: 'PK', city: 'Lahore' });
+  const alRahmanLahore = await insertFirm(db, { displayName: 'Al Rahman Rice Mills', countryCode: 'PK', city: 'lahore' });
+  const alRahmanKarachi = await insertFirm(db, { displayName: 'Al Rahman Rice Mills', countryCode: 'PK', city: 'karachi' });
+  const mergedAway = await insertFirm(db, { displayName: 'Zarfeen Rice Mills Pvt Ltd', countryCode: 'PK', city: 'lahore' });
   await db.insert(firmAlias).values({ oldId: mergedAway, newId: zarfeen });
   await db.insert(firmFei).values({ fei: ZARFEEN_FEI, firmId: zarfeen, firstSeen: daysAgo(1500) });
 

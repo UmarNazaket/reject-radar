@@ -83,6 +83,7 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
     reason: "Reference data; the plan's history window is the only account-dependent part.",
   },
   { method: 'GET', path: '/v1/taxonomy', reason: 'Reference data; the same for every caller.' },
+  { method: 'GET', path: '/v1/firms/search', reason: 'Reference data; no account data in the results.' },
   { method: 'POST', path: '/v1/invites/preview', reason: 'The invite token in the body decides the account; the caller needs no session.' },
   { method: 'POST', path: '/v1/invites/accept', reason: 'The invite token in the body decides the account; the caller needs no session.' },
 ];

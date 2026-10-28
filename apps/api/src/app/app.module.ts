@@ -15,6 +15,7 @@ import { requestIdFor } from '../common/request-id';
 import { API_ENV } from '../config/env';
 import { DatabaseModule } from '../database/database.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { FirmsModule } from '../firms/firms.module';
 import { HealthModule } from '../health/health.module';
 import { MailModule } from '../mail/mail.module';
 import { NoticesModule } from '../notices/notices.module';
@@ -53,6 +54,7 @@ export class AppModule {
         MailModule.register(env, overrides),
         AuthModule,
         EntitlementsModule,
+        FirmsModule,
         HealthModule,
         NoticesModule,
         OrgsModule,
