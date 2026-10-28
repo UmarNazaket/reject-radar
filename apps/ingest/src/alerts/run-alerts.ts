@@ -4,6 +4,7 @@ import {
   alertEmail,
   appUser,
   changeEvent,
+  commodity,
   type Database,
   firm,
   jobCursor,
@@ -195,15 +196,19 @@ async function loadRecipients(db: Database, orgIds: string[]): Promise<Recipient
   return [...byUser.values()];
 }
 
-interface AlertDetail {
+export interface AlertDetail {
   alertId: string;
   orgId: string;
   eventId: number;
+  /** The firm the alert is about, when it has one; the digest groups by it. */
+  firmId: number | null;
+  /** The event's commodity (slug for the catalog key, name as the fallback), when it has one; the digest titles topic groups with it. */
+  commodity: { slug: string; name: string } | null;
   item: AlertEmailItem;
 }
 
-/** What an email shows about each alert: the same joins the alerts list uses. */
-async function loadDetails(db: Database, alerts: NewAlert[], appOrigin: string): Promise<AlertDetail[]> {
+/** What an email shows about each alert: the same joins the alerts list uses. Newest event first. Shared with `digest:send`. */
+export async function loadDetails(db: Database, alerts: { id: string }[], appOrigin: string): Promise<AlertDetail[]> {
   const details: AlertDetail[] = [];
   for (let i = 0; i < alerts.length; i += ID_CHUNK) {
     const rows = await db
@@ -213,6 +218,9 @@ async function loadDetails(db: Database, alerts: NewAlert[], appOrigin: string):
         eventId: changeEvent.id,
         kind: changeEvent.kind,
         severity: alert.severity,
+        alertFirmId: alert.firmId,
+        commoditySlug: commodity.slug,
+        commodityName: commodity.name,
         source: changeEvent.source,
         occurredOn: changeEvent.occurredOn,
         destination: changeEvent.destination,
@@ -224,6 +232,7 @@ async function loadDetails(db: Database, alerts: NewAlert[], appOrigin: string):
       .from(alert)
       .innerJoin(changeEvent, eq(changeEvent.id, alert.changeEventId))
       .leftJoin(firm, eq(firm.id, alert.firmId))
+      .leftJoin(commodity, eq(commodity.id, changeEvent.commodityId))
       .leftJoin(notice, eq(notice.id, changeEvent.noticeId))
       .where(
         inArray(
@@ -236,6 +245,8 @@ async function loadDetails(db: Database, alerts: NewAlert[], appOrigin: string):
         alertId: row.alertId,
         orgId: row.orgId,
         eventId: row.eventId,
+        firmId: row.alertFirmId,
+        commodity: row.commoditySlug === null || row.commodityName === null ? null : { slug: row.commoditySlug, name: row.commodityName },
         item: {
           kind: row.kind as EventKind,
           severity: row.severity as Severity,

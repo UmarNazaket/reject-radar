@@ -6,6 +6,7 @@ import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadMailEnv } from './alerts/mail-env';
 import { runAlerts } from './alerts/run-alerts';
+import { sendDigests } from './alerts/send-digests';
 import { openDb } from './core/db';
 import { loadIngestEnv } from './core/env';
 import { createDeps, utcToday } from './core/deps';
@@ -227,6 +228,27 @@ program
       console.log(JSON.stringify(result, null, 2));
       // Exit code 3 makes GitHub Actions email the owner: the cursor is stuck behind a record that never linked (P5-D14).
       if (result.failBlocked) process.exitCode = 3;
+    } finally {
+      await close();
+    }
+  });
+
+program
+  .command('digest:send')
+  .description('Email the daily digests, and the weekly ones on Mondays (UTC): the unread alerts of each user since their last digest, grouped by firm and topic, in their language (spec §11)')
+  .action(async () => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      const mail = loadMailEnv();
+      const mailer = new Mailer({
+        db,
+        transport: createMailTransport(mail),
+        from: mail.MAIL_FROM,
+        // The error can carry the address, so only the kind and the stage are logged.
+        onError: ({ kind, stage }) => console.error(`digest:send: ${kind} email ${stage} failed`),
+      });
+      const result = await sendDigests({ db, mailer, appOrigin: mail.APP_ORIGIN });
+      console.log(JSON.stringify(result, null, 2));
     } finally {
       await close();
     }

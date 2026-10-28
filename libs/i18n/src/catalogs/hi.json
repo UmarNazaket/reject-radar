@@ -43,6 +43,7 @@
   "email.digest.more": "{count, plural, one {आपके खाते में # और अलर्ट है।} other {आपके खाते में # और अलर्ट हैं।}}",
   "email.digest.viewAll": "अपने अलर्ट खोलें",
   "email.digest.settings": "अपनी ईमेल सेटिंग बदलें",
+  "email.digest.otherAlerts": "अन्य अलर्ट",
 
   "email.alertItem.severity.high": "उच्च प्राथमिकता",
   "email.alertItem.severity.normal": "सामान्य",

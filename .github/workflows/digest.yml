@@ -1,0 +1,39 @@
+name: Digest
+
+on:
+  schedule:
+    # Daily digests every day, weekly ones on Mondays (the command decides by the UTC date).
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Its own group: it only reads alerts and sends email, so it never waits behind (or holds up) the ingest runs.
+concurrency:
+  group: digest
+  cancel-in-progress: false
+
+# Secrets are given only to the step that runs the CLI, never to npm ci or the build.
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npx nx build ingest
+      - name: digest:send
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+          APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+          MAIL_TRANSPORT: resend
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ vars.MAIL_FROM }}
+          NODE_ENV: production
+        run: node dist/apps/ingest/main.js digest:send

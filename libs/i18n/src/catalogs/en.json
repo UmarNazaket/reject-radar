@@ -43,6 +43,7 @@
   "email.digest.more": "{count, plural, one {# more alert is waiting in your account.} other {# more alerts are waiting in your account.}}",
   "email.digest.viewAll": "Open your alerts",
   "email.digest.settings": "Change your email settings",
+  "email.digest.otherAlerts": "Other alerts",
 
   "email.alertItem.severity.high": "High priority",
   "email.alertItem.severity.normal": "Normal",
