@@ -1,4 +1,5 @@
-import type { BillingInterval, SubscriptionStatus } from './accounts';
+import { z } from 'zod';
+import { BILLING_INTERVALS, type BillingInterval, type SubscriptionStatus } from './accounts';
 import type { ApiEnv } from './env';
 import type { PlanId, PlanLimits } from './plans';
 
@@ -95,4 +96,20 @@ export interface SubscriptionResponse {
   canManage: boolean;
   limits: PlanLimits;
   usage: BillingUsage;
+}
+
+/** `POST /billing/checkout`: what the owner wants to buy. Enterprise and Free are not sold here (P7-D8). */
+export const checkoutRequest = z.object({ plan: z.enum(PAID_PLAN_IDS), interval: z.enum(BILLING_INTERVALS) });
+export type CheckoutRequest = z.infer<typeof checkoutRequest>;
+
+/** What the web app's Paddle.js overlay needs to open checkout (spec §10.2, P7-D8). */
+export interface CheckoutResponse {
+  priceId: string;
+  /** Exactly `{ orgId }`: the webhook finds the account from it (P7-D4). */
+  customData: { orgId: string };
+  customerEmail: string;
+  clientToken: string;
+  environment: PaddleEnv;
+  /** Where Paddle returns the buyer; the billing page polls until the webhook lands (P9). */
+  successUrl: string;
 }

@@ -88,6 +88,7 @@
   "errors.PLAN_UPGRADE_REQUIRED": "यह सुविधा आपके प्लान में शामिल नहीं है। इसे इस्तेमाल करने के लिए अपना प्लान अपग्रेड करें।",
   "errors.INVALID_RECORD": "यह रिकॉर्ड इस फर्म का नहीं है। रिकॉर्ड जाँचकर फिर से कोशिश करें।",
   "errors.ALREADY_WATCHED": "यह पहले से आपकी वॉचलिस्ट में है।",
+  "errors.ALREADY_SUBSCRIBED": "आपके खाते की सदस्यता पहले से सक्रिय है। उसे बदलने या रद्द करने के लिए बिलिंग पोर्टल का उपयोग करें।",
 
   "taxonomy.commodity.cereals": "अनाज",
   "taxonomy.commodity.rice": "चावल",

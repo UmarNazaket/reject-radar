@@ -1,6 +1,6 @@
-import { alert, notificationPref, uuidv7 } from '@rejectradar/db';
+import { alert, notificationPref, subscription, uuidv7 } from '@rejectradar/db';
 import { insertEvent, insertFirm } from '@rejectradar/entities';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { type AccountFixture, ACCOUNT_ROUTES, type IsolationCase, NOT_ACCOUNT_OWNED } from './isolation-registry';
 import { joinByInvite, setPlan, signUpVerified, startTestApp, type TestApp, type TestSession } from './test-app';
 
@@ -67,6 +67,13 @@ describe('account isolation', () => {
     await t.db.insert(alert).values({ id: alertId, orgId: owner.orgId, changeEventId: eventId, firmId, severity: 'high' });
     // The owner's settings differ from the defaults, so a write to the wrong user shows.
     await t.db.insert(notificationPref).values({ userId: owner.userId, instantHigh: true, digest: 'off' });
+    // A canceled Paddle subscription with its ids: checkout is allowed on it, and the portal has a customer to open.
+    const paddleCustomerId = `ctm_isolation_${tag}`;
+    const paddleSubscriptionId = `sub_isolation_${tag}`;
+    await t.db
+      .update(subscription)
+      .set({ plan: 'pro', status: 'canceled', paddleCustomerId, paddleSubscriptionId })
+      .where(eq(subscription.orgId, owner.orgId));
     return {
       session: owner.session,
       fixture: {
@@ -79,13 +86,14 @@ describe('account isolation', () => {
         watchlistFirmName,
         alertId,
         emails: [`${tag}.owner@isolation.test`, `${tag}.member@isolation.test`, `${tag}.pending@isolation.test`],
+        paddleIds: [paddleCustomerId, paddleSubscriptionId],
       },
     };
   }
 
   /**
    * What an outsider could change in account B: its name, its members and roles, its invites, its watchlist, its alerts' read state,
-   * its members' notification settings and its users' profiles.
+   * its members' notification settings, its users' profiles and its subscription row.
    * Its lookups and disputes are here too; the firm routes are not account-owned, so the cases below do not call them, and
    * `firm-profile.e2e.spec.ts` and `disputes.e2e.spec.ts` prove that A's calls write only A's rows.
    */
@@ -104,6 +112,9 @@ describe('account isolation', () => {
       disputes: await rows(sql`select id, firm_id, status, message from dispute where org_id = ${orgId} order by id`),
       watchlist: await rows(sql`select id, label, notes from watchlist_item where org_id = ${orgId} order by id`),
       alerts: await rows(sql`select id, read_at from alert where org_id = ${orgId} order by id`),
+      subscription: await rows(sql`
+        select plan, status, interval, paddle_customer_id, paddle_subscription_id, current_period_end, cancel_at, paddle_occurred_at
+        from subscription where org_id = ${orgId}`),
       notificationPrefs: await rows(sql`
         select p.user_id, p.instant_high, p.digest, p.last_digest_at
         from notification_pref p join membership m on m.user_id = p.user_id
@@ -175,8 +186,8 @@ describe('account isolation', () => {
 
         // A CSV has no JSON body; its text is what the caller gets.
         const text = res.type === 'text/csv' ? res.text : JSON.stringify(res.body);
-        const { orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, emails } = b.fixture;
-        const secrets = [orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, ...emails];
+        const { orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, emails, paddleIds } = b.fixture;
+        const secrets = [orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, ...emails, ...paddleIds];
         expect({ route: label(c), leaked: secrets.filter((secret) => text.includes(secret)) }).toEqual({ route: label(c), leaked: [] });
         expect(await snapshot(b)).toEqual(before);
       },

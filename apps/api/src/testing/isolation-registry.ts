@@ -16,6 +16,8 @@ export interface AccountFixture {
   watchlistFirmName: string;
   /** The id of the alert on the account's inbox, raised by an event about the watched firm. */
   alertId: string;
+  /** The account's Paddle customer and subscription ids, which no other account may ever see. */
+  paddleIds: string[];
   /** The owner's, the member's and the pending invite's email addresses. */
   emails: string[];
 }
@@ -61,6 +63,7 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   { method: 'GET', path: '/v1/me/notification-prefs' },
   { method: 'PUT', path: '/v1/me/notification-prefs', body: () => ({ instantHigh: false, digest: 'weekly' }) },
   { method: 'GET', path: '/v1/billing/subscription' },
+  { method: 'POST', path: '/v1/billing/checkout', body: () => ({ plan: 'pro', interval: 'month' }) },
 ];
 
 export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }[] = [

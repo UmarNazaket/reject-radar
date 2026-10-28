@@ -88,6 +88,7 @@
   "errors.PLAN_UPGRADE_REQUIRED": "This feature is not included in your plan. Upgrade your plan to use it.",
   "errors.INVALID_RECORD": "That record is not one of this firm's. Check the record and try again.",
   "errors.ALREADY_WATCHED": "This is already on your watchlist.",
+  "errors.ALREADY_SUBSCRIBED": "Your account already has a subscription. Use the billing portal to change or cancel it.",
 
   "taxonomy.commodity.cereals": "Cereals",
   "taxonomy.commodity.rice": "Rice",

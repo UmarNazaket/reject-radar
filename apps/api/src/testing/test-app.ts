@@ -8,6 +8,7 @@ import type { AppOverrides } from '../app/app-overrides';
 import { createApp } from '../bootstrap';
 import { FixedWindowLimiter } from '../common/rate-limit';
 import { DB } from '../database/database.module';
+import { FakePaddleGateway } from './paddle-fixtures';
 
 const SECRET = 'qL8vT2nX5rW9yB3mK7pD1sF6hJ4gZ0cA2eR8tY5uI3o';
 
@@ -154,13 +155,14 @@ export interface TestApp {
 
 /**
  * Boots the whole API on its own test database (`rejectradar_test_<suffix>`, wiped and migrated) with a fake mail
- * transport and `LOG_LEVEL=silent` (nestjs-pino keeps one logger per process). `suffix` must be unique to the spec file.
+ * transport, a fake Paddle gateway (so no e2e boot can reach the real Paddle API) and `LOG_LEVEL=silent` (nestjs-pino keeps
+ * one logger per process). `suffix` must be unique to the spec file.
  * `env` overrides or adds variables, as `testEnv`'s `extra` does (a spec that reads the logs sets `LOG_LEVEL`).
  */
 export async function startTestApp(suffix: string, overrides: AppOverrides = {}, env: Record<string, string> = {}): Promise<TestApp> {
   const url = await prepareTestDatabase(suffix);
   const mail = new FakeTransport();
-  const app = await createApp(testEnv(url, env), { mailTransport: mail, ...overrides });
+  const app = await createApp(testEnv(url, env), { mailTransport: mail, paddleGateway: new FakePaddleGateway(), ...overrides });
   await app.init();
   return {
     app,
