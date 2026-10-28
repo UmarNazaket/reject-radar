@@ -66,25 +66,8 @@ function optionalCredential(name: string, hint: string) {
     });
 }
 
-export const apiEnvSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().default(3000),
-  LOG_LEVEL: z.enum(['silent', 'fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  DATABASE_URL: databaseUrl,
-  JWT_SECRET: strongSecret('JWT_SECRET'),
-  APP_ORIGIN: origin,
-  /** `smtp` posts to MAIL_SMTP_URL (Mailpit locally); `resend` uses the Resend API. Production allows only `resend`. */
-  MAIL_TRANSPORT: z.enum(['smtp', 'resend']).default('smtp'),
-  MAIL_SMTP_URL: z
-    .string()
-    .trim()
-    .regex(/^smtps?:\/\/\S+$/, 'must be an smtp:// or smtps:// URL')
-    .default('smtp://127.0.0.1:1025'),
-  RESEND_API_KEY: optionalCredential('RESEND_API_KEY', 'use the key from the Resend dashboard or leave it empty'),
-  MAIL_FROM: mailFrom,
-  /** Proxies between the client and the API whose X-Forwarded-For we trust, so `req.ip` is the client (P4-D14). */
-  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
-}).superRefine((env, ctx) => {
+/** The refinements every environment that sends mail shares: the Resend key, and Resend only in production. */
+function refineMailEnv(env: { NODE_ENV: string; MAIL_TRANSPORT: string; RESEND_API_KEY?: string | undefined }, ctx: z.RefinementCtx): void {
   if (env.MAIL_TRANSPORT === 'resend' && !env.RESEND_API_KEY) {
     ctx.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'is required when MAIL_TRANSPORT=resend' });
   }
@@ -95,7 +78,38 @@ export const apiEnvSchema = z.object({
       message: 'must be "resend" in production (smtp is for local development)',
     });
   }
+}
+
+/** The variables the mailer reads: the API always, the ingest CLI only for `alerts:run` and `digest:send`. */
+const mailEnvFields = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  APP_ORIGIN: origin,
+  /** `smtp` posts to MAIL_SMTP_URL (Mailpit locally); `resend` uses the Resend API. Production allows only `resend`. */
+  MAIL_TRANSPORT: z.enum(['smtp', 'resend']).default('smtp'),
+  MAIL_SMTP_URL: z
+    .string()
+    .trim()
+    .regex(/^smtps?:\/\/\S+$/, 'must be an smtp:// or smtps:// URL')
+    .default('smtp://127.0.0.1:1025'),
+  RESEND_API_KEY: optionalCredential('RESEND_API_KEY', 'use the key from the Resend dashboard or leave it empty'),
+  MAIL_FROM: mailFrom,
 });
+
+export const mailEnvSchema = mailEnvFields.superRefine(refineMailEnv);
+
+export type MailEnv = z.output<typeof mailEnvSchema>;
+
+export const apiEnvSchema = z
+  .object({
+    ...mailEnvFields.shape,
+    PORT: z.coerce.number().int().positive().default(3000),
+    LOG_LEVEL: z.enum(['silent', 'fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+    DATABASE_URL: databaseUrl,
+    JWT_SECRET: strongSecret('JWT_SECRET'),
+    /** Proxies between the client and the API whose X-Forwarded-For we trust, so `req.ip` is the client (P4-D14). */
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  })
+  .superRefine(refineMailEnv);
 
 export type ApiEnv = z.output<typeof apiEnvSchema>;
 

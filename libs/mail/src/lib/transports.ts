@@ -1,4 +1,4 @@
-import type { ApiEnv } from '@rejectradar/contracts';
+import type { MailEnv } from '@rejectradar/contracts';
 import { createTransport, type Transporter } from 'nodemailer';
 import { Resend } from 'resend';
 
@@ -13,9 +13,6 @@ export interface MailMessage {
 export interface MailTransport {
   send(message: MailMessage): Promise<{ providerId: string | null }>;
 }
-
-/** Injection token for the transport the mailer sends through. */
-export const MAIL_TRANSPORT = Symbol('MAIL_TRANSPORT');
 
 /** SMTP through nodemailer: Mailpit in development, any SMTP relay elsewhere. */
 export class SmtpTransport implements MailTransport {
@@ -40,7 +37,7 @@ export class ResendTransport implements MailTransport {
   }
 }
 
-export function createMailTransport(env: ApiEnv): MailTransport {
+export function createMailTransport(env: MailEnv): MailTransport {
   if (env.MAIL_TRANSPORT === 'resend') {
     // The env schema already requires the key whenever MAIL_TRANSPORT=resend.
     return new ResendTransport(new Resend(env.RESEND_API_KEY));

@@ -1,13 +1,13 @@
 import type { INestApplication } from '@nestjs/common';
 import { apiEnvSchema, type ApiEnv, type InviteRole, type Locale, parseEnv, type PlanId } from '@rejectradar/contracts';
 import { appUser, type Database, membership, org, prepareTestDatabase } from '@rejectradar/db';
+import type { MailMessage, MailTransport } from '@rejectradar/mail';
 import { and, eq, sql } from 'drizzle-orm';
 import request from 'supertest';
 import type { AppOverrides } from '../app/app-overrides';
 import { createApp } from '../bootstrap';
 import { FixedWindowLimiter } from '../common/rate-limit';
 import { DB } from '../database/database.module';
-import type { MailMessage, MailTransport } from '../mail/transports';
 
 const SECRET = 'qL8vT2nX5rW9yB3mK7pD1sF6hJ4gZ0cA2eR8tY5uI3o';
 

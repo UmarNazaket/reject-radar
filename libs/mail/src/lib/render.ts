@@ -36,7 +36,7 @@ const TEMPLATES: Readonly<Record<TemplateName, TemplateSpec>> = {
 
 const ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'member']);
 
-function assertHttpUrl(name: string, value: string): void {
+export function assertHttpUrl(name: string, value: string): void {
   let protocol: string;
   try {
     protocol = new URL(value).protocol;
@@ -52,10 +52,10 @@ function withLocalisedRole(locale: Locale, params: Record<string, string>): Reco
 }
 
 /** Subjects are single-line plain text; a name with a line break must not be able to add a header. */
-const singleLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, ' ').trim();
+export const singleLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, ' ').trim();
 
 /** The plain-text version is not HTML, but it must never contain markup, so angle brackets are dropped. */
-const stripAngles = (value: string) => value.replace(/[<>]/g, '');
+export const stripAngles = (value: string) => value.replace(/[<>]/g, '');
 
 /**
  * Renders one of the four account emails in `locale`. Every parameter is HTML-escaped in the HTML version; the
@@ -107,6 +107,6 @@ export function renderEmail(template: TemplateName, locale: Locale, params: Reco
   return { subject: singleLine(t(`email.${spec.prefix}.subject`)), html, text: `${textLines.join('\n\n')}\n` };
 }
 
-function buttonHtml(href: string, label: string): string {
+export function buttonHtml(href: string, label: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px;"><tr><td style="background-color: #1F4FCC; border-radius: 6px;"><a href="${escapeHtml(href)}" style="display: inline-block; padding: 14px 24px; font-weight: 600; color: #FFFFFF; text-decoration: none;">${escapeHtml(label)}</a></td></tr></table>`;
 }

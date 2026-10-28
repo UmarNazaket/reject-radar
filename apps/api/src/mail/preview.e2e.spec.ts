@@ -15,7 +15,7 @@ describe('dev email preview', () => {
     await t.close();
   });
 
-  it('lists 16 previews', async () => {
+  it('lists 24 previews', async () => {
     const res = await request(t.app.getHttpServer())
       .get('/v1/dev/emails')
       .expect(200);
@@ -24,12 +24,12 @@ describe('dev email preview', () => {
     const links = [
       ...res.text.matchAll(/href="(\/v1\/dev\/emails\/[a-z_]+\/[a-z]+)"/g),
     ].map((m) => m[1]);
-    expect(links).toHaveLength(16);
-    expect(new Set(links).size).toBe(16);
+    expect(links).toHaveLength(24);
+    expect(new Set(links).size).toBe(24);
   });
 
   it('renders every template in every locale', async () => {
-    for (const template of ['verify', 'reset', 'invite', 'account_exists']) {
+    for (const template of ['verify', 'reset', 'invite', 'account_exists', 'instant_alert', 'digest']) {
       for (const locale of LOCALES) {
         const res = await request(t.app.getHttpServer())
           .get(`/v1/dev/emails/${template}/${locale}`)
@@ -54,6 +54,19 @@ describe('dev email preview', () => {
       .get('/v1/dev/emails/account_exists/en')
       .expect(200);
     expect(exists.text).toContain('http://localhost:4200/forgot');
+  });
+
+  it('shows the sample alerts in the instant and digest emails', async () => {
+    const instant = await request(t.app.getHttpServer())
+      .get('/v1/dev/emails/instant_alert/en')
+      .expect(200);
+    expect(instant.text).toContain('Zarfeen Rice Mills');
+    expect(instant.text).toContain('http://localhost:4200/alerts');
+    const digest = await request(t.app.getHttpServer())
+      .get('/v1/dev/emails/digest/hi')
+      .expect(200);
+    expect(digest.text).toContain('Rice and spices from Pakistan');
+    expect(digest.text).toContain('http://localhost:4200/settings');
   });
 
   it('renders Urdu right to left', async () => {

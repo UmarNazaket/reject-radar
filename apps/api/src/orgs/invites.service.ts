@@ -10,6 +10,7 @@ import type {
   MeResponse,
 } from '@rejectradar/contracts';
 import { appUser, type Database, invite, membership, org } from '@rejectradar/db';
+import { renderEmail } from '@rejectradar/mail';
 import { and, count, eq, isNull, sql } from 'drizzle-orm';
 import { byOrg, type RequestContext } from '../auth/context';
 import { commonPasswordError, hashPassword, isCommonPassword, verifyPassword } from '../auth/passwords';
@@ -23,7 +24,6 @@ import { DB } from '../database/database.module';
 import type { Tx } from '../database/tx';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { MailerService } from '../mail/mailer.service';
-import { renderEmail } from '../mail/templates/render';
 import { loadMe } from './me.queries';
 
 /** How long an invite link works (P4-D8), counted on the database clock. */
