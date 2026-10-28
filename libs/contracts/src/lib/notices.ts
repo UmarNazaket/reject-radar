@@ -12,7 +12,12 @@ function commaList<const T extends readonly [string, ...string[]]>(allowed: T) {
     .pipe(z.array(z.enum(allowed)).min(1));
 }
 
-const positiveInt = z.coerce.number().int().positive();
+/** A decimal id that fits a Postgres `integer` (`1e3`, signs and spaces are refused; an out-of-range value would be a 500 in the query). */
+const positiveInt = z
+  .string()
+  .regex(/^[1-9][0-9]{0,9}$/, 'must be a positive whole number')
+  .transform(Number)
+  .pipe(z.number().max(2147483647));
 
 /** `GET /v1/notices` (spec §7.3, P5-D5): every filter is optional and they combine with AND. */
 export const noticeSearchQuery = z.object({
