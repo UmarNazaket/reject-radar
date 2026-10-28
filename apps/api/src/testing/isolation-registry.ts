@@ -86,6 +86,7 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   { method: 'GET', path: '/v1/firms/search', reason: 'Reference data; no account data in the results.' },
   { method: 'GET', path: '/v1/firms/:id', reason: "Reference data; the lookup is charged to the caller's own account." },
   { method: 'POST', path: '/v1/firms/:id/disputes', reason: "Writes only to the caller's account; there is no read." },
+  { method: 'GET', path: '/v1/import-alerts/:number', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl', reason: 'Reference data.' },
   { method: 'POST', path: '/v1/invites/preview', reason: 'The invite token in the body decides the account; the caller needs no session.' },

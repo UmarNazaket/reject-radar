@@ -12,3 +12,4 @@ export * from './lib/taxonomy';
 export * from './lib/notices';
 export * from './lib/firm-api';
 export * from './lib/mrl';
+export * from './lib/import-alerts';

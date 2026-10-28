@@ -7,7 +7,9 @@ import {
   euMrlProduct,
   euPesticideResidue,
   firmFei,
+  importAlert,
   importAlertListingProduct,
+  importAlertSummary,
   notice,
   rasffNotification,
   sourceSyncRun,
@@ -44,6 +46,51 @@ const CHILLI = 201;
 const PESTICIDE_RESIDUES = 100;
 const AFLATOXINS = 300;
 
+const ALERT_SHA = 'a'.repeat(64);
+const STALE_SHA = 'b'.repeat(64);
+
+/** A summary's content as the model returns it; `tag` tells the locales apart in a spec. */
+export function summaryContent(tag: string): Record<string, unknown> {
+  return {
+    summary: `FDA may detain foods without examination (${tag}).`,
+    whatTriggersListing: `Pesticide residues above the limit (${tag}).`,
+    howFirmsGetRemoved: `Submit laboratory results from several shipments (${tag}).`,
+    testsMentioned: ['Pesticide residue analysis'],
+  };
+}
+
+/**
+ * Summaries of Import Alert 99-08, whose text hash is `a…a`: English `approved`, Urdu `machine`, Hindi `draft`, and
+ * Bengali `approved` but for an older text (`b…b`). Import Alert 16-131 has an English `draft` and an Urdu `machine`.
+ */
+async function seedImportAlertSummaries(db: Database): Promise<void> {
+  await db.insert(importAlert).values({
+    number: '16-131',
+    title: 'Detention Without Physical Examination of Fish and Fishery Products',
+    alertType: 'DWPE',
+    isFood: true,
+    reasonText: 'FDA has found unapproved drug residues in fish.',
+    textSha256: ALERT_SHA,
+    url: 'https://www.accessdata.fda.gov/cms_ia/importalert_16-131.html',
+  });
+  const row = (alertNumber: string, locale: string, status: string, sourceSha256: string) => ({
+    alertNumber,
+    locale,
+    status,
+    sourceSha256,
+    content: summaryContent(locale),
+    model: 'fixture',
+  });
+  await db.insert(importAlertSummary).values([
+    row('99-08', 'en', 'approved', ALERT_SHA),
+    row('99-08', 'ur', 'machine', ALERT_SHA),
+    row('99-08', 'hi', 'draft', ALERT_SHA),
+    row('99-08', 'bn', 'approved', STALE_SHA),
+    row('16-131', 'en', 'draft', ALERT_SHA),
+    row('16-131', 'ur', 'machine', ALERT_SHA),
+  ]);
+}
+
 /**
  * Reference data for the database-backed specs, as the syncs would leave it: every record is in its source table and
  * has its notice, the firms are linked and their facts refreshed, and each source has a sync run (all fresh, except
@@ -54,6 +101,7 @@ const AFLATOXINS = 300;
  *     with hazard 300 (aflatoxins), charge code 2561 (in `fda_charge_code`) and a published address;
  *   - a red listing on Import Alert 99-08 with one product, listed and noticed 60 days ago;
  *   - an Australian failed test 40 days ago with a holding order.
+ * - Import Alert 99-08 has its text and the summaries of `seedImportAlertSummaries`, as does 16-131.
  * - "Al Rahman Rice Mills" in Lahore and in Karachi (both PK), without records.
  * - `mergedAway`: a firm with a `firm_alias` row pointing to `zarfeen`.
  * - A RASFF alert from PK to the EU 20 days ago: rice, hazard 100 (pesticide residues), naming tricyclazole.
@@ -136,6 +184,11 @@ export async function seedReferenceData(db: Database): Promise<ReferenceFixture>
         title: 'Detention Without Physical Examination of Processed Human and Animal Foods for Pesticides',
         alertType: 'DWPE',
         publishedOn: '2023-05-02',
+        reasonText: 'FDA has found pesticide residues above the legal limit in processed foods from several countries.',
+        guidanceText: 'FDA may allow release of a shipment that is supported by laboratory results from an accredited lab.',
+        productText: 'Processed human and animal foods, including rice.',
+        chargeText: 'The articles appear to contain pesticide chemical residues.',
+        textSha256: ALERT_SHA,
       },
       notice: {
         commodityId: RICE,
@@ -145,6 +198,7 @@ export async function seedReferenceData(db: Database): Promise<ReferenceFixture>
       },
     },
   );
+  await seedImportAlertSummaries(db);
   await db.insert(importAlertListingProduct).values({
     listingId: listing.id,
     productCode: '25AEC99',

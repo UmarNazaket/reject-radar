@@ -18,6 +18,7 @@ import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { FirmsModule } from '../firms/firms.module';
 import { HealthModule } from '../health/health.module';
 import { MailModule } from '../mail/mail.module';
+import { ImportAlertsModule } from '../import-alerts/import-alerts.module';
 import { MrlModule } from '../mrl/mrl.module';
 import { NoticesModule } from '../notices/notices.module';
 import { OrgsModule } from '../orgs/orgs.module';
@@ -57,6 +58,7 @@ export class AppModule {
         EntitlementsModule,
         FirmsModule,
         HealthModule,
+        ImportAlertsModule,
         MrlModule,
         NoticesModule,
         OrgsModule,
