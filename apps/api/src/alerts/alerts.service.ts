@@ -137,7 +137,7 @@ export class AlertsService {
   /**
    * The unread alerts of each watched item, for the watchlist, in one statement. A firm item counts the alerts of its
    * firm (`alert.firm_id`); a topic item counts the alerts whose event falls inside the topic (spec §11, P5-D6).
-   * Every item is in the result, with 0 when it has none.
+   * Every item is in the result, with 0 when it has none (the map starts at 0; the statement returns only items that have alerts).
    */
   async unreadCounts(orgId: string, items: UnreadCountItem[]): Promise<Map<string, number>> {
     const counts = new Map<string, number>(items.map((item) => [item.id, 0]));
@@ -151,22 +151,31 @@ export class AlertsService {
       sql`, `,
     );
     const ancestors = sql`(select c.ancestor_ids from commodity c where c.id = ${changeEvent.commodityId})`;
+    // Two branches, so each join has an equality the planner can hash: the firm branch joins on the firm id, the topic
+    // branch on the origin country (inside topicMatchesItem). One OR of the two would force a nested loop over
+    // items x unread alerts. An item is a firm or a topic, never both (watchlist_item_kind_ck), so no alert is counted twice for one item.
     const { rows } = await this.db.execute<{ id: string; unread: number }>(sql`
-      select item.id, count(unread.id)::int as unread
-      from (values ${values}) as item(id, firm_id, origin_country, commodity_id, destination, hazard_id)
-      left join (
+      with item(id, firm_id, origin_country, commodity_id, destination, hazard_id) as (values ${values}),
+      unread as (
         select ${alert.id} as id, ${alert.firmId} as firm_id, ${changeEvent.originCountry} as origin_country,
                ${changeEvent.commodityId} as commodity_id, ${changeEvent.destination} as destination, ${changeEvent.hazardIds} as hazard_ids,
                ${ancestors} as ancestor_ids
         from ${alert} join ${changeEvent} on ${changeEvent.id} = ${alert.changeEventId}
         where ${alert.orgId} = ${orgId} and ${alert.readAt} is null
-      ) unread on (item.firm_id is not null and unread.firm_id = item.firm_id)
-        or (item.origin_country is not null and ${topicMatchesItem(
+      )
+      select matched.id, count(*)::int as unread
+      from (
+        select item.id, unread.id as alert_id
+        from item join unread on unread.firm_id = item.firm_id
+        union all
+        select item.id, unread.id as alert_id
+        from item join unread on ${topicMatchesItem(
           { originCountry: sql`unread.origin_country`, commodityId: sql`unread.commodity_id`, destination: sql`unread.destination`, hazardIds: sql`unread.hazard_ids` },
           { originCountry: sql`item.origin_country`, commodityId: sql`item.commodity_id`, destination: sql`item.destination`, hazardId: sql`item.hazard_id` },
           sql`unread.ancestor_ids`,
-        )})
-      group by item.id`);
+        )}
+      ) matched
+      group by matched.id`);
     for (const row of rows) counts.set(row.id, row.unread);
     return counts;
   }
