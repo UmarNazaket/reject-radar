@@ -26,6 +26,11 @@
   "email.accountExists.loginButton": "لاگ ان کریں",
   "email.accountExists.resetButton": "پاس ورڈ ری سیٹ کریں",
 
+  "email.paymentFailed.subject": "آپ کی RejectRadar ادائیگی ناکام ہو گئی",
+  "email.paymentFailed.heading": "ہم آپ کی ادائیگی وصول نہیں کر سکے",
+  "email.paymentFailed.body": "RejectRadar پر {orgName} کی تازہ ترین ادائیگی نہیں ہو سکی۔ اپنا پلان فعال رکھنے کے لیے اپنا ادائیگی کا طریقہ اپ ڈیٹ کریں۔",
+  "email.paymentFailed.button": "بلنگ کھولیں",
+
   "role.owner": "مالک",
   "role.admin": "ایڈمن",
   "role.member": "رکن",

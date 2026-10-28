@@ -20,6 +20,7 @@ const TEMPLATE_NAMES: readonly PreviewName[] = [
   'reset',
   'invite',
   'account_exists',
+  'payment_failed',
   'instant_alert',
   'digest',
 ];
@@ -30,6 +31,7 @@ const LINK_PATHS: Readonly<Record<TemplateName, string>> = {
   reset: '/reset?token=preview',
   invite: '/invite/preview',
   account_exists: '/login',
+  payment_failed: '/app/settings/billing',
 };
 
 const HTML = 'text/html; charset=utf-8';

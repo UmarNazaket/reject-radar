@@ -26,6 +26,11 @@
   "email.accountExists.loginButton": "लॉग इन करें",
   "email.accountExists.resetButton": "पासवर्ड रीसेट करें",
 
+  "email.paymentFailed.subject": "आपका RejectRadar भुगतान विफल हो गया",
+  "email.paymentFailed.heading": "हम आपका भुगतान नहीं ले सके",
+  "email.paymentFailed.body": "RejectRadar पर {orgName} का नवीनतम भुगतान पूरा नहीं हो सका। अपना प्लान चालू रखने के लिए अपना भुगतान तरीका अपडेट करें।",
+  "email.paymentFailed.button": "बिलिंग खोलें",
+
   "role.owner": "स्वामी",
   "role.admin": "एडमिन",
   "role.member": "सदस्य",

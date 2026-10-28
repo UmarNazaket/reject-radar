@@ -3,7 +3,7 @@ import { translate } from '@rejectradar/i18n';
 import { escapeHtml } from './escape';
 import { renderEmail, type TemplateName } from './render';
 
-const TEMPLATES: readonly TemplateName[] = ['verify', 'reset', 'invite', 'account_exists'];
+const TEMPLATES: readonly TemplateName[] = ['verify', 'reset', 'invite', 'account_exists', 'payment_failed'];
 const PARAMS = { name: 'Sara', link: 'https://app.test/verify?token=t&x=1', inviterName: 'Ayesha', orgName: 'Indus Agro', role: 'admin' };
 
 describe('renderEmail', () => {
@@ -100,5 +100,29 @@ describe('renderEmail', () => {
 describe('escapeHtml', () => {
   it('escapes the five HTML-significant characters', () => {
     expect(escapeHtml(`<a href="x">'&'</a>`)).toBe('&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
+  });
+});
+
+describe('renderEmail: payment_failed', () => {
+  const link = 'https://app.test/app/settings/billing';
+
+  it('renders the payment-failed email', () => {
+    const { subject, html, text } = renderEmail('payment_failed', 'en', { orgName: 'Indus Agro', link });
+    expect(subject).toBe(translate('en', 'email.paymentFailed.subject'));
+    expect(html).toContain(`href="${link}"`);
+    expect(html).toContain('Indus Agro');
+    expect(text).toContain(link);
+  });
+
+  it('renders the Urdu version right to left', () => {
+    expect(renderEmail('payment_failed', 'ur', { orgName: 'Indus Agro', link }).html).toContain('dir="rtl"');
+  });
+
+  it('does not tell the reader to ignore it', () => {
+    for (const locale of LOCALES) {
+      const { html, text } = renderEmail('payment_failed', locale, { orgName: 'Indus Agro', link });
+      expect(html).not.toContain(translate(locale, 'email.layout.ignore'));
+      expect(text).not.toContain(translate(locale, 'email.layout.ignore'));
+    }
   });
 });

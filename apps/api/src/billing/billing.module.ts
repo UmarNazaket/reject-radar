@@ -6,6 +6,7 @@ import { OrgsModule } from '../orgs/orgs.module';
 import { WatchlistsModule } from '../watchlists/watchlists.module';
 import { BillingController } from './billing.controller';
 import { BillingService } from './billing.service';
+import { PaymentFailedNotifier } from './payment-failed.notifier';
 import { PADDLE_GATEWAY, SdkPaddleGateway } from './paddle/gateway';
 import { PaddleWebhookService } from './paddle-webhook.service';
 import { WebhooksController } from './webhooks.controller';
@@ -17,7 +18,7 @@ export class BillingModule {
       module: BillingModule,
       imports: [EntitlementsModule, OrgsModule, WatchlistsModule],
       controllers: [BillingController, WebhooksController],
-      providers: [BillingService, PaddleWebhookService, { provide: PADDLE_GATEWAY, useFactory: () => overrides.paddleGateway ?? new SdkPaddleGateway(env) }],
+      providers: [BillingService, PaddleWebhookService, PaymentFailedNotifier, { provide: PADDLE_GATEWAY, useFactory: () => overrides.paddleGateway ?? new SdkPaddleGateway(env) }],
       exports: [PADDLE_GATEWAY],
     };
   }

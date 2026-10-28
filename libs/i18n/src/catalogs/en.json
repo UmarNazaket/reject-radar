@@ -26,6 +26,11 @@
   "email.accountExists.loginButton": "Log in",
   "email.accountExists.resetButton": "Reset password",
 
+  "email.paymentFailed.subject": "Your RejectRadar payment failed",
+  "email.paymentFailed.heading": "We couldn't take your payment",
+  "email.paymentFailed.body": "The latest payment for {orgName} on RejectRadar did not go through. Update your payment method to keep your plan active.",
+  "email.paymentFailed.button": "Open billing",
+
   "role.owner": "Owner",
   "role.admin": "Admin",
   "role.member": "Member",
