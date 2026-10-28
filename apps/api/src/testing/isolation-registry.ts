@@ -10,6 +10,10 @@ export interface AccountFixture {
   ownerId: string;
   memberId: string;
   inviteId: string;
+  /** The id of the firm item on the account's watchlist, its label and the name of its firm. */
+  watchlistItemId: string;
+  watchlistLabel: string;
+  watchlistFirmName: string;
   /** The owner's, the member's and the pending invite's email addresses. */
   emails: string[];
 }
@@ -20,6 +24,8 @@ export interface IsolationCase {
   path: string;
   /** A valid request body for the route, built from account B's fixture when it needs one. */
   body?: (b: AccountFixture) => unknown;
+  /** Query parameters the route needs to answer 200. */
+  query?: Record<string, string>;
   /** Fills the `:params` of `path` with account B's ids; the harness then expects 404 and B unchanged. */
   target?: (b: AccountFixture) => Record<string, string>;
 }
@@ -42,6 +48,12 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   { method: 'DELETE', path: '/v1/org/members/:userId', target: (b) => ({ userId: b.memberId }) },
   { method: 'POST', path: '/v1/org/invites', body: () => ({ email: FRESH_INVITEE, role: 'member' }) },
   { method: 'DELETE', path: '/v1/org/invites/:id', target: (b) => ({ id: b.inviteId }) },
+  { method: 'GET', path: '/v1/watchlist' },
+  { method: 'POST', path: '/v1/watchlist', body: () => ({ kind: 'topic', originCountry: 'VN' }) },
+  { method: 'GET', path: '/v1/watchlist/export.csv' },
+  { method: 'GET', path: '/v1/watchlist/topic-estimate', query: { originCountry: 'VN' } },
+  { method: 'PATCH', path: '/v1/watchlist/:id', body: () => ({ label: 'x' }), target: (b) => ({ id: b.watchlistItemId }) },
+  { method: 'DELETE', path: '/v1/watchlist/:id', target: (b) => ({ id: b.watchlistItemId }) },
 ];
 
 export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }[] = [

@@ -8,7 +8,8 @@ import { escapeLike } from '../common/like';
 import { DB } from '../database/database.module';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** Today in UTC, as `EntitlementsService.historyFrom` counts it. */
+export const TODAY = sql`(now() at time zone 'utc')::date`;
 
 export const NOTICE_COLUMNS = {
   id: notice.id,
@@ -116,17 +117,20 @@ export class NoticesService {
     return toNoticeItem(row);
   }
 
-  /** How many notices of the last `sinceDays` days fall inside `topic` (commodities include their descendants), within the account's window. */
-  async countTopic(orgId: string, topic: TopicFields, sinceDays: number): Promise<number> {
+  /**
+   * How many notices of the last `sinceMonths` calendar months fall inside `topic` (commodities include their
+   * descendants), within the account's window. The window starts at `today - interval 'N months'`, as the dashboard's
+   * `totals12m` does, so a watchlist count and a dashboard total for the same topic agree.
+   */
+  async countTopic(orgId: string, topic: TopicFields, sinceMonths: number): Promise<number> {
     const historyFrom = await this.entitlements.historyFrom(orgId);
-    const since = new Date(Date.now() - sinceDays * DAY_MS).toISOString().slice(0, 10);
-    const from = laterOf(since, historyFrom) as string;
+    const from = sql`greatest((${TODAY} - make_interval(months => ${sinceMonths}))::date, ${historyFrom}::date)`;
     const [row] = await this.db
       .select({ count: sql<number>`count(*)::int` })
       .from(notice)
       .where(
         and(
-          gte(notice.noticeOn, from),
+          sql`${notice.noticeOn} >= ${from}`,
           topicFilter(
             { originCountry: notice.originCountry, commodityId: notice.commodityId, destination: notice.destination, hazardIds: notice.hazardIds },
             topic,

@@ -11,11 +11,9 @@ import { and, desc, type SQL, sql } from 'drizzle-orm';
 import { DB } from '../database/database.module';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { FreshnessService } from './freshness.service';
-import { NOTICE_COLUMNS, toNoticeItem } from './notices.service';
+import { NOTICE_COLUMNS, TODAY, toNoticeItem } from './notices.service';
 
 const MAX_MONTHS = 36;
-/** Today in UTC, as `EntitlementsService.historyFrom` counts it. */
-const TODAY = sql`(now() at time zone 'utc')::date`;
 
 /** One column per destination (`"US"`, `"EU"`, `"UK"`, `"AU"`), each counting the rows of `rows` that go there. */
 const perDestination = (rows: SQL): SQL =>

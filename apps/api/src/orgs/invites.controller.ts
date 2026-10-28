@@ -17,9 +17,9 @@ import { setSessionCookies } from '../auth/cookies';
 import { CurrentContext, Public, RequireVerifiedEmail, Roles } from '../auth/decorators';
 import { RateLimit } from '../common/rate-limit';
 import { ZodValidationPipe } from '../common/zod-pipe';
+import { UuidParamPipe } from '../common/uuid-param.pipe';
 import { API_ENV } from '../config/env';
 import { InvitesService } from './invites.service';
-import { UuidParamPipe } from './uuid-param.pipe';
 
 const HOUR_MS = 3_600_000;
 

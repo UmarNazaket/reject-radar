@@ -23,6 +23,7 @@ import { MrlModule } from '../mrl/mrl.module';
 import { NoticesModule } from '../notices/notices.module';
 import { OrgsModule } from '../orgs/orgs.module';
 import { TaxonomyModule } from '../taxonomy/taxonomy.module';
+import { WatchlistsModule } from '../watchlists/watchlists.module';
 import type { AppOverrides } from './app-overrides';
 
 function pinoOptions(env: ApiEnv, allowTransport: boolean): Options {
@@ -63,6 +64,7 @@ export class AppModule {
         NoticesModule,
         OrgsModule,
         TaxonomyModule,
+        WatchlistsModule,
       ],
       providers: [
         { provide: API_ENV, useValue: env },
