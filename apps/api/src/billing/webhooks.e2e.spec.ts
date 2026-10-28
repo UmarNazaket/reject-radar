@@ -45,6 +45,41 @@ describe('billing: Paddle webhooks', () => {
     const result = await t.db.execute<{ exact: boolean }>(sql`select paddle_occurred_at = ${at}::timestamptz as exact from subscription where org_id = ${orgId}`);
     return result.rows[0].exact;
   };
+  /** Resolves once a backend of this spec's database is waiting on a lock; fails after `ms`. */
+  const untilBlocked = async (ms = 10_000) => {
+    const deadline = Date.now() + ms;
+    for (;;) {
+      const result = await t.db.execute<{ n: number }>(
+        sql`select count(*)::int as n from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
+      );
+      if (result.rows[0].n > 0) return;
+      if (Date.now() > deadline) throw new Error('The delivery never waited on the open transaction');
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  };
+  /**
+   * Inserts `event`'s paddle_event row in a transaction the spec keeps open, delivers the same event (which blocks on
+   * the primary key), then commits or rolls back that transaction and returns what the delivery answered.
+   */
+  const deliverWhileHeld = async (event: PaddleEventEnvelope, outcome: 'commit' | 'rollback') => {
+    const results = spyOnReceive();
+    const rollback = new Error('rollback');
+    let delivery: Promise<Awaited<ReturnType<typeof postWebhook>>> | undefined;
+    try {
+      await t.db.transaction(async (tx) => {
+        await tx.insert(paddleEventTable).values({ eventId: event.event_id, type: event.event_type, payload: event });
+        delivery = postWebhook(t, event).then((res) => res);
+        await untilBlocked();
+        if (outcome === 'rollback') throw rollback;
+      });
+    } catch (error) {
+      if (error !== rollback) throw error;
+    }
+    if (!delivery) throw new Error('The delivery was never started');
+    const res = await delivery;
+    const [result] = await results();
+    return { status: res.status, result };
+  };
   /** Collects what `receive()` returned for every delivery made while it runs. */
   const spyOnReceive = () => {
     const spy = jest.spyOn(t.app.get(PaddleWebhookService), 'receive');
@@ -125,17 +160,34 @@ describe('billing: Paddle webhooks', () => {
     await deliver(event);
     expect((await row(orgId)).plan).toBe('free');
     expect(await eventRows(event.event_id)).toHaveLength(1);
-
-    // Two deliveries of a new event at the same moment: one is applied, the other finds the row and changes nothing.
-    const { orgId: other } = await account();
-    const simultaneous = paddleEvent('subscription.created', paddleSubscription({ orgId: other, priceId: BUSINESS_MONTH }));
-    const results = spyOnReceive();
-    const responses = await Promise.all([postWebhook(t, simultaneous), postWebhook(t, simultaneous)]);
-    expect(responses.map((res) => res.status)).toEqual([200, 200]);
-    expect((await results()).map((result) => result.duplicate).sort()).toEqual([false, true]);
-    expect(await eventRows(simultaneous.event_id)).toHaveLength(1);
-    expect((await row(other)).plan).toBe('business');
   });
+
+  // The two concurrency cases hold the event's paddle_event row in an open transaction, so the delivery is forced to
+  // overlap it and wait on the primary key; the timeouts make a hang fail instead of stalling the suite.
+  it('a delivery that overlaps a committed one is a duplicate', async () => {
+    const { orgId } = await account();
+    const event = paddleEvent('subscription.created', paddleSubscription({ orgId, priceId: BUSINESS_MONTH }));
+    const { status, result } = await deliverWhileHeld(event, 'commit');
+    expect(status).toBe(200);
+    expect(result).toEqual({ duplicate: true, pastDueOrgIds: [] });
+    expect(await row(orgId)).toMatchObject({ plan: 'free', paddleSubscriptionId: null, paddleOccurredAt: null });
+    const rows = await eventRows(event.event_id);
+    expect(rows).toHaveLength(1);
+    // Still the row the other transaction wrote; the delivery processed nothing.
+    expect(rows[0].processedAt).toBeNull();
+  }, 30_000);
+
+  it('a delivery that overlaps a rolled-back one applies the event', async () => {
+    const { orgId } = await account();
+    const event = paddleEvent('subscription.created', paddleSubscription({ orgId, priceId: BUSINESS_MONTH }));
+    const { status, result } = await deliverWhileHeld(event, 'rollback');
+    expect(status).toBe(200);
+    expect(result).toEqual({ duplicate: false, pastDueOrgIds: [] });
+    expect((await row(orgId)).plan).toBe('business');
+    const rows = await eventRows(event.event_id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].processedAt).toBeInstanceOf(Date);
+  }, 30_000);
 
   it('older events are not applied', async () => {
     const { orgId } = await account();
@@ -209,6 +261,39 @@ describe('billing: Paddle webhooks', () => {
       { duplicate: false, pastDueOrgIds: [orgId] },
       { duplicate: false, pastDueOrgIds: [] },
     ]);
+  });
+
+  it('events about a replaced subscription are not applied', async () => {
+    const { session, orgId } = await account();
+    const customerId = paddleId('ctm');
+    const a = { id: paddleId('sub'), customerId, orgId, priceId: PRO_MONTH };
+    const b = { id: paddleId('sub'), customerId, orgId, priceId: BUSINESS_MONTH };
+    await deliver(paddleEvent('subscription.created', paddleSubscription(a), { occurred_at: '2030-01-15T10:00:00Z' }));
+    await deliver(paddleEvent('subscription.updated', paddleSubscription({ ...a, status: 'paused' }), { occurred_at: '2030-01-16T10:00:00Z' }));
+    // Checkout is allowed while A is paused, so the account buys B, which replaces A on the row.
+    await deliver(paddleEvent('subscription.created', paddleSubscription(b), { occurred_at: '2030-01-17T10:00:00Z' }));
+    expect(await row(orgId)).toMatchObject({ plan: 'business', status: 'active', paddleSubscriptionId: b.id });
+
+    const results = spyOnReceive();
+    // A is canceled later in the portal; its events are newer than B's but about a subscription the row no longer tracks.
+    const canceled = paddleEvent('subscription.canceled', paddleSubscription({ ...a, status: 'canceled', periodEndsAt: null }), {
+      occurred_at: '2030-01-18T10:00:00Z',
+    });
+    await deliver(canceled);
+    expect(await row(orgId)).toMatchObject({ plan: 'business', status: 'active', paddleSubscriptionId: b.id });
+    expect((await eventRows(canceled.event_id))[0].processedAt).toBeInstanceOf(Date);
+    expect(await occurredAtIs(orgId, '2030-01-17T10:00:00Z')).toBe(true);
+    expect(await read(session)).toMatchObject({ plan: 'business', status: 'active' });
+
+    // An old subscription's past_due reports nothing; the tracked one's still does.
+    await deliver(paddleEvent('subscription.past_due', paddleSubscription({ ...a, status: 'past_due' }), { occurred_at: '2030-01-19T10:00:00Z' }));
+    await deliver(paddleEvent('subscription.past_due', paddleSubscription({ ...b, status: 'past_due' }), { occurred_at: '2030-01-20T10:00:00Z' }));
+    expect(await results()).toEqual([
+      { duplicate: false, pastDueOrgIds: [] },
+      { duplicate: false, pastDueOrgIds: [] },
+      { duplicate: false, pastDueOrgIds: [orgId] },
+    ]);
+    expect(await row(orgId)).toMatchObject({ plan: 'business', status: 'past_due', paddleSubscriptionId: b.id });
   });
 
   it('transaction.completed fills a missing customer', async () => {

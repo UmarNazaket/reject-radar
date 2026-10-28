@@ -18,6 +18,9 @@ export interface WebhookResult {
 /** Postgres reads any hex UUID; anything else in `custom_data.orgId` cannot name an account, and would fail the uuid cast. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** A subscription in one of these statuses is still billing the account, so events about any other subscription must not replace it. */
+const BILLING_STATUSES: ReadonlySet<string> = new Set(['active', 'trialing', 'past_due']);
+
 interface AccountRefs {
   orgId?: string | null;
   subscriptionId?: string | null;
@@ -98,6 +101,12 @@ export class PaddleWebhookService {
       this.logger.warn({ eventId }, 'Paddle event matches no account');
       return [];
     }
+    // A paused or canceled subscription can be replaced by a new checkout; a later event about the old one (canceling it in
+    // the portal, say) must not overwrite the one that now bills the account. The row is locked, so this read holds.
+    if (account.paddleSubscriptionId && account.paddleSubscriptionId !== data.id && BILLING_STATUSES.has(account.status)) {
+      this.logger.debug({ eventId }, 'Paddle event is about a subscription the account has replaced; recorded, not applied');
+      return [];
+    }
     const price = this.catalog.byPrice.get(data.items[0]?.price.id ?? '');
     // P7-D5: an unknown price leaves the plan as it is; the status, period and cancel date still apply.
     if (!price) this.logger.warn({ eventId }, 'Paddle event names an unknown price');
@@ -145,14 +154,19 @@ export class PaddleWebhookService {
    * row with the customer id. The row is locked until the transaction ends, so events about one account apply one at a
    * time and the status read here is the one the update replaces.
    */
-  private async locate(tx: Tx, refs: AccountRefs): Promise<{ orgId: string; status: string } | undefined> {
+  private async locate(tx: Tx, refs: AccountRefs): Promise<{ orgId: string; status: string; paddleSubscriptionId: string | null } | undefined> {
     const lookups: SQL[] = [];
     if (refs.orgId && UUID.test(refs.orgId)) lookups.push(eq(subscription.orgId, refs.orgId));
     if (refs.subscriptionId) lookups.push(eq(subscription.paddleSubscriptionId, refs.subscriptionId));
     if (refs.customerId) lookups.push(eq(subscription.paddleCustomerId, refs.customerId));
     for (const where of lookups) {
       // The customer id is not unique; two rows sharing it cannot say which account is meant, so neither is picked.
-      const rows = await tx.select({ orgId: subscription.orgId, status: subscription.status }).from(subscription).where(where).limit(2).for('update');
+      const rows = await tx
+        .select({ orgId: subscription.orgId, status: subscription.status, paddleSubscriptionId: subscription.paddleSubscriptionId })
+        .from(subscription)
+        .where(where)
+        .limit(2)
+        .for('update');
       if (rows.length === 1) return rows[0];
       if (rows.length > 1) return undefined;
     }
