@@ -15,7 +15,7 @@ import { CATALOGS } from '@rejectradar/i18n';
 import { Mailer, type MailMessage, type MailTransport } from '@rejectradar/mail';
 import { eq, sql } from 'drizzle-orm';
 import { openDb } from '../core/db';
-import { DIGEST_MAX_ITEMS, sendDigests } from './send-digests';
+import { DIGEST_MAX_ITEMS, DIGEST_WINDOW_LAG_MS, sendDigests } from './send-digests';
 
 /** Records every message instead of sending it; `failNext` makes the next send fail. */
 class RecordingTransport implements MailTransport {
@@ -43,6 +43,8 @@ const MONDAY = new Date('2026-11-02T03:00:00Z');
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const ago = (from: Date, ms: number) => new Date(from.getTime() - ms);
+/** Where a run's window ends, and the next one starts: the run's clock less the 15 minutes' lag (R15). */
+const windowEnd = (now: Date) => ago(now, DIGEST_WINDOW_LAG_MS);
 
 describe('digest:send', () => {
   let handle: ReturnType<typeof openDb>;
@@ -169,8 +171,8 @@ describe('digest:send', () => {
     // The second user has no pref row, so the window is the last day.
     expect(second?.text).not.toContain('Zarfeen Rice Mills');
     expect(second?.text).toContain('Indus Agro Exports');
-    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(WEDNESDAY);
-    expect((await prefOf(a.userIds[1])).lastDigestAt).toEqual(WEDNESDAY);
+    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(windowEnd(WEDNESDAY));
+    expect((await prefOf(a.userIds[1])).lastDigestAt).toEqual(windowEnd(WEDNESDAY));
     expect((await deliveries()).map((d) => [d.kind, d.status])).toEqual([['digest', 'sent'], ['digest', 'sent']]);
   });
 
@@ -211,7 +213,7 @@ describe('digest:send', () => {
     expect(transport.sent[0].subject).toBe('Your weekly RejectRadar digest');
     expect(transport.sent[0].text).toContain('Weekly Foods');
     expect(transport.sent[0].text).not.toContain('Too Old Foods');
-    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(MONDAY);
+    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(windowEnd(MONDAY));
   });
 
   it('daily users get their digest on a Monday too', async () => {
@@ -228,8 +230,8 @@ describe('digest:send', () => {
     expect(result).toEqual({ users: 2, sent: 0, paused: 0, failed: 0, empty: 2 });
     expect(transport.sent).toEqual([]);
     expect(await deliveries()).toEqual([]);
-    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(WEDNESDAY);
-    expect((await prefOf(a.userIds[1])).lastDigestAt).toEqual(WEDNESDAY);
+    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(windowEnd(WEDNESDAY));
+    expect((await prefOf(a.userIds[1])).lastDigestAt).toEqual(windowEnd(WEDNESDAY));
     expect((await prefOf(a.userIds[0])).digest).toBe('daily');
   });
 
@@ -270,9 +272,117 @@ describe('digest:send', () => {
     expect(transport.sent).toHaveLength(1);
     expect(transport.sent[0].text).toContain('Tuesday Foods');
     expect(transport.sent[0].text).toContain('Wednesday Foods');
-    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(thursday);
+    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(windowEnd(thursday));
     const digests = (await deliveries()).filter((d) => d.kind === 'digest').map((d) => d.status).sort();
     expect(digests).toEqual(['paused', 'sent']);
+  });
+
+  it('weekly: a digest paused on Monday goes out on Tuesday and covers both days', async () => {
+    const lastMonday = new Date('2026-10-26T03:00:00Z');
+    const tuesday = new Date('2026-11-03T03:00:00Z');
+    const a = await account('a', [{ digest: 'weekly', lastDigestAt: lastMonday }]);
+    const first = await insertFirm(db, { displayName: 'Last Week Foods' });
+    const second = await insertFirm(db, { displayName: 'Monday Foods' });
+    await addAlert(a.orgId, { firmId: first, createdAt: new Date('2026-10-30T10:00:00Z') });
+    await addAlert(a.orgId, { firmId: second, createdAt: new Date('2026-11-02T10:00:00Z') }); // after Monday's run
+    await db.execute(sql`insert into email_delivery (id, to_email, kind, status) select gen_random_uuid(), 'seed@example.com', 'verify', 'sent' from generate_series(1, 90)`);
+
+    const paused = await run(MONDAY);
+    expect(paused).toEqual({ users: 1, sent: 0, paused: 1, failed: 0, empty: 0 });
+    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(lastMonday);
+
+    // The cap resets at UTC midnight on the database clock: move the 90 rows back one day.
+    await db.execute(sql`update email_delivery set created_at = created_at - interval '1 day' where status = 'sent'`);
+
+    const sent = await run(tuesday);
+    expect(sent).toEqual({ users: 1, sent: 1, paused: 0, failed: 0, empty: 0 });
+    expect(transport.sent).toHaveLength(1);
+    expect(transport.sent[0].text).toContain('Last Week Foods');
+    expect(transport.sent[0].text).toContain('Monday Foods');
+    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(windowEnd(tuesday));
+
+    // Having had this week's digest, the user waits for next Monday.
+    expect(await run(new Date('2026-11-04T03:00:00Z'))).toEqual({ users: 0, sent: 0, paused: 0, failed: 0, empty: 0 });
+  });
+
+  it('weekly: a user with a digest from this week is not due on the other days', async () => {
+    const a = await account('a', [{ digest: 'weekly', lastDigestAt: new Date('2026-11-02T02:45:00Z') }]);
+    await addAlert(a.orgId, { createdAt: new Date('2026-11-02T10:00:00Z') });
+
+    expect(await run(new Date('2026-11-03T03:00:00Z'))).toMatchObject({ users: 0 });
+    expect(await run(new Date('2026-11-08T03:00:00Z'))).toMatchObject({ users: 0 }); // Sunday
+    expect(await run(new Date('2026-11-09T03:00:00Z'))).toMatchObject({ users: 1, sent: 1 }); // next Monday
+  });
+
+  it('the Monday check is in UTC, whatever the time zone of the process', async () => {
+    const zone = process.env.TZ;
+    process.env.TZ = 'Asia/Karachi'; // UTC+5: the Monday evening below is already Tuesday there, and Sunday evening is Monday
+    try {
+      await account('a', [{ digest: 'weekly' }]);
+      expect(await run(new Date('2026-11-01T20:00:00Z'))).toMatchObject({ users: 0 }); // Sunday 20:00Z, Monday 01:00 in UTC+5
+      expect(await run(new Date('2026-11-02T20:00:00Z'))).toMatchObject({ users: 1, empty: 1 }); // Monday 20:00Z, Tuesday 01:00 in UTC+5
+    } finally {
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
+    }
+  });
+
+  it('alerts from the last 15 minutes wait for the next digest', async () => {
+    const a = await account('a', [{}]);
+    const older = await insertFirm(db, { displayName: 'Older Foods' });
+    const recent = await insertFirm(db, { displayName: 'Recent Foods' });
+    await addAlert(a.orgId, { firmId: older, createdAt: ago(WEDNESDAY, HOUR) });
+    await addAlert(a.orgId, { firmId: recent, createdAt: ago(WEDNESDAY, 5 * 60_000) });
+
+    expect(await run(WEDNESDAY)).toMatchObject({ sent: 1 });
+    expect(transport.sent[0].text).toContain('Older Foods');
+    expect(transport.sent[0].text).not.toContain('Recent Foods');
+
+    // The next run's window starts where this one ended, so the recent alert is in it.
+    expect(await run(new Date(WEDNESDAY.getTime() + DAY))).toMatchObject({ sent: 1 });
+    expect(transport.sent[1].text).toContain('Recent Foods');
+    expect(transport.sent[1].text).not.toContain('Older Foods');
+  });
+
+  it('without an injected clock the window is measured on the database clock', async () => {
+    const a = await account('a', [{}]);
+    const f = await insertFirm(db, { displayName: 'Clock Foods' });
+    const olderEvent = await insertEvent(db, { source: 'rasff', sourceKey: `k-${++keys}`, firmId: f });
+    const recentEvent = await insertEvent(db, { source: 'rasff', sourceKey: `k-${++keys}`, originCountry: 'IN', commodityId: null });
+    await db.insert(alert).values({ id: uuidv7(), orgId: a.orgId, severity: 'normal', changeEventId: olderEvent, firmId: f, createdAt: sql`now() - interval '1 hour'` });
+    await db.insert(alert).values({ id: uuidv7(), orgId: a.orgId, severity: 'normal', changeEventId: recentEvent, createdAt: sql`now() - interval '5 minutes'` });
+
+    const result = await sendDigests({ db, mailer, appOrigin: APP_ORIGIN });
+
+    expect(result).toMatchObject({ sent: 1 });
+    expect(transport.sent[0].text).toContain('Clock Foods');
+    expect(transport.sent[0].text).not.toContain('India');
+    const { lastDigestAt } = await prefOf(a.userIds[0]);
+    expect(Math.abs(Date.now() - DIGEST_WINDOW_LAG_MS - (lastDigestAt?.getTime() ?? 0))).toBeLessThan(60_000);
+  });
+
+  it('a user whose digest throws is counted as failed and logged without the address', async () => {
+    const a = await account('a', [{}, {}]);
+    await addAlert(a.orgId, { createdAt: ago(WEDNESDAY, HOUR) });
+    const spy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const broken = {
+      send: async () => {
+        throw Object.assign(new Error('could not store a-0@example.com'), { name: 'error', code: '23505', constraint: 'email_delivery_pkey' });
+      },
+    } as unknown as Mailer;
+
+    try {
+      const result = await sendDigests({ db, mailer: broken, appOrigin: APP_ORIGIN, now: () => WEDNESDAY });
+
+      expect(result).toEqual({ users: 2, sent: 0, paused: 0, failed: 2, empty: 0 });
+      expect(spy).toHaveBeenCalledTimes(2);
+      const line = String(spy.mock.calls[0][0]);
+      expect(line).toContain('code 23505');
+      expect(line).toContain('constraint email_delivery_pkey');
+      expect(line).not.toContain('example.com');
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('a failed send keeps the window and is counted', async () => {
@@ -343,7 +453,7 @@ describe('digest:send', () => {
   it('more than 50: 60 alerts render 50 items and a line for the other 10', async () => {
     const a = await account('a', [{}]);
     const f = await insertFirm(db, { displayName: 'Busy Foods' });
-    for (let i = 0; i < 60; i += 1) await addAlert(a.orgId, { firmId: f, createdAt: ago(WEDNESDAY, (i + 1) * 60_000) });
+    for (let i = 0; i < 60; i += 1) await addAlert(a.orgId, { firmId: f, createdAt: ago(WEDNESDAY, (i + 16) * 60_000) });
 
     await run(WEDNESDAY);
 
@@ -351,7 +461,7 @@ describe('digest:send', () => {
     const message = transport.sent[0];
     expect(countOf(message.text, CATALOGS.en['email.alertItem.view'])).toBe(50);
     expect(message.text).toContain('10 more alerts are waiting in your account.');
-    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(WEDNESDAY);
+    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(windowEnd(WEDNESDAY));
   });
 
   it('groups: one group per firm, topic-only alerts by origin and commodity', async () => {

@@ -249,6 +249,8 @@ program
       });
       const result = await sendDigests({ db, mailer, appOrigin: mail.APP_ORIGIN });
       console.log(JSON.stringify(result, null, 2));
+      // A digest that could not be sent makes the run fail, so GitHub Actions emails the owner.
+      if (result.failed > 0) process.exitCode = 1;
     } finally {
       await close();
     }
