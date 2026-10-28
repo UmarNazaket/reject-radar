@@ -14,13 +14,15 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "strict": true,
     "paths": {
       "@rejectradar/contracts": ["./libs/contracts/src/index.ts"],
       "@rejectradar/matching": ["./libs/matching/src/index.ts"],
       "@rejectradar/db": ["./libs/db/src/index.ts"],
       "@rejectradar/taxonomy": ["./libs/taxonomy/src/index.ts"],
-      "@rejectradar/entities": ["./libs/entities/src/index.ts"]
+      "@rejectradar/entities": ["./libs/entities/src/index.ts"],
+      "@rejectradar/i18n": ["./libs/i18n/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

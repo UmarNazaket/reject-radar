@@ -85,6 +85,20 @@
       "when": 1792610049345,
       "tag": "0011_entity_resolution",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793110224462,
+      "tag": "0012_email_delivery_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793111241235,
+      "tag": "0013_account_checks",
+      "breakpoints": true
     }
   ]
 }

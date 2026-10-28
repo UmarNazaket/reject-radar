@@ -9,6 +9,7 @@ const valid: Record<string, string | undefined> = {
   DATABASE_URL: 'postgres://rejectradar:rejectradar@localhost:5432/rejectradar',
   JWT_SECRET: SECRET,
   APP_ORIGIN: 'http://localhost:4200',
+  MAIL_FROM: 'RejectRadar <test@rejectradar.test>',
 };
 
 function errorFor(overrides: Record<string, string | undefined>): EnvValidationError {
@@ -56,13 +57,76 @@ describe('apiEnvSchema', () => {
     expect(errorFor({ DATABASE_URL: 'mysql://user@host/db' }).message).toContain('DATABASE_URL');
   });
 
-  it('strips a trailing slash from APP_ORIGIN', () => {
-    const env = parseEnv(apiEnvSchema, { ...valid, APP_ORIGIN: 'https://app.example.com/' });
-    expect(env.APP_ORIGIN).toBe('https://app.example.com');
+  it('normalises APP_ORIGIN with URL', () => {
+    const origin = (APP_ORIGIN: string) => parseEnv(apiEnvSchema, { ...valid, APP_ORIGIN }).APP_ORIGIN;
+    expect(origin('HTTPS://App.Example.com/')).toBe('https://app.example.com');
+    expect(origin('http://localhost:4200')).toBe('http://localhost:4200');
+    expect(origin(' https://app.example.com ')).toBe('https://app.example.com');
   });
 
-  it('rejects an APP_ORIGIN that has a path', () => {
-    expect(errorFor({ APP_ORIGIN: 'https://app.example.com/login' }).message).toContain('APP_ORIGIN');
+  it.each([
+    ['a path', 'https://app.example.com/x'],
+    ['credentials', 'https://u:p@app.example.com'],
+    ['a query', 'https://app.example.com?a=1'],
+    ['another scheme', 'ftp://x'],
+    ['a non-URL', 'not a url'],
+  ])('rejects an APP_ORIGIN with %s', (_label, APP_ORIGIN) => {
+    expect(errorFor({ APP_ORIGIN }).message).toContain('APP_ORIGIN');
+  });
+
+  it('requires a Resend key for the resend transport', () => {
+    const missing = errorFor({ MAIL_TRANSPORT: 'resend' });
+    expect(missing.issues.some((issue) => issue.startsWith('RESEND_API_KEY'))).toBe(true);
+    const placeholder = errorFor({ MAIL_TRANSPORT: 'resend', RESEND_API_KEY: 're_placeholder' });
+    expect(placeholder.issues.some((issue) => issue.startsWith('RESEND_API_KEY') && issue.includes('placeholder'))).toBe(true);
+    const ok = parseEnv(apiEnvSchema, { ...valid, MAIL_TRANSPORT: 'resend', RESEND_API_KEY: ' re_9fK2xQ7LmN4pR8sT ' });
+    expect(ok.RESEND_API_KEY).toBe('re_9fK2xQ7LmN4pR8sT');
+  });
+
+  it('refuses smtp in production', () => {
+    const error = errorFor({ NODE_ENV: 'production', MAIL_TRANSPORT: 'smtp' });
+    expect(error.issues.some((issue) => issue.startsWith('MAIL_TRANSPORT'))).toBe(true);
+    const ok = parseEnv(apiEnvSchema, {
+      ...valid,
+      NODE_ENV: 'production',
+      MAIL_TRANSPORT: 'resend',
+      RESEND_API_KEY: 're_9fK2xQ7LmN4pR8sT',
+    });
+    expect(ok.MAIL_TRANSPORT).toBe('resend');
+  });
+
+  it('defaults the mail transport to smtp on the local Mailpit', () => {
+    const env = parseEnv(apiEnvSchema, valid);
+    expect(env.MAIL_TRANSPORT).toBe('smtp');
+    expect(env.MAIL_SMTP_URL).toBe('smtp://127.0.0.1:1025');
+    expect(env.RESEND_API_KEY).toBeUndefined();
+  });
+
+  it('rejects a MAIL_SMTP_URL that is not smtp:// or smtps://', () => {
+    expect(errorFor({ MAIL_SMTP_URL: 'http://127.0.0.1:1025' }).message).toContain('MAIL_SMTP_URL');
+  });
+
+  it('requires MAIL_FROM', () => {
+    expect(errorFor({ MAIL_FROM: undefined }).message).toContain('MAIL_FROM');
+  });
+
+  it.each(['RejectRadar <alerts@rejectradar.umarnazaket.com>', 'alerts@rejectradar.umarnazaket.com'])(
+    'accepts MAIL_FROM %s',
+    (MAIL_FROM) => {
+      expect(parseEnv(apiEnvSchema, { ...valid, MAIL_FROM }).MAIL_FROM).toBe(MAIL_FROM);
+    },
+  );
+
+  it.each(['RejectRadar <not-an-address>', 'just a name', 'Name <a@b.co> trailing'])('rejects MAIL_FROM %s', (MAIL_FROM) => {
+    expect(errorFor({ MAIL_FROM }).message).toContain('MAIL_FROM');
+  });
+
+  it('defaults TRUST_PROXY_HOPS to 0 and bounds it to 0-5', () => {
+    expect(parseEnv(apiEnvSchema, valid).TRUST_PROXY_HOPS).toBe(0);
+    expect(parseEnv(apiEnvSchema, { ...valid, TRUST_PROXY_HOPS: '2' }).TRUST_PROXY_HOPS).toBe(2);
+    expect(errorFor({ TRUST_PROXY_HOPS: '6' }).message).toContain('TRUST_PROXY_HOPS');
+    expect(errorFor({ TRUST_PROXY_HOPS: '-1' }).message).toContain('TRUST_PROXY_HOPS');
+    expect(errorFor({ TRUST_PROXY_HOPS: '1.5' }).message).toContain('TRUST_PROXY_HOPS');
   });
 
   it('reports every problem at once', () => {

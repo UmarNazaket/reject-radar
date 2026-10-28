@@ -1,20 +1,8 @@
 import { type INestApplication, Logger } from '@nestjs/common';
-import { apiEnvSchema, type ApiEnv, parseEnv } from '@rejectradar/contracts';
 import { prepareTestDatabase } from '@rejectradar/db';
 import request from 'supertest';
 import { createApp } from '../bootstrap';
-
-const SECRET = 'qL8vT2nX5rW9yB3mK7pD1sF6hJ4gZ0cA2eR8tY5uI3o';
-
-function testEnv(databaseUrl: string): ApiEnv {
-  return parseEnv(apiEnvSchema, {
-    NODE_ENV: 'test',
-    LOG_LEVEL: 'silent',
-    DATABASE_URL: databaseUrl,
-    JWT_SECRET: SECRET,
-    APP_ORIGIN: 'http://localhost:4200',
-  });
-}
+import { testEnv } from '../testing/test-app';
 
 describe('health endpoints', () => {
   let app: INestApplication;

@@ -119,6 +119,7 @@ apps/
   ingest/     Ingestion CLI run by the scheduled workflows
 libs/
   contracts/  zod schemas and types for every request and response, plans and limits
+  i18n/       message catalogs in English, Urdu, Hindi and Bengali, and server-side translation
   db/         Drizzle schema, SQL migrations, connection pool
   taxonomy/   commodity and hazard rules and rule matching
   matching/   name, address and country normalisation and scoring
@@ -142,6 +143,22 @@ npm run db:up    # PostgreSQL on 127.0.0.1:5432, Mailpit on 127.0.0.1:1025 / 802
 ```
 
 FDA refusals need free credentials from FDA's OII Unified Logon, set as `FDA_API_USER` and `FDA_API_KEY` in `.env`. `INGEST_CONTACT_EMAIL` goes into the User-Agent of every request to a source.
+
+### API environment variables
+
+The API validates its environment at start and refuses to start on a missing or placeholder value. `.env.example` lists them all; these are the ones for accounts and email.
+
+| Variable           | What it is                                                                                                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JWT_SECRET`       | Signs access tokens. Generate it with `npm run secret`.                                                                                                                                           |
+| `APP_ORIGIN`       | The web app's origin, used in email links and CORS.                                                                                                                                               |
+| `MAIL_TRANSPORT`   | `smtp` (Mailpit, for local development) or `resend`. In production the API refuses to start unless it is `resend`.                                                                                |
+| `MAIL_SMTP_URL`    | Where the `smtp` transport sends mail. Default `smtp://127.0.0.1:1025`.                                                                                                                           |
+| `RESEND_API_KEY`   | Required when `MAIL_TRANSPORT=resend`. A sending-only key from the Resend dashboard.                                                                                                              |
+| `MAIL_FROM`        | The From header of every email, as `"Name <address>"` or a bare address. The domain must be verified in Resend.                                                                                   |
+| `TRUST_PROXY_HOPS` | How many proxies in front of the API to trust for the client IP, from 0 to 5. Default 0. Staging and production sit behind Cloudflare and Render, so set it from what the logs show for `req.ip`. |
+
+Locally, `npx nx serve api` sends account emails to Mailpit, whose inbox is at http://localhost:8025. In development and test, http://localhost:3000/v1/dev/emails previews every account email in every language, including the right-to-left Urdu layout. The route does not exist in production.
 
 ### Common commands
 
@@ -193,7 +210,7 @@ About 70 development days in 11 phases.
 | P1    | Foundation: workspace, database, CI, accounts, checks of every source                | ✅ Done (October 2026)                                                                                                                                                                                                  |
 | P2    | Ingestion and taxonomy: six sources, full history, scheduled syncs                   | Built and merged. Staging holds FDA refusals since 2016, RASFF since 2020, UK, Australia and EU MRLs (195 MB). Still to do: the first full Import Alert crawl, a week of green scheduled runs and the final size check. |
 | P3    | Entity resolution: linking, firm facts, merge and split                              | Built and merged; 20,833 firms from 90,614 records on a full local load. Waiting for the labelled-pair precision gate and the first link on staging.                                                                    |
-| P4    | Auth, accounts, email and the i18n core                                              | Not started                                                                                                                                                                                                             |
+| P4    | Auth, accounts, email and the i18n core                                              | Built on branch `p4/auth-accounts`, not merged. Sign-up, login, sessions, password reset, members and invites, the email cap and localised emails. Still to do: review, then the staging migrations and settings.       |
 | P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Not started                                                                                                                                                                                                             |
 | P6    | Bulk supplier screening and PDF reports                                              | Not started                                                                                                                                                                                                             |
 | P7    | Billing with Paddle                                                                  | Not started                                                                                                                                                                                                             |
