@@ -14,6 +14,7 @@ import { eq, sql } from 'drizzle-orm';
 import { byOrg, type RequestContext } from '../auth/context';
 import { toCsvRow } from '../common/csv';
 import { AppError } from '../common/errors';
+import { AlertsService } from '../alerts/alerts.service';
 import { DB } from '../database/database.module';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { FirmProfileService } from '../firms/firm-profile.service';
@@ -68,6 +69,7 @@ const orNull = (text: string | null | undefined): string | null => (text === und
 export class WatchlistsService {
   constructor(
     @Inject(DB) private readonly db: Database,
+    private readonly alerts: AlertsService,
     private readonly entitlements: EntitlementsService,
     private readonly firms: FirmProfileService,
     private readonly notices: NoticesService,
@@ -216,7 +218,17 @@ export class WatchlistsService {
       order by ${watchlistItem.createdAt} desc, ${watchlistItem.id} desc`);
 
     const firmIds = rows.flatMap((row) => (row.firmId === null ? [] : [Number(row.firmId)]));
-    const facts = await this.firms.summaryFacts(firmIds);
+    const topicOf = (row: ItemRow): TopicFields | null =>
+      row.kind === 'topic'
+        ? { originCountry: row.originCountry as string, commodityId: row.commodityId, destination: row.destination as TopicFields['destination'], hazardId: row.hazardId }
+        : null;
+    const [facts, unread] = await Promise.all([
+      this.firms.summaryFacts(firmIds),
+      this.alerts.unreadCounts(
+        ctx.orgId,
+        rows.map((row) => ({ id: row.id, firmId: row.firmId === null ? null : Number(row.firmId), topic: topicOf(row) })),
+      ),
+    ]);
     return rows.map((row) => {
       const kind = row.kind as WatchlistKind;
       const firm = row.firmId === null ? undefined : facts.get(Number(row.firmId));
@@ -239,8 +251,7 @@ export class WatchlistsService {
         label: row.label,
         notes: row.notes,
         lastRecordOn: kind === 'firm' ? (firm?.lastNoticeOn ?? null) : row.lastTopicOn,
-        // Task 11 fills this from `AlertsService.unreadCounts`.
-        unreadAlerts: 0,
+        unreadAlerts: unread.get(row.id) ?? 0,
         createdAt: new Date(row.createdAt).toISOString(),
       };
     });

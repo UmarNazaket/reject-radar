@@ -16,3 +16,25 @@ export function decodeCursor(cursor: string): { date: string; id: string } {
   }
   throw new AppError(HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'The page cursor is not valid.');
 }
+
+const TIME_CURSOR = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z)\|([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+
+/**
+ * A page cursor for rows ordered by a timestamp, then a uuid (the alerts list). `timestamp` is the row's UTC time to the
+ * microsecond (`YYYY-MM-DDTHH:MM:SS.ffffffZ`, as Postgres prints it): a JS `Date` keeps only milliseconds, which would
+ * skip or repeat rows that differ below that.
+ */
+export function encodeTimeCursor(timestamp: string, id: string): string {
+  return Buffer.from(`${timestamp}|${id}`, 'utf8').toString('base64url');
+}
+
+/** The timestamp and id a time cursor holds; anything else is `400 BAD_REQUEST`. */
+export function decodeTimeCursor(cursor: string): { timestamp: string; id: string } {
+  const match = TIME_CURSOR.exec(Buffer.from(cursor, 'base64url').toString('utf8'));
+  // `toISOString` rolls an impossible date (February 30th) over to the next month, which no longer matches the text.
+  const real = match ? new Date(`${match[1].slice(0, 19)}Z`) : null;
+  if (match && real && !Number.isNaN(real.getTime()) && real.toISOString().slice(0, 19) === match[1].slice(0, 19)) {
+    return { timestamp: match[1], id: match[2] };
+  }
+  throw new AppError(HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'The page cursor is not valid.');
+}
