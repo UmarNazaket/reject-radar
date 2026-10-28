@@ -17,6 +17,7 @@ import { DatabaseModule } from '../database/database.module';
 import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { HealthModule } from '../health/health.module';
 import { MailModule } from '../mail/mail.module';
+import { NoticesModule } from '../notices/notices.module';
 import { OrgsModule } from '../orgs/orgs.module';
 import { TaxonomyModule } from '../taxonomy/taxonomy.module';
 import type { AppOverrides } from './app-overrides';
@@ -53,6 +54,7 @@ export class AppModule {
         AuthModule,
         EntitlementsModule,
         HealthModule,
+        NoticesModule,
         OrgsModule,
         TaxonomyModule,
       ],

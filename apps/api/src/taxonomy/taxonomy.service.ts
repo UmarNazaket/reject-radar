@@ -8,8 +8,8 @@ import {
 } from '@rejectradar/contracts';
 import { commodity, type Database, hazard } from '@rejectradar/db';
 import { CATALOGS } from '@rejectradar/i18n';
-import { sql } from 'drizzle-orm';
 import { DB } from '../database/database.module';
+import { NoticesService } from '../notices/notices.service';
 
 /** Countries come from the notices, which grow every day, so they are re-read once an hour. */
 export const COUNTRIES_TTL_MS = 60 * 60 * 1000;
@@ -47,7 +47,10 @@ export class TaxonomyService {
   private reference: Promise<Reference> | null = null;
   private countries: CountryCache | null = null;
 
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly notices: NoticesService,
+  ) {}
 
   async labels(locale: Locale): Promise<TaxonomyResponse> {
     const [{ commodities, hazards }, codes] = await Promise.all([this.loadReference(), this.loadCountryCodes()]);
@@ -104,10 +107,7 @@ export class TaxonomyService {
   private async loadCountryCodes(): Promise<string[]> {
     const now = Date.now();
     if (this.countries && now - this.countries.readAt < COUNTRIES_TTL_MS) return this.countries.codes;
-    const result = await this.db.execute<{ code: string }>(
-      sql`select distinct origin_country as code from notice where origin_country is not null`,
-    );
-    const codes = result.rows.map((row) => row.code).filter((code) => /^[A-Z]{2}$/.test(code));
+    const codes = (await this.notices.originCountries()).filter((code) => /^[A-Z]{2}$/.test(code));
     this.countries = { readAt: now, codes };
     return codes;
   }
