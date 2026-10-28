@@ -54,7 +54,8 @@ const isLocale = (value: string): value is Locale => (LOCALES as readonly string
 /**
  * The users whose digest setting is daily or weekly: verified members of an active account (a deactivated account is
  * locked out of the app, so its members get no email, R13). A user without a `notification_pref` row has the default,
- * daily (P5-D13).
+ * daily (P5-D13). Ordered by `last_digest_at`, oldest first (no row or no digest yet counts as oldest), so when the
+ * daily cap leaves room for only some digests, the users who were paused before go first and nobody is paused every day.
  */
 async function loadRecipients(db: Database): Promise<Recipient[]> {
   const frequency = sql<Frequency>`coalesce(${notificationPref.digest}, 'daily')`;
@@ -73,7 +74,7 @@ async function loadRecipients(db: Database): Promise<Recipient[]> {
     .innerJoin(org, and(eq(org.id, membership.orgId), isNull(org.deactivatedAt)))
     .leftJoin(notificationPref, eq(notificationPref.userId, appUser.id))
     .where(and(isNotNull(appUser.emailVerifiedAt), inArray(frequency, ['daily', 'weekly'])))
-    .orderBy(asc(appUser.id), asc(membership.orgId));
+    .orderBy(sql`${notificationPref.lastDigestAt} asc nulls first`, asc(appUser.id), asc(membership.orgId));
   const byUser = new Map<string, Recipient>();
   for (const row of rows) {
     const recipient = byUser.get(row.userId) ?? {

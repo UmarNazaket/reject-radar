@@ -277,6 +277,23 @@ describe('digest:send', () => {
     expect(digests).toEqual(['paused', 'sent']);
   });
 
+  it('with room for one digest, the user whose window is oldest goes first', async () => {
+    // A is created first, so ordering by user id would send A; B was paused before, so B's window is older.
+    const a = await account('a', [{ lastDigestAt: ago(WEDNESDAY, DAY) }]);
+    const b = await account('b', [{ lastDigestAt: ago(WEDNESDAY, 2 * DAY) }]);
+    expect(a.userIds[0] < b.userIds[0]).toBe(true);
+    await addAlert(a.orgId, { createdAt: ago(WEDNESDAY, 2 * HOUR) });
+    await addAlert(b.orgId, { createdAt: ago(WEDNESDAY, 2 * HOUR) });
+    await db.execute(sql`insert into email_delivery (id, to_email, kind, status) select gen_random_uuid(), 'seed@example.com', 'verify', 'sent' from generate_series(1, 89)`);
+
+    const result = await run(WEDNESDAY);
+
+    expect(result).toEqual({ users: 2, sent: 1, paused: 1, failed: 0, empty: 0 });
+    expect(transport.sent.map((m) => m.to)).toEqual([b.emails[0]]);
+    expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(ago(WEDNESDAY, DAY));
+    expect((await prefOf(b.userIds[0])).lastDigestAt).toEqual(windowEnd(WEDNESDAY));
+  });
+
   it('weekly: a digest paused on Monday goes out on Tuesday and covers both days', async () => {
     const lastMonday = new Date('2026-10-26T03:00:00Z');
     const tuesday = new Date('2026-11-03T03:00:00Z');
