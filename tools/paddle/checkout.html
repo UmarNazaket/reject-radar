@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RejectRadar sandbox checkout</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 42rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      textarea {
+        width: 100%;
+        min-height: 14rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.9rem;
+        box-sizing: border-box;
+      }
+      button {
+        margin-top: 0.75rem;
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+      }
+      #status {
+        margin-top: 0.75rem;
+        min-height: 1.5rem;
+      }
+      #status.error {
+        color: #b00020;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>RejectRadar sandbox checkout</h1>
+    <p>
+      A stand-in for the billing page until P9. Call
+      <code>POST /v1/billing/checkout</code> as an account owner, paste the JSON
+      response below and open the Paddle sandbox overlay. Pay with Paddle's
+      sandbox test card. The page holds no secrets: the client-side token comes
+      from the pasted response.
+    </p>
+    <label for="details">Checkout response</label>
+    <textarea
+      id="details"
+      spellcheck="false"
+      placeholder='{ "priceId": "pri_...", "customData": { "orgId": "..." }, "customerEmail": "...", "clientToken": "test_...", "environment": "sandbox", "successUrl": "..." }'
+    ></textarea>
+    <button id="open" type="button">Open checkout</button>
+    <div id="status" role="status"></div>
+
+    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+    <script>
+      const statusLine = document.getElementById('status');
+      const show = (text, isError) => {
+        statusLine.textContent = text;
+        statusLine.className = isError ? 'error' : '';
+      };
+
+      document.getElementById('open').addEventListener('click', () => {
+        let details;
+        try {
+          details = JSON.parse(document.getElementById('details').value);
+        } catch {
+          return show('That is not valid JSON.', true);
+        }
+        const {
+          priceId,
+          customData,
+          customerEmail,
+          clientToken,
+          environment,
+          successUrl,
+        } = details;
+        if (!priceId || !clientToken || !customerEmail || !customData) {
+          return show(
+            'The JSON needs priceId, customData, customerEmail and clientToken.',
+            true,
+          );
+        }
+        if (environment && environment !== 'sandbox') {
+          return show(
+            'This page opens the sandbox only; the response says "' +
+              environment +
+              '".',
+            true,
+          );
+        }
+        if (typeof Paddle === 'undefined')
+          return show('Paddle.js did not load. Check the network.', true);
+
+        Paddle.Environment.set('sandbox');
+        Paddle.Initialize({ token: clientToken });
+        Paddle.Checkout.open({
+          items: [{ priceId, quantity: 1 }],
+          customData,
+          customer: { email: customerEmail },
+          settings: successUrl ? { successUrl } : {},
+        });
+        show('Checkout opened.', false);
+      });
+    </script>
+  </body>
+</html>
