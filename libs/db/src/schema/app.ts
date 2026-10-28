@@ -153,6 +153,10 @@ export const subscription = pgTable(
     interval: text('interval'),
     status: text('status').notNull(),
     currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+    /** A scheduled cancellation (Paddle's `scheduled_change`), shown on the billing page (P7-D12). */
+    cancelAt: timestamp('cancel_at', { withTimezone: true }),
+    /** The `occurred_at` of the last Paddle event applied; an older event is recorded and not applied (P7-D3). */
+    paddleOccurredAt: timestamp('paddle_occurred_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

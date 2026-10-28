@@ -34,6 +34,16 @@ describe('database schema (spec §7)', () => {
     expect(rows.map((r) => r.table_name).sort()).toEqual([...EXPECTED_TABLES].sort());
   });
 
+  it('subscription has paddle_occurred_at and cancel_at', async () => {
+    const { rows } = await client.query<{ column_name: string; data_type: string; is_nullable: string }>(
+      "select column_name, data_type, is_nullable from information_schema.columns where table_name = 'subscription' and column_name in ('paddle_occurred_at', 'cancel_at')",
+    );
+    expect(rows.sort((a, b) => a.column_name.localeCompare(b.column_name))).toEqual([
+      { column_name: 'cancel_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+      { column_name: 'paddle_occurred_at', data_type: 'timestamp with time zone', is_nullable: 'YES' },
+    ]);
+  });
+
   it('enables pg_trgm', async () => {
     const { rowCount } = await client.query("select 1 from pg_extension where extname = 'pg_trgm'");
     expect(rowCount).toBe(1);

@@ -20,6 +20,14 @@ export function testEnv(databaseUrl: string, extra: Record<string, string> = {})
     JWT_SECRET: SECRET,
     APP_ORIGIN: 'http://localhost:4200',
     MAIL_FROM: 'RejectRadar <test@rejectradar.test>',
+    PADDLE_ENV: 'sandbox',
+    PADDLE_API_KEY: `pdl_sdbx_apikey_${'t'.repeat(40)}`,
+    PADDLE_CLIENT_TOKEN: `test_${'t'.repeat(27)}`,
+    PADDLE_WEBHOOK_SECRET: SECRET,
+    PADDLE_PRICE_PRO_MONTHLY: 'pri_01m61npvnr18pc5g8fjpjfnhne',
+    PADDLE_PRICE_PRO_YEARLY: 'pri_01m61npw5hf8zddhzww39dmshg',
+    PADDLE_PRICE_BUSINESS_MONTHLY: 'pri_01m61npx58trnyzg6z77vywvjk',
+    PADDLE_PRICE_BUSINESS_YEARLY: 'pri_01m61npxms42vc5e3pr7r3na4q',
     ...extra,
   });
 }
