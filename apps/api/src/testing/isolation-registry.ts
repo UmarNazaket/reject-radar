@@ -105,6 +105,7 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
     reason: "Reference data; the plan's history window is the only account-dependent part.",
   },
   { method: 'GET', path: '/v1/billing/plans', reason: 'Public price list; no account data.' },
+  { method: 'POST', path: '/v1/webhooks/paddle', reason: 'Paddle calls it; the verified payload names the account.' },
   { method: 'GET', path: '/v1/taxonomy', reason: 'Reference data; the same for every caller.' },
   { method: 'GET', path: '/v1/firms/search', reason: 'Reference data; no account data in the results.' },
   { method: 'GET', path: '/v1/firms/:id', reason: "Reference data; the lookup is charged to the caller's own account." },

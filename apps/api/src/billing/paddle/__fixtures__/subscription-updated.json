@@ -1,0 +1,83 @@
+{
+  "event_id": "evt_01hv8x3k4m5n6p7q8r9s0t1v2w",
+  "event_type": "subscription.updated",
+  "occurred_at": "2024-04-12T10:18:49.621022Z",
+  "notification_id": "ntf_01hv8x3k7a8b9c0d1e2f3g4h5j",
+  "data": {
+    "id": "sub_01hv8x2a9b0c1d2e3f4g5h6j7k",
+    "status": "active",
+    "customer_id": "ctm_01hv8wt8nffez4p2t6tkg5bp9s",
+    "address_id": "add_01hv8wt8tvd9zxqbxe7ee0ycsa",
+    "business_id": null,
+    "currency_code": "USD",
+    "created_at": "2024-04-12T10:12:24.357425Z",
+    "updated_at": "2024-04-12T10:18:47.635628Z",
+    "started_at": "2024-04-12T10:12:23.528379Z",
+    "first_billed_at": "2024-04-12T10:12:23.528379Z",
+    "next_billed_at": "2024-05-12T10:12:23.528379Z",
+    "paused_at": null,
+    "canceled_at": null,
+    "collection_mode": "automatic",
+    "billing_details": null,
+    "current_billing_period": {
+      "starts_at": "2024-04-12T10:12:23.528379Z",
+      "ends_at": "2024-05-12T10:12:23.528379Z"
+    },
+    "billing_cycle": { "frequency": 1, "interval": "month" },
+    "scheduled_change": {
+      "action": "cancel",
+      "effective_at": "2024-05-12T10:12:23.528379Z",
+      "resume_at": null
+    },
+    "items": [
+      {
+        "status": "active",
+        "quantity": 1,
+        "recurring": true,
+        "created_at": "2024-04-12T10:12:24.357425Z",
+        "updated_at": "2024-04-12T10:12:24.357425Z",
+        "previously_billed_at": "2024-04-12T10:12:23.528379Z",
+        "next_billed_at": "2024-05-12T10:12:23.528379Z",
+        "trial_dates": null,
+        "price": {
+          "id": "pri_01hv0vax6rv18t4tamj848ne4d",
+          "product_id": "pro_01hv0v8m1czk0jbfaxf3ms9jv4",
+          "type": "standard",
+          "description": "Pro, billed monthly",
+          "name": "Pro monthly",
+          "tax_mode": "account_setting",
+          "billing_cycle": { "frequency": 1, "interval": "month" },
+          "trial_period": null,
+          "unit_price": { "amount": "3900", "currency_code": "USD" },
+          "unit_price_overrides": [],
+          "quantity": { "minimum": 1, "maximum": 1 },
+          "status": "active",
+          "custom_data": null,
+          "import_meta": null,
+          "created_at": "2024-04-11T13:54:52.254748Z",
+          "updated_at": "2024-04-11T13:54:52.254748Z"
+        },
+        "product": {
+          "id": "pro_01hv0v8m1czk0jbfaxf3ms9jv4",
+          "name": "RejectRadar Pro",
+          "type": "standard",
+          "tax_category": "saas",
+          "description": null,
+          "image_url": null,
+          "custom_data": null,
+          "status": "active",
+          "import_meta": null,
+          "created_at": "2024-04-11T13:50:31.734573Z",
+          "updated_at": "2024-04-11T13:50:31.734573Z"
+        }
+      }
+    ],
+    "custom_data": { "orgId": "0192e0a4-5b6c-7d8e-9f01-23456789abcd" },
+    "management_urls": {
+      "update_payment_method": "https://buyer-portal.paddle.com/subscriptions/sub_01hv8x2a9b0c1d2e3f4g5h6j7k/update-payment-method",
+      "cancel": "https://buyer-portal.paddle.com/subscriptions/sub_01hv8x2a9b0c1d2e3f4g5h6j7k/cancel"
+    },
+    "discount": null,
+    "import_meta": null
+  }
+}

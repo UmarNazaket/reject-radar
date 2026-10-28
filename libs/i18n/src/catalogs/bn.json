@@ -89,6 +89,7 @@
   "errors.INVALID_RECORD": "এই রেকর্ডটি এই প্রতিষ্ঠানের নয়। রেকর্ডটি যাচাই করে আবার চেষ্টা করুন।",
   "errors.ALREADY_WATCHED": "এটি ইতিমধ্যে আপনার ওয়াচলিস্টে আছে।",
   "errors.ALREADY_SUBSCRIBED": "আপনার অ্যাকাউন্টের সাবস্ক্রিপশন ইতিমধ্যে আছে। এটি পরিবর্তন বা বাতিল করতে বিলিং পোর্টাল ব্যবহার করুন।",
+  "errors.INVALID_SIGNATURE": "অনুরোধের স্বাক্ষর বৈধ নয়।",
 
   "taxonomy.commodity.cereals": "শস্য",
   "taxonomy.commodity.rice": "চাল",

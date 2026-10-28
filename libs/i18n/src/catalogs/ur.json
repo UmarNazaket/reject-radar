@@ -89,6 +89,7 @@
   "errors.INVALID_RECORD": "یہ ریکارڈ اس فرم کا نہیں ہے۔ ریکارڈ دیکھ کر دوبارہ کوشش کریں۔",
   "errors.ALREADY_WATCHED": "یہ پہلے ہی آپ کی واچ لسٹ میں ہے۔",
   "errors.ALREADY_SUBSCRIBED": "آپ کے اکاؤنٹ کی سبسکرپشن پہلے سے موجود ہے۔ اسے تبدیل یا منسوخ کرنے کے لیے بلنگ پورٹل استعمال کریں۔",
+  "errors.INVALID_SIGNATURE": "درخواست کے دستخط درست نہیں ہیں۔",
 
   "taxonomy.commodity.cereals": "اناج",
   "taxonomy.commodity.rice": "چاول",

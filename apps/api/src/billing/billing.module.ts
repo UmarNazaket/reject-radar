@@ -7,6 +7,8 @@ import { WatchlistsModule } from '../watchlists/watchlists.module';
 import { BillingController } from './billing.controller';
 import { BillingService } from './billing.service';
 import { PADDLE_GATEWAY, SdkPaddleGateway } from './paddle/gateway';
+import { PaddleWebhookService } from './paddle-webhook.service';
+import { WebhooksController } from './webhooks.controller';
 
 @Module({})
 export class BillingModule {
@@ -14,8 +16,8 @@ export class BillingModule {
     return {
       module: BillingModule,
       imports: [EntitlementsModule, OrgsModule, WatchlistsModule],
-      controllers: [BillingController],
-      providers: [BillingService, { provide: PADDLE_GATEWAY, useFactory: () => overrides.paddleGateway ?? new SdkPaddleGateway(env) }],
+      controllers: [BillingController, WebhooksController],
+      providers: [BillingService, PaddleWebhookService, { provide: PADDLE_GATEWAY, useFactory: () => overrides.paddleGateway ?? new SdkPaddleGateway(env) }],
       exports: [PADDLE_GATEWAY],
     };
   }

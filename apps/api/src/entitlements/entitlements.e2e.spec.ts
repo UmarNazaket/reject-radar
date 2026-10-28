@@ -49,12 +49,15 @@ describe('entitlements', () => {
     expect(limits.lookupsPerMonth).toBe(10);
   });
 
-  it('a subscription that is active or trialing sets the plan', async () => {
+  it('a subscription that is active, trialing or past_due sets the plan', async () => {
     await subscribe('pro', 'trialing');
     expect((await service.resolvePlan(orgId)).plan).toBe('pro');
     await subscribe('business', 'active');
     expect((await service.resolvePlan(orgId)).plan).toBe('business');
+    // P7-D6: a failed payment keeps the plan while Paddle retries it.
     await subscribe('business', 'past_due');
+    expect((await service.resolvePlan(orgId)).plan).toBe('business');
+    await subscribe('business', 'paused');
     expect((await service.resolvePlan(orgId)).plan).toBe('free');
   });
 

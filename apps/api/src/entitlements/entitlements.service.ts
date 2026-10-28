@@ -10,8 +10,11 @@ type Executor = Database | Tx;
 type Counter = 'bulk_rows' | 'api_calls';
 type CounterColumn = typeof usageCounter.lookups | typeof usageCounter.bulkRows | typeof usageCounter.apiCalls;
 
-/** Subscription statuses that pay for the plan (spec §10.1); anything else is `free`. */
-const PAID_STATUSES: readonly string[] = ['active', 'trialing'];
+/**
+ * Subscription statuses that pay for the plan (spec §10.1); anything else is `free`. `past_due` keeps the plan while
+ * Paddle retries a failed payment, so a team is not cut off mid-dunning (P7-D6).
+ */
+const PAID_STATUSES: readonly string[] = ['active', 'trialing', 'past_due'];
 
 const COUNTERS = {
   bulk_rows: { field: 'bulkRows', column: usageCounter.bulkRows, limit: (limits: PlanLimits) => limits.bulkRowsPerMonth },
@@ -34,7 +37,7 @@ const upgradeRequired = (details: PlanUpgradeDetails) =>
 export class EntitlementsService {
   constructor(@Inject(DB) private readonly db: Database) {}
 
-  /** `plan_override`, then a subscription that is `active` or `trialing`, otherwise `free`; `source` says which one decided. */
+  /** `plan_override`, then a subscription that is `active`, `trialing` or `past_due`, otherwise `free`; `source` says which one decided. */
   async resolvePlan(orgId: string, executor: Executor = this.db): Promise<{ plan: PlanId; limits: PlanLimits; source: PlanSource }> {
     const [row] = await executor
       .select({ override: org.planOverride, plan: subscription.plan, status: subscription.status })

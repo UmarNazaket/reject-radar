@@ -89,6 +89,7 @@
   "errors.INVALID_RECORD": "That record is not one of this firm's. Check the record and try again.",
   "errors.ALREADY_WATCHED": "This is already on your watchlist.",
   "errors.ALREADY_SUBSCRIBED": "Your account already has a subscription. Use the billing portal to change or cancel it.",
+  "errors.INVALID_SIGNATURE": "The request signature is not valid.",
 
   "taxonomy.commodity.cereals": "Cereals",
   "taxonomy.commodity.rice": "Rice",
