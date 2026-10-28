@@ -10,10 +10,11 @@ import {
   membership,
   notice,
   notificationPref,
+  org,
   topicMatchesItem,
 } from '@rejectradar/db';
 import { type AlertEmailItem, type Mailer, renderInstantAlertEmail } from '@rejectradar/mail';
-import { and, asc, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 
 /** The `job_cursor` row that remembers the last `change_event` turned into alerts. */
 export const ALERTS_CURSOR = 'alerts';
@@ -173,13 +174,15 @@ interface Recipient {
 
 const isLocale = (value: string): value is Locale => (LOCALES as readonly string[]).includes(value);
 
-/** Verified members of the accounts that got high-severity alerts and have not turned instant email off (a user without a `notification_pref` row has it on). */
+/** Verified members of the active accounts that got high-severity alerts and have not turned instant email off (a user without a `notification_pref` row has it on). */
 async function loadRecipients(db: Database, orgIds: string[]): Promise<Recipient[]> {
   if (orgIds.length === 0) return [];
   const rows = await db
     .select({ orgId: membership.orgId, userId: appUser.id, email: appUser.email, name: appUser.name, locale: appUser.locale })
     .from(membership)
     .innerJoin(appUser, eq(appUser.id, membership.userId))
+    // A deactivated account is locked out of the app, so its members get no email (their alerts are kept for a reactivation).
+    .innerJoin(org, and(eq(org.id, membership.orgId), isNull(org.deactivatedAt)))
     .leftJoin(notificationPref, eq(notificationPref.userId, appUser.id))
     .where(and(inArray(membership.orgId, orgIds), isNotNull(appUser.emailVerifiedAt), sql`coalesce(${notificationPref.instantHigh}, true)`))
     .orderBy(asc(appUser.id));

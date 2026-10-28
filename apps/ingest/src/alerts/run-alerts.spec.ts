@@ -389,6 +389,20 @@ describe('alerts:run', () => {
       expect(await db.select().from(alertEmail)).toEqual([]);
     });
 
+    it('sends nothing to the members of a deactivated account, which still gets its alert', async () => {
+      const active = await account('active', { topics: [topic('PK')] });
+      const closed = await account('closed', { topics: [topic('PK')] });
+      await db.update(org).set({ deactivatedAt: new Date() }).where(eq(org.id, closed.orgId));
+      await refusal({ requiresFirm: false });
+
+      const result = await run({ mailer });
+
+      expect(result).toMatchObject({ alertsCreated: 2, emails: { sent: 1, paused: 0, failed: 0 } });
+      expect((await alertsOf()).map((r) => r.orgId).sort()).toEqual([active.orgId, closed.orgId].sort());
+      expect(transport.sent.map((m) => m.to)).toEqual(active.emails);
+      expect(await db.select().from(alertEmail)).toHaveLength(1);
+    });
+
     it('an account without members gets its alert and no email', async () => {
       await account('nobody', { topics: [topic('PK')] }, []);
       await refusal({ requiresFirm: false });
