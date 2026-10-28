@@ -1,6 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import {
   type ImportAlertResponse,
+  importAlertEnglishSummaryContentSchema,
   importAlertSummaryContentSchema,
   type Locale,
   type ShownSummaryStatus,
@@ -37,7 +38,9 @@ export class ImportAlertsService {
 
     const shown = (row: (typeof rows)[number] | undefined): Shown | null => {
       if (row === undefined) return null;
-      const parsed = importAlertSummaryContentSchema.safeParse(row.content);
+      // English is held to the word limit; a translation can run longer than its source and is not.
+      const schema = row.locale === 'en' ? importAlertEnglishSummaryContentSchema : importAlertSummaryContentSchema;
+      const parsed = schema.safeParse(row.content);
       if (!parsed.success) {
         // The content is deliberately not logged.
         this.logger.warn(`Stored summary of Import Alert ${number} (${row.locale}) fails the schema and is not served.`);

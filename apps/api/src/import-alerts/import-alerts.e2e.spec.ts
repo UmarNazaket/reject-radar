@@ -1,4 +1,9 @@
-import { type ImportAlertResponse, importAlertSummaryContentSchema } from '@rejectradar/contracts';
+import {
+  type ImportAlertResponse,
+  importAlertEnglishSummaryContentSchema,
+  importAlertSummaryContentSchema,
+  SUMMARY_MAX_WORDS,
+} from '@rejectradar/contracts';
 import { importAlert, importAlertSummary } from '@rejectradar/db';
 import { and, eq } from 'drizzle-orm';
 import { seedReferenceData, summaryContent } from '../testing/reference-data';
@@ -124,6 +129,25 @@ describe('Import Alert endpoint', () => {
     }
   });
 
+  it('a long translation behind an approved English summary is served', async () => {
+    const long = { ...summaryContent('ur'), summary: Array.from({ length: 130 }, () => 'lafz').join(' ') };
+    await setSummary('99-08', 'ur', { content: long });
+    try {
+      expect((await get('99-08', '?locale=ur')).summary).toEqual({ locale: 'ur', status: 'machine', content: long });
+    } finally {
+      await setSummary('99-08', 'ur', { content: summaryContent('ur') });
+    }
+  });
+
+  it('an English summary over the word limit is not served', async () => {
+    await setSummary('99-08', 'en', { content: { ...summaryContent('en'), summary: Array.from({ length: SUMMARY_MAX_WORDS + 1 }, () => 'word').join(' ') } });
+    try {
+      expect((await get('99-08', '?locale=ur')).summary).toBeNull();
+    } finally {
+      await setSummary('99-08', 'en', { content: summaryContent('en') });
+    }
+  });
+
   it('a removed alert says so', async () => {
     await setAlert('99-08', { removedAt: new Date() });
     try {
@@ -151,9 +175,13 @@ describe('importAlertSummaryContentSchema', () => {
   const content = summaryContent('x');
   const words = (n: number) => Array.from({ length: n }, () => 'word').join(' ');
 
-  it('accepts 120 words and refuses 121', () => {
-    expect(importAlertSummaryContentSchema.safeParse({ ...content, summary: words(120) }).success).toBe(true);
-    expect(importAlertSummaryContentSchema.safeParse({ ...content, summary: words(121) }).success).toBe(false);
+  it('English accepts 120 words and refuses 121', () => {
+    expect(importAlertEnglishSummaryContentSchema.safeParse({ ...content, summary: words(SUMMARY_MAX_WORDS) }).success).toBe(true);
+    expect(importAlertEnglishSummaryContentSchema.safeParse({ ...content, summary: words(SUMMARY_MAX_WORDS + 1) }).success).toBe(false);
+  });
+
+  it('the base shape has no word limit', () => {
+    expect(importAlertSummaryContentSchema.safeParse({ ...content, summary: words(130) }).success).toBe(true);
   });
 
   it('refuses an empty field and a non-array of tests', () => {

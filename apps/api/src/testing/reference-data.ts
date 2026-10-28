@@ -60,8 +60,8 @@ export function summaryContent(tag: string): Record<string, unknown> {
 }
 
 /**
- * Summaries of Import Alert 99-08, whose text hash is `a…a`: English `approved`, Urdu `machine`, Hindi `draft`, and
- * Bengali `approved` but for an older text (`b…b`). Import Alert 16-131 has an English `draft` and an Urdu `machine`.
+ * Summaries of Import Alert 99-08, whose text hash is 'a'.repeat(64): English `approved`, Urdu `machine`, Hindi `draft`, and
+ * Bengali `approved` but for an older text ('b'.repeat(64)). Import Alert 16-131 has an English `draft` and an Urdu `machine`.
  */
 async function seedImportAlertSummaries(db: Database): Promise<void> {
   await db.insert(importAlert).values({
