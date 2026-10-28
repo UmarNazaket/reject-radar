@@ -57,6 +57,7 @@
   "errors.ALREADY_IN_ACCOUNT": "आप पहले से ही किसी अन्य संगठन से जुड़े हैं।",
   "errors.PLAN_LIMIT_REACHED": "आप अपने प्लान की इस सीमा तक पहुँच चुके हैं। जारी रखने के लिए अपना प्लान अपग्रेड करें।",
   "errors.PLAN_UPGRADE_REQUIRED": "यह सुविधा आपके प्लान में शामिल नहीं है। इसे इस्तेमाल करने के लिए अपना प्लान अपग्रेड करें।",
+  "errors.INVALID_RECORD": "यह रिकॉर्ड इस फर्म का नहीं है। रिकॉर्ड जाँचकर फिर से कोशिश करें।",
 
   "taxonomy.commodity.cereals": "अनाज",
   "taxonomy.commodity.rice": "चावल",

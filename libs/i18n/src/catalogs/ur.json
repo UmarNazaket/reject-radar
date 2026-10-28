@@ -57,6 +57,7 @@
   "errors.ALREADY_IN_ACCOUNT": "آپ پہلے ہی کسی دوسری تنظیم سے وابستہ ہیں۔",
   "errors.PLAN_LIMIT_REACHED": "آپ اپنے پلان کی اس حد تک پہنچ چکے ہیں۔ جاری رکھنے کے لیے اپنا پلان اپ گریڈ کریں۔",
   "errors.PLAN_UPGRADE_REQUIRED": "یہ خصوصیت آپ کے پلان میں شامل نہیں ہے۔ اسے استعمال کرنے کے لیے اپنا پلان اپ گریڈ کریں۔",
+  "errors.INVALID_RECORD": "یہ ریکارڈ اس فرم کا نہیں ہے۔ ریکارڈ دیکھ کر دوبارہ کوشش کریں۔",
 
   "taxonomy.commodity.cereals": "اناج",
   "taxonomy.commodity.rice": "چاول",

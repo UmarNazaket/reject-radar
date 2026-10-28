@@ -1,6 +1,7 @@
 import { NOTICE_DESTINATION, SYNC_SOURCES } from '@rejectradar/contracts';
 import {
   type Database,
+  fdaChargeCode,
   firmAlias,
   firmFei,
   importAlertListingProduct,
@@ -47,7 +48,7 @@ const AFLATOXINS = 300;
  *
  * - ZARFEEN RICE MILLS (PVT) LTD: PK, Lahore, FEI 3001234567, rice (101), with
  *   - FDA refusals 10 days ago ("Basmati Rice, milled"), 400 days (13 months) ago and 1,500 days (4 years) ago, all
- *     with hazard 300 (aflatoxins) and a published address;
+ *     with hazard 300 (aflatoxins), charge code 2561 (in `fda_charge_code`) and a published address;
  *   - a red listing on Import Alert 99-08 with one product, listed and noticed 60 days ago;
  *   - an Australian failed test 40 days ago with a holding order.
  * - "Al Rahman Rice Mills" in Lahore and in Karachi (both PK), without records.
@@ -69,6 +70,14 @@ export async function seedReferenceData(db: Database): Promise<ReferenceFixture>
   const mergedAway = await insertFirm(db, { displayName: 'Zarfeen Rice Mills Pvt Ltd', countryCode: 'PK', city: 'lahore' });
   await db.insert(firmAlias).values({ oldId: mergedAway, newId: zarfeen });
   await db.insert(firmFei).values({ fei: ZARFEEN_FEI, firmId: zarfeen, firstSeen: daysAgo(1500) });
+
+  // The charge on the refusals, as FDA's charge-code list names it.
+  await db.insert(fdaChargeCode).values({
+    code: '2561',
+    name: 'PESTICIDE',
+    section: '402(a)(2)(B)',
+    description: 'The article appears to contain a pesticide chemical residue that is unsafe within the meaning of section 408(a).',
+  });
 
   // The ZARFEEN refusals: one per age, each with the address FDA publishes.
   const refusal = (age: number, productDesc: string) =>

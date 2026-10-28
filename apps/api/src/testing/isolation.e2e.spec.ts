@@ -66,7 +66,11 @@ describe('account isolation', () => {
     };
   }
 
-  /** What an outsider could change in account B: its name, its members and roles, its invites and its users' profiles. */
+  /**
+   * What an outsider could change in account B: its name, its members and roles, its invites and its users' profiles.
+   * Its lookups and disputes are here too; the firm routes are not account-owned, so the cases below do not call them, and
+   * `firm-profile.e2e.spec.ts` and `disputes.e2e.spec.ts` prove that A's calls write only A's rows.
+   */
   async function snapshot(account: Account) {
     const { orgId } = account.fixture;
     const rows = async (query: ReturnType<typeof sql>) => (await t.db.execute(query)).rows;
@@ -77,6 +81,9 @@ describe('account isolation', () => {
         from membership m join app_user u on u.id = m.user_id
         where m.org_id = ${orgId} order by m.user_id`),
       invites: await rows(sql`select id, email, role, accepted_at from invite where org_id = ${orgId} order by id`),
+      lookups: await rows(sql`select firm_id, period from lookup_log where org_id = ${orgId} order by firm_id, period`),
+      usage: await rows(sql`select period, lookups, bulk_rows, api_calls from usage_counter where org_id = ${orgId} order by period`),
+      disputes: await rows(sql`select id, firm_id, status, message from dispute where org_id = ${orgId} order by id`),
     };
   }
 

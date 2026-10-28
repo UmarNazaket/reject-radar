@@ -57,6 +57,7 @@
   "errors.ALREADY_IN_ACCOUNT": "You already belong to another organization.",
   "errors.PLAN_LIMIT_REACHED": "You have reached your plan's limit for this. Upgrade your plan to continue.",
   "errors.PLAN_UPGRADE_REQUIRED": "This feature is not included in your plan. Upgrade your plan to use it.",
+  "errors.INVALID_RECORD": "That record is not one of this firm's. Check the record and try again.",
 
   "taxonomy.commodity.cereals": "Cereals",
   "taxonomy.commodity.rice": "Rice",
