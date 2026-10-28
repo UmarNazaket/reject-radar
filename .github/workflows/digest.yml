@@ -9,7 +9,8 @@ on:
 permissions:
   contents: read
 
-# Its own group: it only reads alerts and sends email, so it never waits behind (or holds up) the ingest runs.
+# Its own group: it inserts no change events or alerts (it only sends email and records last_digest_at and email_delivery),
+# so it cannot create the late-commit gap the shared ingest-db group prevents, and never waits behind (or holds up) the ingest runs.
 concurrency:
   group: digest
   cancel-in-progress: false
