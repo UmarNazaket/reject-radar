@@ -10,7 +10,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const COLUMNS = {
+export const NOTICE_COLUMNS = {
   id: notice.id,
   source: notice.source,
   noticeType: notice.noticeType,
@@ -26,7 +26,7 @@ const COLUMNS = {
   url: notice.url,
 };
 
-function toItem(row: Omit<typeof notice.$inferSelect, 'sourceKey'>): NoticeItem {
+export function toNoticeItem(row: Omit<typeof notice.$inferSelect, 'sourceKey'>): NoticeItem {
   return {
     id: row.id,
     source: row.source as NoticeSource,
@@ -87,7 +87,7 @@ export class NoticesService {
 
     // One row more than the page tells whether another page follows.
     const rows = await this.db
-      .select(COLUMNS)
+      .select(NOTICE_COLUMNS)
       .from(notice)
       .where(and(...conditions))
       .orderBy(desc(notice.noticeOn), desc(notice.id))
@@ -95,7 +95,7 @@ export class NoticesService {
     const page = rows.slice(0, pageSize);
     const last = page[page.length - 1];
     return {
-      items: page.map(toItem),
+      items: page.map(toNoticeItem),
       next: rows.length > pageSize && last ? encodeCursor(last.noticeOn, last.id) : null,
       historyFrom,
     };
@@ -103,7 +103,7 @@ export class NoticesService {
 
   /** One notice. `404` when there is none; `403 PLAN_UPGRADE_REQUIRED` when it is older than the account's plan reaches. */
   async get(orgId: string, id: number): Promise<NoticeItem> {
-    const [row] = await this.db.select(COLUMNS).from(notice).where(eq(notice.id, id));
+    const [row] = await this.db.select(NOTICE_COLUMNS).from(notice).where(eq(notice.id, id));
     if (!row) throw new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Notice not found.');
     const historyFrom = await this.entitlements.historyFrom(orgId);
     if (historyFrom !== null && row.noticeOn < historyFrom) {
@@ -113,7 +113,7 @@ export class NoticesService {
         plan,
       });
     }
-    return toItem(row);
+    return toNoticeItem(row);
   }
 
   /** How many notices of the last `sinceDays` days fall inside `topic` (commodities include their descendants), within the account's window. */

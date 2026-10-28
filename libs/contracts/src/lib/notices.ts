@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { DESTINATIONS, type Destination } from './destinations';
 import { NOTICE_SOURCES, type NoticeSource, type NoticeType } from './ingestion';
-import { HAZARD_CATEGORIES } from './taxonomy';
+import { HAZARD_CATEGORIES, type HazardCategoryId } from './taxonomy';
 import type { FreshnessSource } from './product';
 
 /** `a,b,c` into a list, dropping blanks and repeats; every item must be one of `allowed`. */
@@ -71,4 +71,33 @@ export interface SourceFreshness {
   stale: boolean;
   /** `YYYY-MM` of the newest record, for the monthly files (`uk_bn`, `au_ifis`); null otherwise. */
   latestMonth: string | null;
+}
+
+/** `GET /v1/dashboards/topic` (spec §7.3, P5-D7): a topic is an origin, optionally narrowed by commodity (and its descendants) and destinations. */
+export const dashboardQuery = z.object({
+  origin: z.string().regex(/^[A-Z]{2}$/),
+  commodity: positiveInt.optional(),
+  /** Border regions, for example `US,AU`. */
+  destination: commaList(DESTINATIONS).optional(),
+});
+export type DashboardQuery = z.output<typeof dashboardQuery>;
+
+/** Counts per destination. */
+export type DestinationCounts = Record<Destination, number>;
+
+export interface DashboardResponse {
+  /** One entry per calendar month (UTC), oldest first, zero-filled: 36, or fewer when the plan's history is shorter. */
+  months: ({ month: string } & DestinationCounts)[];
+  /** The last 12 months. */
+  totals12m: DestinationCounts;
+  /** The top 6 hazard categories of the last 12 months; a notice counts once for each category among its hazards. */
+  hazardCategories: { category: HazardCategoryId; count: number }[];
+  /** The 10 most frequent hazards of the last 12 months; a notice counts once for each of its hazards. */
+  findings: { hazardId: number; count: number; byDestination: DestinationCounts }[];
+  /** The top 6 commodities of the last 12 months (the notices' own commodity, not its ancestors). */
+  commodities: { commodityId: number; count: number }[];
+  /** The 20 newest notices in the account's history window. */
+  latest: NoticeItem[];
+  historyFrom: string | null;
+  freshness: SourceFreshness[];
 }
