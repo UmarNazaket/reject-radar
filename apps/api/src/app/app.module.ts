@@ -59,7 +59,7 @@ export class AppModule {
         MailModule.register(env, overrides),
         AlertsModule,
         AuthModule,
-        BillingModule,
+        BillingModule.register(env, overrides),
         EntitlementsModule,
         FirmsModule,
         HealthModule,
