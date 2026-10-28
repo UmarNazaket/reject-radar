@@ -1,5 +1,9 @@
 import {
   BILLING_INTERVALS,
+  DESTINATIONS,
+  DIGEST_FREQUENCIES,
+  DISPUTE_KINDS,
+  DISPUTE_STATUSES,
   EMAIL_DELIVERY_STATUSES,
   EMAIL_KINDS,
   EMAIL_TOKEN_PURPOSES,
@@ -7,6 +11,7 @@ import {
   LOCALES,
   PLAN_IDS,
   ROLES,
+  SEVERITIES,
   SUBSCRIPTION_STATUSES,
 } from '@rejectradar/contracts';
 import { sql } from 'drizzle-orm';
@@ -31,13 +36,18 @@ import { changeEvent, commodity, firm, hazard } from './reference';
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 
-export const org = pgTable('org', {
-  id: uuid('id').primaryKey(),
-  name: text('name').notNull(),
-  planOverride: text('plan_override'),
-  deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
-  createdAt: createdAt(),
-});
+export const org = pgTable(
+  'org',
+  {
+    id: uuid('id').primaryKey(),
+    name: text('name').notNull(),
+    planOverride: text('plan_override'),
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  // A null passes a CHECK, so the nullable columns need no `is null` branch.
+  () => [check('org_plan_override_ck', oneOf('plan_override', PLAN_IDS))],
+);
 
 export const appUser = pgTable(
   'app_user',
@@ -209,6 +219,7 @@ export const watchlistItem = pgTable(
     index('watchlist_item_org_idx').on(t.orgId),
     index('watchlist_item_firm_idx').on(t.firmId),
     index('watchlist_item_topic_idx').on(t.originCountry, t.commodityId),
+    check('watchlist_item_destination_ck', oneOf('destination', DESTINATIONS)),
     check(
       'watchlist_item_kind_ck',
       sql`(kind = 'firm' and firm_id is not null and topic_key is null) or (kind = 'topic' and firm_id is null and topic_key is not null and origin_country is not null)`,
@@ -230,16 +241,32 @@ export const alert = pgTable(
   (t) => [
     uniqueIndex('alert_org_event_uq').on(t.orgId, t.changeEventId),
     index('alert_org_created_idx').on(t.orgId, t.createdAt),
+    check('alert_severity_ck', oneOf('severity', SEVERITIES)),
   ],
 );
 
-export const notificationPref = pgTable('notification_pref', {
-  userId: uuid('user_id').primaryKey().references(() => appUser.id, { onDelete: 'cascade' }),
-  instantHigh: boolean('instant_high').notNull().default(true),
-  digest: text('digest').notNull().default('daily'),
-  lastDigestAt: timestamp('last_digest_at', { withTimezone: true }),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+/** An instant alert already emailed to a user, so a re-run of the matcher never sends it twice. */
+export const alertEmail = pgTable(
+  'alert_email',
+  {
+    alertId: uuid('alert_id').notNull().references(() => alert.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => appUser.id, { onDelete: 'cascade' }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.alertId, t.userId] })],
+);
+
+export const notificationPref = pgTable(
+  'notification_pref',
+  {
+    userId: uuid('user_id').primaryKey().references(() => appUser.id, { onDelete: 'cascade' }),
+    instantHigh: boolean('instant_high').notNull().default(true),
+    digest: text('digest').notNull().default('daily'),
+    lastDigestAt: timestamp('last_digest_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('notification_pref_digest_ck', oneOf('digest', DIGEST_FREQUENCIES))],
+);
 
 export const emailDelivery = pgTable(
   'email_delivery',
@@ -315,7 +342,12 @@ export const dispute = pgTable(
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index('dispute_status_idx').on(t.status), index('dispute_org_idx').on(t.orgId)],
+  (t) => [
+    index('dispute_status_idx').on(t.status),
+    index('dispute_org_idx').on(t.orgId),
+    check('dispute_kind_ck', oneOf('kind', DISPUTE_KINDS)),
+    check('dispute_status_ck', oneOf('status', DISPUTE_STATUSES)),
+  ],
 );
 
 export const auditLog = pgTable(

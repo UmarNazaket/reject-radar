@@ -1,4 +1,4 @@
-import type { MailTransport } from '../mail/transports';
+import type { MailTransport } from '@rejectradar/mail';
 
 /** Seams the specs use to replace real infrastructure; production code never passes any. */
 export interface AppOverrides {

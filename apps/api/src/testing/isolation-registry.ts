@@ -10,6 +10,12 @@ export interface AccountFixture {
   ownerId: string;
   memberId: string;
   inviteId: string;
+  /** The id of the firm item on the account's watchlist, its label and the name of its firm. */
+  watchlistItemId: string;
+  watchlistLabel: string;
+  watchlistFirmName: string;
+  /** The id of the alert on the account's inbox, raised by an event about the watched firm. */
+  alertId: string;
   /** The owner's, the member's and the pending invite's email addresses. */
   emails: string[];
 }
@@ -20,6 +26,8 @@ export interface IsolationCase {
   path: string;
   /** A valid request body for the route, built from account B's fixture when it needs one. */
   body?: (b: AccountFixture) => unknown;
+  /** Query parameters the route needs to answer 200. */
+  query?: Record<string, string>;
   /** Fills the `:params` of `path` with account B's ids; the harness then expects 404 and B unchanged. */
   target?: (b: AccountFixture) => Record<string, string>;
 }
@@ -42,6 +50,16 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   { method: 'DELETE', path: '/v1/org/members/:userId', target: (b) => ({ userId: b.memberId }) },
   { method: 'POST', path: '/v1/org/invites', body: () => ({ email: FRESH_INVITEE, role: 'member' }) },
   { method: 'DELETE', path: '/v1/org/invites/:id', target: (b) => ({ id: b.inviteId }) },
+  { method: 'GET', path: '/v1/watchlist' },
+  { method: 'POST', path: '/v1/watchlist', body: () => ({ kind: 'topic', originCountry: 'VN' }) },
+  { method: 'GET', path: '/v1/watchlist/export.csv' },
+  { method: 'GET', path: '/v1/watchlist/topic-estimate', query: { originCountry: 'VN' } },
+  { method: 'PATCH', path: '/v1/watchlist/:id', body: () => ({ label: 'x' }), target: (b) => ({ id: b.watchlistItemId }) },
+  { method: 'DELETE', path: '/v1/watchlist/:id', target: (b) => ({ id: b.watchlistItemId }) },
+  { method: 'GET', path: '/v1/alerts' },
+  { method: 'POST', path: '/v1/alerts/read', body: (b) => ({ ids: [b.alertId] }) },
+  { method: 'GET', path: '/v1/me/notification-prefs' },
+  { method: 'PUT', path: '/v1/me/notification-prefs', body: () => ({ instantHigh: false, digest: 'weekly' }) },
 ];
 
 export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }[] = [
@@ -67,6 +85,28 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   },
   { method: 'GET', path: '/v1/health', reason: 'Liveness probe; reads no data.' },
   { method: 'GET', path: '/v1/health/ready', reason: 'Readiness probe; checks the database connection and reads no account data.' },
+  {
+    method: 'GET',
+    path: '/v1/notices',
+    reason: "Reference data; the plan's history window is the only account-dependent part.",
+  },
+  {
+    method: 'GET',
+    path: '/v1/notices/:id',
+    reason: "Reference data; the plan's history window is the only account-dependent part.",
+  },
+  {
+    method: 'GET',
+    path: '/v1/dashboards/topic',
+    reason: "Reference data; the plan's history window is the only account-dependent part.",
+  },
+  { method: 'GET', path: '/v1/taxonomy', reason: 'Reference data; the same for every caller.' },
+  { method: 'GET', path: '/v1/firms/search', reason: 'Reference data; no account data in the results.' },
+  { method: 'GET', path: '/v1/firms/:id', reason: "Reference data; the lookup is charged to the caller's own account." },
+  { method: 'POST', path: '/v1/firms/:id/disputes', reason: "Writes only to the caller's account; there is no read." },
+  { method: 'GET', path: '/v1/import-alerts/:number', reason: 'Reference data.' },
+  { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },
+  { method: 'GET', path: '/v1/mrl', reason: 'Reference data.' },
   { method: 'POST', path: '/v1/invites/preview', reason: 'The invite token in the body decides the account; the caller needs no session.' },
   { method: 'POST', path: '/v1/invites/accept', reason: 'The invite token in the body decides the account; the caller needs no session.' },
 ];

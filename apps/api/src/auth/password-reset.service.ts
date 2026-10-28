@@ -1,11 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ApiEnv, Locale, ResetPasswordRequest, StatusResponse } from '@rejectradar/contracts';
 import { appUser, type Database } from '@rejectradar/db';
+import { renderEmail } from '@rejectradar/mail';
 import { eq, sql } from 'drizzle-orm';
 import { API_ENV } from '../config/env';
 import { DB } from '../database/database.module';
 import { MailerService } from '../mail/mailer.service';
-import { renderEmail } from '../mail/templates/render';
 import { EmailTokensService } from './email-tokens.service';
 import { commonPasswordError, hashPassword, isCommonPassword } from './passwords';
 import { SessionsService } from './sessions.service';

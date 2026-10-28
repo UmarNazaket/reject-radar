@@ -1,8 +1,12 @@
 import type { IngestEnv } from '@rejectradar/contracts';
 import { LABELLED_PAIR_COLUMNS, linkEntities, samplePairs, sampleSummary, toCsv } from '@rejectradar/entities';
+import { createMailTransport, Mailer } from '@rejectradar/mail';
 import { Command, InvalidArgumentError, Option } from 'commander';
 import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { loadMailEnv } from './alerts/mail-env';
+import { runAlerts } from './alerts/run-alerts';
+import { sendDigests } from './alerts/send-digests';
 import { openDb } from './core/db';
 import { loadIngestEnv } from './core/env';
 import { createDeps, utcToday } from './core/deps';
@@ -194,6 +198,59 @@ program
       await assertBelowSizeLimit(db);
       const result = await linkEntities(db, { today: options.today ?? utcToday() });
       console.log(JSON.stringify(result, null, 2));
+    } finally {
+      await close();
+    }
+  });
+
+program
+  .command('alerts:run')
+  .description('Turn new change events into alerts for the accounts that watch them, then send the instant emails for high-severity ones (spec §11). Exits 3 when a firm-level event has stayed unlinked for 48 hours')
+  .option('--no-email', 'create the alerts but send no email (and need no mail variables)')
+  .option('--batch-size <n>', 'events per transaction', positiveInt, 1000)
+  .action(async (options: { email: boolean; batchSize: number }) => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      let mailer: Mailer | null = null;
+      let appOrigin = '';
+      if (options.email) {
+        const mail = loadMailEnv();
+        appOrigin = mail.APP_ORIGIN;
+        mailer = new Mailer({
+          db,
+          transport: createMailTransport(mail),
+          from: mail.MAIL_FROM,
+          // The error can carry the address, so only the kind and the stage are logged.
+          onError: ({ kind, stage }) => console.error(`alerts:run: ${kind} email ${stage} failed`),
+        });
+      }
+      const result = await runAlerts({ db, mailer, appOrigin }, { batchSize: options.batchSize });
+      console.log(JSON.stringify(result, null, 2));
+      // Exit code 3 makes GitHub Actions email the owner: the cursor is stuck behind a record that never linked (P5-D14).
+      if (result.failBlocked) process.exitCode = 3;
+    } finally {
+      await close();
+    }
+  });
+
+program
+  .command('digest:send')
+  .description('Email the daily digests, and the weekly ones on Mondays (UTC): the unread alerts of each user since their last digest, grouped by firm and topic, in their language (spec §11)')
+  .action(async () => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      const mail = loadMailEnv();
+      const mailer = new Mailer({
+        db,
+        transport: createMailTransport(mail),
+        from: mail.MAIL_FROM,
+        // The error can carry the address, so only the kind and the stage are logged.
+        onError: ({ kind, stage }) => console.error(`digest:send: ${kind} email ${stage} failed`),
+      });
+      const result = await sendDigests({ db, mailer, appOrigin: mail.APP_ORIGIN });
+      console.log(JSON.stringify(result, null, 2));
+      // A digest that could not be sent makes the run fail, so GitHub Actions emails the owner.
+      if (result.failed > 0) process.exitCode = 1;
     } finally {
       await close();
     }

@@ -2,7 +2,7 @@ import { invitePreviewResponse, inviteResponse, meResponse } from '@rejectradar/
 import { translate } from '@rejectradar/i18n';
 import { sql } from 'drizzle-orm';
 import { sha256Hex } from '../common/tokens';
-import { joinByInvite, signUpVerified, startTestApp, type TestApp, type TestSession } from '../testing/test-app';
+import { joinByInvite, setPlan, signUpVerified, startTestApp, type TestApp, type TestSession } from '../testing/test-app';
 
 const PASSWORD = 'basmati-export-77';
 const WRONG = 'not-the-password-1';
@@ -25,6 +25,8 @@ describe('invites', () => {
     t.mail.sent.length = 0;
     await t.db.execute(sql`truncate app_user, org, email_delivery cascade`);
     owner = await signUpVerified(t, { email: 'owner@example.com', name: 'Ayesha Khan', company: 'Zarfeen Rice Mills', locale: 'ur' });
+    // The free plan has one seat, so the tests about invites themselves run on a plan with room; the members-limit tests choose their own.
+    await setPlan(t, owner.orgId, 'business');
     t.mail.sent.length = 0;
   });
 
@@ -130,6 +132,8 @@ describe('invites', () => {
   });
 
   it('limits invites to 20 per hour per user', async () => {
+    // Twenty open invites need more seats than business has.
+    await setPlan(t, owner.orgId, 'enterprise');
     for (let i = 0; i < 20; i++) await invite(`person${i}@example.com`).expect(201);
     const res = await invite('person20@example.com').expect(429);
     expect(res.body.code).toBe('RATE_LIMITED');
@@ -319,6 +323,7 @@ describe('invites', () => {
 
   it('the same person accepting two invites at once joins one account', async () => {
     const other = await signUpVerified(t, { email: 'other@example.com', company: 'Other Foods' });
+    await setPlan(t, other.orgId, 'business');
     const person = await joinByInvite(t, owner.session, { email: 'person@example.com', role: 'member' });
     await owner.session.delete(`/v1/org/members/${person.userId}`).expect(204);
     await invite('person@example.com', 'member').expect(201);
@@ -377,5 +382,94 @@ describe('invites', () => {
     expect(res.body.code).toBe('NOT_FOUND');
     await stranger.session.delete('/v1/org/invites/not-an-id').expect(404);
     expect(await inviteRows()).toHaveLength(1);
+  });
+
+  describe('members limit', () => {
+    const limitDetails = (members: number, plan: string, used: number) => ({ action: 'members', plan, limit: members, used });
+
+    it('free allows no invites', async () => {
+      await setPlan(t, owner.orgId, 'free');
+      const res = await invite('new.person@example.com').expect(403);
+      expect(res.body).toMatchObject({ code: 'PLAN_LIMIT_REACHED', details: limitDetails(1, 'free', 1) });
+      expect(t.mail.sent).toHaveLength(0);
+      expect(await inviteRows()).toHaveLength(0);
+    });
+
+    it('pending invites count', async () => {
+      await setPlan(t, owner.orgId, 'pro');
+      await invite('one@example.com').expect(201);
+      await invite('two@example.com').expect(201);
+      const res = await invite('three@example.com').expect(403);
+      expect(res.body).toMatchObject({ code: 'PLAN_LIMIT_REACHED', details: limitDetails(3, 'pro', 3) });
+      expect(await inviteRows()).toHaveLength(2);
+      expect(t.mail.sent).toHaveLength(2);
+    });
+
+    it('expired and accepted invites do not count', async () => {
+      await setPlan(t, owner.orgId, 'pro');
+      await invite('one@example.com').expect(201);
+      await invite('two@example.com').expect(201);
+      await t.db.execute(sql`update invite set expires_at = now() - interval '1 second' where email = 'one@example.com'`);
+      await invite('three@example.com').expect(201);
+      // Two is accepted: it is now a member, which counts the same as it did pending.
+      await accept({ token: tokenFor('two@example.com'), name: 'Two', password: PASSWORD }).expect(200);
+      await invite('four@example.com').expect(403);
+    });
+
+    it('re-inviting a pending address is not counted twice', async () => {
+      await setPlan(t, owner.orgId, 'pro');
+      await invite('one@example.com').expect(201);
+      await invite('two@example.com').expect(201);
+      await invite('ONE@example.com', 'admin').expect(201);
+      expect(await inviteRows()).toHaveLength(2);
+      await invite('three@example.com').expect(403);
+    });
+
+    it('parallel invites for the last seat let one through', async () => {
+      await setPlan(t, owner.orgId, 'pro');
+      await invite('one@example.com').expect(201);
+      const results = await Promise.all([invite('two@example.com'), invite('three@example.com')]);
+      expect(results.map((r) => r.status).sort()).toEqual([201, 403]);
+      expect(await inviteRows()).toHaveLength(2);
+    });
+
+    it('accept refuses when the account filled up', async () => {
+      await setPlan(t, owner.orgId, 'pro');
+      await invite('one@example.com').expect(201);
+      await invite('two@example.com').expect(201);
+      const token = tokenFor('one@example.com');
+      await setPlan(t, owner.orgId, 'free');
+
+      const res = await accept({ token, name: 'One', password: PASSWORD }).expect(403);
+      expect(res.body).toMatchObject({ code: 'PLAN_LIMIT_REACHED', details: limitDetails(1, 'free', 1) });
+      expect(res.headers['set-cookie']).toBeUndefined();
+      expect(await membershipsOf('one@example.com')).toEqual([]);
+      expect(await userRow('one@example.com')).toBeUndefined();
+      // The refusal does not spend the invite: after an upgrade the same link works.
+      expect((await inviteRows()).filter((r) => r.accepted_at !== null)).toHaveLength(0);
+      await setPlan(t, owner.orgId, 'pro');
+      await accept({ token, name: 'One', password: PASSWORD }).expect(200);
+    });
+
+    it('accept counts members only, not other pending invites', async () => {
+      await setPlan(t, owner.orgId, 'pro');
+      await invite('one@example.com').expect(201);
+      await invite('two@example.com').expect(201);
+      await accept({ token: tokenFor('one@example.com'), name: 'One', password: PASSWORD }).expect(200);
+      await accept({ token: tokenFor('two@example.com'), name: 'Two', password: PASSWORD }).expect(200);
+      expect(await membershipsOf('one@example.com')).toHaveLength(1);
+      expect(await membershipsOf('two@example.com')).toHaveLength(1);
+    });
+
+    it('accept into ones own account is never refused', async () => {
+      const member = await joinByInvite(t, owner.session, { email: 'member@example.com', role: 'member' });
+      await t.db.execute(sql`
+        insert into invite (id, org_id, email, role, token_hash, invited_by, expires_at)
+        values (gen_random_uuid(), ${owner.orgId}, 'member@example.com', 'admin', ${sha256Hex('m'.repeat(43))}, ${owner.userId}, now() + interval '1 day')`);
+      await setPlan(t, owner.orgId, 'free');
+
+      const res = await accept({ token: 'm'.repeat(43), password: PASSWORD }).expect(200);
+      expect(res.body).toMatchObject({ role: 'member', user: { id: member.userId }, org: { id: owner.orgId } });
+    });
   });
 });

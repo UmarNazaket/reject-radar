@@ -93,6 +93,25 @@ GitHub Actions (scheduled)                        Browser
 
   A size guard stops every sync at 900 MB; the target for the full load is 450 MB or less.
 
+## The product API
+
+The app API under `/v1` has these product areas. Apart from `GET /taxonomy`, they need a signed-in user, and the account's plan decides the limits.
+
+| Area          | What it does                                                                                                                                                      |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Taxonomy      | `GET /taxonomy?locale=`: commodities, hazards, destinations and countries, with labels in the language asked for. Public.                                         |
+| Notices       | `GET /notices` with every filter and a cursor (50 a page, no total count), `GET /notices/:id`. A commodity filter includes its sub-commodities.                   |
+| Dashboards    | `GET /dashboards/topic`: monthly counts by destination, top hazards and commodities, the most frequent findings, the latest notices and how fresh each source is. |
+| Firm search   | `GET /firms/search`: name and optional country and city, or an FEI number. Confidence labels as in the matching rules. 30 requests a minute per user.             |
+| Firm profile  | `GET /firms/:id`: facts, every record newest first and source freshness. Uses one lookup a month per firm. `POST /firms/:id/disputes` reports a problem.          |
+| MRL checker   | `GET /mrl/residues` finds a pesticide by name; `GET /mrl` gives the EU limits for a commodity and recent RASFF notices that name the residue.                     |
+| Import Alerts | `GET /import-alerts/:number`: the alert text and a summary only if a person has approved it.                                                                      |
+| Watchlist     | Firm and topic items, a CSV export and a notice estimate for a topic being added. Adding needs a verified email.                                                  |
+| Alerts        | The alerts list, mark as read, unread counts, and each user's instant-email and digest settings.                                                                  |
+| Plan limits   | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. P9 will show both as an upgrade prompt.           |
+
+Alerts are made by `alerts:run` and the digests by `digest:send` (see the ingestion commands below), not by the API.
+
 ## Technology
 
 | Area         | Choice                                                                             |
@@ -124,9 +143,13 @@ libs/
   taxonomy/   commodity and hazard rules and rule matching
   matching/   name, address and country normalisation and scoring
   entities/   linking records to firms, firm facts, merge and split
+  mail/       the mailer, its transports and the email templates, shared by the API and the ingest CLI
+tools/
+  perf/       load.mjs, the p95 check for notice search, dashboards and firm search
 .github/workflows/
   ci.yml       lint, test and build on every push and pull request
   sync-*.yml   scheduled syncs
+  digest.yml   daily and weekly alert digests
   backfill.yml manual full loads
 docker-compose.yml  Postgres 18 and Mailpit for local development
 ```
@@ -158,6 +181,8 @@ The API validates its environment at start and refuses to start on a missing or 
 | `MAIL_FROM`        | The From header of every email, as `"Name <address>"` or a bare address. The domain must be verified in Resend.                                                                                   |
 | `TRUST_PROXY_HOPS` | How many proxies in front of the API to trust for the client IP, from 0 to 5. Default 0. Staging and production sit behind Cloudflare and Render, so set it from what the logs show for `req.ip`. |
 
+The ingestion CLI reads `MAIL_TRANSPORT`, `MAIL_SMTP_URL`, `MAIL_FROM`, `RESEND_API_KEY` and `APP_ORIGIN` as well, but only for `alerts:run` and `digest:send`. In GitHub Actions `MAIL_FROM` and `APP_ORIGIN` are repository variables and `RESEND_API_KEY` is a secret.
+
 Locally, `npx nx serve api` sends account emails to Mailpit, whose inbox is at http://localhost:8025. In development and test, http://localhost:3000/v1/dev/emails previews every account email in every language, including the right-to-left Urdu layout. The route does not exist in production.
 
 ### Common commands
@@ -166,7 +191,10 @@ Locally, `npx nx serve api` sends account emails to Mailpit, whose inbox is at h
 npx nx run-many -t lint test build      # lint, test and build every project
 npx nx serve api                        # then open http://localhost:3000/v1/health
 npx nx build ingest && node dist/apps/ingest/main.js --help
+node tools/perf/load.mjs --base http://localhost:3000 --email <email> --password <password>   # p95 of search and dashboards
 ```
+
+`tools/perf/load.mjs` signs in, warms each route and checks that the 95th-percentile response time of notice search, dashboards and firm search is 800 ms or less. See `tools/perf/README.md`.
 
 ### Ingestion CLI
 
@@ -180,8 +208,12 @@ npx nx build ingest && node dist/apps/ingest/main.js --help
 | `sync:eu-mrl`                               | EU pesticide MRLs, replaced in full                                             |
 | `taxonomy:remap`                            | Re-applies the taxonomy rules to every stored record                            |
 | `entities:link`                             | Links records to firms and refreshes firm facts                                 |
+| `alerts:run [--no-email]`                   | Turns new change events into alerts and sends the instant emails                |
+| `digest:send`                               | Sends the daily digests, and the weekly ones on Mondays                         |
 | `db:size-check`                             | Exits 1 at or above 900 MB                                                      |
 | `verify-source`, `probe-page`               | Checks a source: fields, rows, fill rates, duplicate keys, page patterns        |
+
+`alerts:run` and `digest:send` send email through the same daily cap as the API, so they read the mail variables above. `alerts:run --no-email` creates the alerts and needs none of them. `alerts:run` exits 3 when a firm-level record has stayed unlinked for 48 hours, because alerts stop at the first such record; GitHub Actions then emails the owner. `digest:send` exits 1 when a digest could not be sent.
 
 Every `sync:*` command takes `--no-events` for backfills. Long syncs on Windows are best run in a Linux container, because Node 24 on Windows has aborted mid-way through long runs of HTTPS requests. From PowerShell, after `npx nx build ingest`:
 
@@ -197,9 +229,12 @@ docker run --rm -e DATABASE_URL -v "${PWD}:/app:ro" -w /app node:24.15.0-bookwor
 | `sync-weekly.yml`  | 08:00 every day for now, then weekly on FDA's refresh day | FDA charge codes and refusals, then `entities:link` |
 | `sync-weekly.yml`  | 06:30 on Mondays                                          | UK, then Australia, then `entities:link`            |
 | `sync-monthly.yml` | 03:30 on the 1st                                          | EU MRLs                                             |
+| `digest.yml`       | 03:00 every day                                           | `digest:send` (weekly digests on Mondays)           |
 | `backfill.yml`     | On demand                                                 | One source with `--no-events`                       |
 
-Each job first checks the database size, and only one job writes to the database at a time.
+Each job first checks the database size, and only one job writes to the database at a time. Every scheduled sync workflow ends with `alerts:run`.
+
+Alerts depend on that. `alerts:run` reads change events in order and moves its cursor past them, so an event committed late by a second writer would never be alerted. The sync workflows therefore share one concurrency group, and `digest.yml` has its own because it inserts no change events or alerts, so it cannot create the late-commit gap that the shared group prevents. Don't run syncs by hand at the same time as scheduled ones.
 
 ## Status and roadmap
 
@@ -210,8 +245,8 @@ About 70 development days in 11 phases.
 | P1    | Foundation: workspace, database, CI, accounts, checks of every source                | ✅ Done (October 2026)                                                                                                                                                                                                  |
 | P2    | Ingestion and taxonomy: six sources, full history, scheduled syncs                   | Built and merged. Staging holds FDA refusals since 2016, RASFF since 2020, UK, Australia and EU MRLs (195 MB). Still to do: the first full Import Alert crawl, a week of green scheduled runs and the final size check. |
 | P3    | Entity resolution: linking, firm facts, merge and split                              | Built and merged; 20,833 firms from 90,614 records on a full local load. Waiting for the labelled-pair precision gate and the first link on staging.                                                                    |
-| P4    | Auth, accounts, email and the i18n core                                              | Built on branch `p4/auth-accounts`, not merged. Sign-up, login, sessions, password reset, members and invites, the email cap and localised emails. Still to do: review, then the staging migrations and settings.       |
-| P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Not started                                                                                                                                                                                                             |
+| P4    | Auth, accounts, email and the i18n core                                              | Built and merged (PRs #35 and #36). Sign-up, login, sessions, password reset, members and invites, the email cap and localised emails. Still to do: the staging migrations and settings.                                |
+| P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Built on branch `p5/core-product-api`, not merged. See "The product API". Still to do: review; before merging, the staging migration, mail settings and link check; then the p95 and hand checks.                       |
 | P6    | Bulk supplier screening and PDF reports                                              | Not started                                                                                                                                                                                                             |
 | P7    | Billing with Paddle                                                                  | Not started                                                                                                                                                                                                             |
 | P8    | Public API and Import Alert summaries                                                | Not started                                                                                                                                                                                                             |

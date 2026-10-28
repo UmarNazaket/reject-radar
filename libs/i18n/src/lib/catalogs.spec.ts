@@ -1,4 +1,5 @@
-import { LOCALES } from '@rejectradar/contracts';
+import { DESTINATIONS, HAZARD_CATEGORIES, LOCALES } from '@rejectradar/contracts';
+import { COMMODITIES, HAZARDS } from '@rejectradar/taxonomy';
 import { IntlMessageFormat } from 'intl-messageformat';
 import { CATALOGS, CATALOG_STATUS, messageArguments } from './catalogs';
 
@@ -33,6 +34,17 @@ describe('catalogs', () => {
         args: messageArguments(CATALOGS.en[key]),
       });
     }
+  });
+
+  it('every seeded commodity and hazard has an English label', () => {
+    const keys = [
+      ...COMMODITIES.map((c) => `taxonomy.commodity.${c.slug}`),
+      ...HAZARDS.map((h) => `taxonomy.hazard.${h.slug}`),
+      ...HAZARD_CATEGORIES.map((c) => `taxonomy.hazardCategory.${c}`),
+      ...DESTINATIONS.map((d) => `taxonomy.destination.${d}`),
+    ];
+    expect(new Set(HAZARDS.map((h) => h.category))).toEqual(new Set(HAZARD_CATEGORIES));
+    for (const key of keys) expect({ key, label: CATALOGS.en[key] }).toEqual({ key, label: expect.any(String) });
   });
 
   it('only English is written by hand', () => {

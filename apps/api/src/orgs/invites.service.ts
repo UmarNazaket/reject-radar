@@ -10,7 +10,8 @@ import type {
   MeResponse,
 } from '@rejectradar/contracts';
 import { appUser, type Database, invite, membership, org } from '@rejectradar/db';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { renderEmail } from '@rejectradar/mail';
+import { and, count, eq, isNull, sql } from 'drizzle-orm';
 import { byOrg, type RequestContext } from '../auth/context';
 import { commonPasswordError, hashPassword, isCommonPassword, verifyPassword } from '../auth/passwords';
 import { invalidCredentials, type SessionTokens, SessionsService } from '../auth/sessions.service';
@@ -21,8 +22,8 @@ import { randomToken, sha256Hex } from '../common/tokens';
 import { API_ENV } from '../config/env';
 import { DB } from '../database/database.module';
 import type { Tx } from '../database/tx';
+import { EntitlementsService } from '../entitlements/entitlements.service';
 import { MailerService } from '../mail/mailer.service';
-import { renderEmail } from '../mail/templates/render';
 import { loadMe } from './me.queries';
 
 /** How long an invite link works (P4-D8), counted on the database clock. */
@@ -45,6 +46,7 @@ export class InvitesService {
     @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly mailer: MailerService,
     private readonly sessions: SessionsService,
+    private readonly entitlements: EntitlementsService,
   ) {}
 
   /**
@@ -68,6 +70,17 @@ export class InvitesService {
         .innerJoin(appUser, eq(appUser.id, membership.userId))
         .where(byOrg(membership, ctx, byEmail(body.email)));
       if (existing) throw new AppError(HttpStatus.CONFLICT, 'ALREADY_MEMBER', 'This person is already a member of the account.');
+
+      // The pending invite for this address is about to be replaced, so it is locked before the seat count (accepting
+      // locks the invite first too, and the two must not wait on each other), and it is left out of the count.
+      await tx.select({ id: invite.id }).from(invite).where(byOrg(invite, ctx, sql`lower(${invite.email}) = ${body.email}`, isNull(invite.acceptedAt))).for('update');
+      await this.lockSeats(tx, ctx.orgId);
+      const [{ members }] = await tx.select({ members: count() }).from(membership).where(byOrg(membership, ctx));
+      const [{ others }] = await tx
+        .select({ others: count() })
+        .from(invite)
+        .where(byOrg(invite, ctx, isOpen, sql`lower(${invite.email}) <> ${body.email}`));
+      await this.entitlements.assertCount(ctx.orgId, 'members', members + others, tx);
 
       await tx.delete(invite).where(byOrg(invite, ctx, sql`lower(${invite.email}) = ${body.email}`, isNull(invite.acceptedAt)));
       const [row] = await tx
@@ -216,10 +229,21 @@ export class InvitesService {
       });
     }
 
-    if (!alreadyJoined) await tx.insert(membership).values({ orgId: pending.orgId, userId, role: pending.role });
+    if (!alreadyJoined) {
+      // Accepting counts members only (P5-D3): the open invites, this one included, are not seats yet.
+      await this.lockSeats(tx, pending.orgId);
+      const [{ members }] = await tx.select({ members: count() }).from(membership).where(byOrg(membership, { orgId: pending.orgId }));
+      await this.entitlements.assertCount(pending.orgId, 'members', members, tx);
+      await tx.insert(membership).values({ orgId: pending.orgId, userId, role: pending.role });
+    }
     await tx.update(invite).set({ acceptedAt: sql`now()` }).where(eq(invite.id, pending.id));
     const tokens = await this.sessions.startSession(tx, userId, pending.orgId);
     return { kind: 'ok', me: await loadMe(tx, userId, { orgId: pending.orgId }), ...tokens };
+  }
+
+  /** Makes inviting and accepting into one account take turns while they count its seats, so the last seat goes to one of them. */
+  private async lockSeats(tx: Tx, orgId: string): Promise<void> {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`members:${orgId}`}, 0))`);
   }
 
   /** A new person reads the app in the inviter's language unless they pick one; `en` if the inviter has gone. */

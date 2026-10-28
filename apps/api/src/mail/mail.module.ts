@@ -1,9 +1,10 @@
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import type { ApiEnv } from '@rejectradar/contracts';
+import { createMailTransport } from '@rejectradar/mail';
 import type { AppOverrides } from '../app/app-overrides';
+import { MAIL_TRANSPORT } from './mail-transport';
 import { MailerService } from './mailer.service';
 import { EmailPreviewController } from './preview.controller';
-import { createMailTransport, MAIL_TRANSPORT } from './transports';
 
 @Global()
 @Module({})

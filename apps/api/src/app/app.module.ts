@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import type { ApiEnv } from '@rejectradar/contracts';
 import { LoggerModule } from 'nestjs-pino';
 import type { Options } from 'pino-http';
+import { AlertsModule } from '../alerts/alerts.module';
 import { AuthModule } from '../auth/auth.module';
 import type { ContextRequest } from '../auth/context';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -14,9 +15,16 @@ import { FixedWindowLimiter, RateLimitGuard } from '../common/rate-limit';
 import { requestIdFor } from '../common/request-id';
 import { API_ENV } from '../config/env';
 import { DatabaseModule } from '../database/database.module';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
+import { FirmsModule } from '../firms/firms.module';
 import { HealthModule } from '../health/health.module';
 import { MailModule } from '../mail/mail.module';
+import { ImportAlertsModule } from '../import-alerts/import-alerts.module';
+import { MrlModule } from '../mrl/mrl.module';
+import { NoticesModule } from '../notices/notices.module';
 import { OrgsModule } from '../orgs/orgs.module';
+import { TaxonomyModule } from '../taxonomy/taxonomy.module';
+import { WatchlistsModule } from '../watchlists/watchlists.module';
 import type { AppOverrides } from './app-overrides';
 
 function pinoOptions(env: ApiEnv, allowTransport: boolean): Options {
@@ -48,9 +56,17 @@ export class AppModule {
         LoggerModule.forRoot({ pinoHttp: overrides.logStream ? [pinoOptions(env, false), overrides.logStream] : pinoOptions(env, true) }),
         DatabaseModule.register(env.DATABASE_URL),
         MailModule.register(env, overrides),
+        AlertsModule,
         AuthModule,
+        EntitlementsModule,
+        FirmsModule,
         HealthModule,
+        ImportAlertsModule,
+        MrlModule,
+        NoticesModule,
         OrgsModule,
+        TaxonomyModule,
+        WatchlistsModule,
       ],
       providers: [
         { provide: API_ENV, useValue: env },

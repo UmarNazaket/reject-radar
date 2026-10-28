@@ -1,6 +1,8 @@
+import { alert, notificationPref, uuidv7 } from '@rejectradar/db';
+import { insertEvent, insertFirm } from '@rejectradar/entities';
 import { sql } from 'drizzle-orm';
 import { type AccountFixture, ACCOUNT_ROUTES, type IsolationCase, NOT_ACCOUNT_OWNED } from './isolation-registry';
-import { joinByInvite, signUpVerified, startTestApp, type TestApp, type TestSession } from './test-app';
+import { joinByInvite, setPlan, signUpVerified, startTestApp, type TestApp, type TestSession } from './test-app';
 
 interface Account {
   session: TestSession;
@@ -50,8 +52,21 @@ describe('account isolation', () => {
   /** An owner, one member and one pending invite, each on its own address under `tag`. */
   async function buildAccount(tag: string): Promise<Account> {
     const owner = await signUpVerified(t, { email: `${tag}.owner@isolation.test`, name: `${tag} Owner`, company: `${tag} Rice Mills` });
+    // The free plan has one seat, so the fixture account is on a plan that holds its member and pending invite.
+    await setPlan(t, owner.orgId, 'business');
     const member = await joinByInvite(t, owner.session, { email: `${tag}.member@isolation.test`, role: 'member', name: `${tag} Member` });
     const pending = await owner.session.post('/v1/org/invites').send({ email: `${tag}.pending@isolation.test`, role: 'admin' }).expect(201);
+    // One watched firm, whose name no other account may ever see.
+    const watchlistFirmName = `${tag} Isolation Exporters Ltd`;
+    const firmId = await insertFirm(t.db, { displayName: watchlistFirmName, countryCode: 'PK' });
+    const watchlistLabel = `${tag} private label`;
+    const watched = await owner.session.post('/v1/watchlist').send({ kind: 'firm', firmId, label: watchlistLabel }).expect(201);
+    // One alert on that firm. `alerts:run` raises them in production; the harness inserts it directly.
+    const eventId = await insertEvent(t.db, { source: 'fda_refusal', sourceKey: `${tag}-isolation-refusal`, firmId, originCountry: 'PK' });
+    const alertId = uuidv7();
+    await t.db.insert(alert).values({ id: alertId, orgId: owner.orgId, changeEventId: eventId, firmId, severity: 'high' });
+    // The owner's settings differ from the defaults, so a write to the wrong user shows.
+    await t.db.insert(notificationPref).values({ userId: owner.userId, instantHigh: true, digest: 'off' });
     return {
       session: owner.session,
       fixture: {
@@ -59,12 +74,21 @@ describe('account isolation', () => {
         ownerId: owner.userId,
         memberId: member.userId,
         inviteId: (pending.body as { id: string }).id,
+        watchlistItemId: (watched.body as { id: string }).id,
+        watchlistLabel,
+        watchlistFirmName,
+        alertId,
         emails: [`${tag}.owner@isolation.test`, `${tag}.member@isolation.test`, `${tag}.pending@isolation.test`],
       },
     };
   }
 
-  /** What an outsider could change in account B: its name, its members and roles, its invites and its users' profiles. */
+  /**
+   * What an outsider could change in account B: its name, its members and roles, its invites, its watchlist, its alerts' read state,
+   * its members' notification settings and its users' profiles.
+   * Its lookups and disputes are here too; the firm routes are not account-owned, so the cases below do not call them, and
+   * `firm-profile.e2e.spec.ts` and `disputes.e2e.spec.ts` prove that A's calls write only A's rows.
+   */
   async function snapshot(account: Account) {
     const { orgId } = account.fixture;
     const rows = async (query: ReturnType<typeof sql>) => (await t.db.execute(query)).rows;
@@ -75,6 +99,15 @@ describe('account isolation', () => {
         from membership m join app_user u on u.id = m.user_id
         where m.org_id = ${orgId} order by m.user_id`),
       invites: await rows(sql`select id, email, role, accepted_at from invite where org_id = ${orgId} order by id`),
+      lookups: await rows(sql`select firm_id, period from lookup_log where org_id = ${orgId} order by firm_id, period`),
+      usage: await rows(sql`select period, lookups, bulk_rows, api_calls from usage_counter where org_id = ${orgId} order by period`),
+      disputes: await rows(sql`select id, firm_id, status, message from dispute where org_id = ${orgId} order by id`),
+      watchlist: await rows(sql`select id, label, notes from watchlist_item where org_id = ${orgId} order by id`),
+      alerts: await rows(sql`select id, read_at from alert where org_id = ${orgId} order by id`),
+      notificationPrefs: await rows(sql`
+        select p.user_id, p.instant_high, p.digest, p.last_digest_at
+        from notification_pref p join membership m on m.user_id = p.user_id
+        where m.org_id = ${orgId} order by p.user_id`),
     };
   }
 
@@ -117,7 +150,7 @@ describe('account isolation', () => {
 
   describe('account A never reaches account B', () => {
     const send = (session: TestSession, c: IsolationCase, path: string, body: unknown) => {
-      const req = session[c.method.toLowerCase() as 'get' | 'post' | 'patch' | 'put' | 'delete'](path);
+      const req = session[c.method.toLowerCase() as 'get' | 'post' | 'patch' | 'put' | 'delete'](path).query(c.query ?? {});
       return body === undefined ? req : req.send(body as object);
     };
 
@@ -140,8 +173,10 @@ describe('account isolation', () => {
         const res = await send(a.session, c, c.path, c.body?.(b.fixture));
         expect(res.status).toBeLessThan(300);
 
-        const text = JSON.stringify(res.body);
-        const secrets = [b.fixture.orgId, b.fixture.ownerId, b.fixture.memberId, b.fixture.inviteId, ...b.fixture.emails];
+        // A CSV has no JSON body; its text is what the caller gets.
+        const text = res.type === 'text/csv' ? res.text : JSON.stringify(res.body);
+        const { orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, emails } = b.fixture;
+        const secrets = [orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, ...emails];
         expect({ route: label(c), leaked: secrets.filter((secret) => text.includes(secret)) }).toEqual({ route: label(c), leaked: [] });
         expect(await snapshot(b)).toEqual(before);
       },

@@ -1,6 +1,10 @@
+import { mailEnvSchema, parseEnv } from '@rejectradar/contracts';
 import type { Resend } from 'resend';
 import { createMailTransport, ResendTransport, SmtpTransport } from './transports';
-import { testEnv } from '../testing/test-app';
+
+/** A valid mail environment; `extra` overrides or adds variables. */
+const testEnv = (extra: Record<string, string> = {}) =>
+  parseEnv(mailEnvSchema, { NODE_ENV: 'test', APP_ORIGIN: 'http://localhost:4200', MAIL_FROM: 'RejectRadar <test@rejectradar.test>', ...extra });
 
 const message = { from: 'RejectRadar <a@rejectradar.test>', to: 'sara@example.com', subject: 'Hello', html: '<p>Hello</p>', text: 'Hello' };
 
@@ -43,11 +47,11 @@ describe('SmtpTransport', () => {
 
 describe('createMailTransport', () => {
   it('builds the SMTP transport by default', () => {
-    expect(createMailTransport(testEnv('postgres://x@localhost/x'))).toBeInstanceOf(SmtpTransport);
+    expect(createMailTransport(testEnv())).toBeInstanceOf(SmtpTransport);
   });
 
   it('builds the Resend transport when MAIL_TRANSPORT=resend', () => {
-    const env = testEnv('postgres://x@localhost/x', { MAIL_TRANSPORT: 'resend', RESEND_API_KEY: 're_test_ab12cd34ef56gh78' });
+    const env = testEnv({ MAIL_TRANSPORT: 'resend', RESEND_API_KEY: 're_test_ab12cd34ef56gh78' });
     expect(createMailTransport(env)).toBeInstanceOf(ResendTransport);
   });
 });

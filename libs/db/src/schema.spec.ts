@@ -3,7 +3,7 @@ import { POOL_DEFAULTS } from './client';
 import { prepareTestDatabase } from './testing';
 
 const EXPECTED_TABLES = [
-  'alert', 'api_key', 'app_user', 'au_failing_food', 'audit_log', 'bulk_job', 'bulk_job_row', 'change_event',
+  'alert', 'alert_email', 'api_key', 'app_user', 'au_failing_food', 'audit_log', 'bulk_job', 'bulk_job_row', 'change_event',
   'commodity', 'commodity_rule', 'dispute', 'email_delivery', 'email_token', 'eu_mrl', 'eu_mrl_product',
   'eu_pesticide_residue', 'fda_charge_code', 'fda_refusal', 'firm', 'firm_alias', 'firm_fei', 'hazard', 'hazard_rule',
   'import_alert', 'import_alert_listing', 'import_alert_listing_product', 'import_alert_summary', 'invite', 'job_cursor',
@@ -27,7 +27,7 @@ describe('database schema (spec §7)', () => {
     await client.end();
   });
 
-  it('creates exactly the 44 tables in spec §7', async () => {
+  it('creates exactly the 45 tables in spec §7', async () => {
     const { rows } = await client.query<{ table_name: string }>(
       "select table_name from information_schema.tables where table_schema = 'public'",
     );
@@ -124,6 +124,83 @@ describe('database schema (spec §7)', () => {
     await expect(
       client.query("insert into watchlist_item (id, org_id, kind) values ('0192c7a0-0000-7000-8000-0000000000b1', $1, 'firm')", [ORG_A]),
     ).rejects.toMatchObject({ code: '23514' });
+  });
+
+  describe('P5 product tables and constraints', () => {
+    const USER = '0192c7a0-0000-7000-8000-000000000001';
+    const ALERT = '0192c7a0-0000-7000-8000-0000000000c1';
+    let eventId: number;
+    let firmId: number;
+
+    beforeAll(async () => {
+      const event = await client.query<{ id: number }>(
+        "insert into change_event (source, source_key, kind, severity, occurred_on) values ('rasff', 'p5-event', 'rasff_notification', 'high', '2026-10-01') returning id",
+      );
+      eventId = event.rows[0].id;
+      const firm = await client.query<{ id: number }>(
+        "insert into firm (display_name, name_norm, country_code) values ('P5 Foods', 'p5 foods', 'PK') returning id",
+      );
+      firmId = firm.rows[0].id;
+      await client.query("insert into alert (id, org_id, change_event_id, severity) values ($1, $2, $3, 'high')", [ALERT, ORG_A, eventId]);
+    });
+
+    it('alert_email is keyed by alert and user', async () => {
+      await client.query('insert into alert_email (alert_id, user_id) values ($1, $2)', [ALERT, USER]);
+      await expect(client.query('insert into alert_email (alert_id, user_id) values ($1, $2)', [ALERT, USER])).rejects.toMatchObject({
+        code: '23505',
+        constraint: 'alert_email_alert_id_user_id_pk',
+      });
+      await client.query('delete from alert where id = $1', [ALERT]);
+      const { rowCount } = await client.query('select 1 from alert_email where alert_id = $1', [ALERT]);
+      expect(rowCount).toBe(0);
+    });
+
+    it("notification_pref rejects digest 'hourly'", async () => {
+      await expect(client.query("insert into notification_pref (user_id, digest) values ($1, 'hourly')", [USER])).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'notification_pref_digest_ck',
+      });
+    });
+
+    it("dispute rejects kind 'spam'", async () => {
+      await expect(
+        client.query(
+          "insert into dispute (id, org_id, firm_id, kind, message) values ('0192c7a0-0000-7000-8000-0000000000d1', $1, $2, 'spam', 'm')",
+          [ORG_A, firmId],
+        ),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'dispute_kind_ck' });
+    });
+
+    it("dispute rejects status 'closed'", async () => {
+      await expect(
+        client.query(
+          "insert into dispute (id, org_id, firm_id, status, message) values ('0192c7a0-0000-7000-8000-0000000000d2', $1, $2, 'closed', 'm')",
+          [ORG_A, firmId],
+        ),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'dispute_status_ck' });
+    });
+
+    it("org rejects plan_override 'gold'", async () => {
+      await expect(client.query("insert into org (id, name, plan_override) values ('0192c7a0-0000-7000-8000-0000000000a2', 'Gold', 'gold')")).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'org_plan_override_ck',
+      });
+    });
+
+    it("watchlist_item rejects destination 'CN'", async () => {
+      await expect(
+        client.query(
+          "insert into watchlist_item (id, org_id, kind, origin_country, topic_key, destination) values ('0192c7a0-0000-7000-8000-0000000000b4', $1, 'topic', 'IN', 'IN|*|CN|*', 'CN')",
+          [ORG_A],
+        ),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'watchlist_item_destination_ck' });
+    });
+
+    it("alert rejects severity 'low'", async () => {
+      await expect(
+        client.query("insert into alert (id, org_id, change_event_id, severity) values ('0192c7a0-0000-7000-8000-0000000000c2', $1, $2, 'low')", [ORG_A, eventId]),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'alert_severity_ck' });
+    });
   });
 
   it('keeps topic watchlist items unique per account', async () => {

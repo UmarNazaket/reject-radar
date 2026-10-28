@@ -13,9 +13,9 @@ import type { RequestContext } from '../auth/context';
 import { CurrentContext, Roles } from '../auth/decorators';
 import { AppError } from '../common/errors';
 import { ZodValidationPipe } from '../common/zod-pipe';
+import { UuidParamPipe } from '../common/uuid-param.pipe';
 import { DB } from '../database/database.module';
 import { MembersService } from './members.service';
-import { UuidParamPipe } from './uuid-param.pipe';
 
 /** The caller's own account: its settings and its members. The account is always the session's, never a path or body value. */
 @Controller('org')
