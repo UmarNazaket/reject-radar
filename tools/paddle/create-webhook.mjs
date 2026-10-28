@@ -121,7 +121,6 @@ async function main() {
       destination: args.url,
       type: 'url',
       subscribed_events: EVENTS,
-      active: true,
       api_version: 1,
       include_sensitive_fields: false,
     }),
@@ -143,17 +142,20 @@ async function main() {
   );
   console.log(`  url:    ${destination.destination}`);
   console.log(`  events: ${EVENTS.join(', ')}`);
-  if (args.showSecret) {
+  const dashboardHint =
+    'The endpoint secret is in the Paddle dashboard: Developer tools > Notifications > the destination > endpoint secret key.';
+  if (args.showSecret && destination.endpoint_secret_key) {
     console.log(`  endpoint secret: ${destination.endpoint_secret_key}`);
     console.log(
       'Put it in PADDLE_WEBHOOK_SECRET (Render staging and the local .env). Keep it out of chat and logs.',
     );
+  } else if (args.showSecret) {
+    console.log('Paddle did not return the endpoint secret in its answer.');
+    console.log(dashboardHint);
   } else {
+    console.log(dashboardHint);
     console.log(
-      'The endpoint secret is on the destination in Paddle: Developer tools > Notifications > the destination > Secret key.',
-    );
-    console.log(
-      'Copy it into PADDLE_WEBHOOK_SECRET, or rerun with --show-secret next time to print it here.',
+      'Copy it into PADDLE_WEBHOOK_SECRET. Do not rerun this tool to see it: a second run creates a second destination with a different secret. If you need to, delete this destination in the dashboard and rerun with --show-secret.',
     );
   }
 }
