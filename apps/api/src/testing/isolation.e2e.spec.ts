@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { type AccountFixture, ACCOUNT_ROUTES, type IsolationCase, NOT_ACCOUNT_OWNED } from './isolation-registry';
-import { joinByInvite, signUpVerified, startTestApp, type TestApp, type TestSession } from './test-app';
+import { joinByInvite, setPlan, signUpVerified, startTestApp, type TestApp, type TestSession } from './test-app';
 
 interface Account {
   session: TestSession;
@@ -50,6 +50,8 @@ describe('account isolation', () => {
   /** An owner, one member and one pending invite, each on its own address under `tag`. */
   async function buildAccount(tag: string): Promise<Account> {
     const owner = await signUpVerified(t, { email: `${tag}.owner@isolation.test`, name: `${tag} Owner`, company: `${tag} Rice Mills` });
+    // The free plan has one seat, so the fixture account is on a plan that holds its member and pending invite.
+    await setPlan(t, owner.orgId, 'business');
     const member = await joinByInvite(t, owner.session, { email: `${tag}.member@isolation.test`, role: 'member', name: `${tag} Member` });
     const pending = await owner.session.post('/v1/org/invites').send({ email: `${tag}.pending@isolation.test`, role: 'admin' }).expect(201);
     return {

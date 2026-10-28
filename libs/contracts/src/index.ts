@@ -7,3 +7,4 @@ export * from './lib/firms';
 export * from './lib/email';
 export * from './lib/accounts';
 export * from './lib/product';
+export * from './lib/entitlements';

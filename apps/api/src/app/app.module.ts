@@ -14,6 +14,7 @@ import { FixedWindowLimiter, RateLimitGuard } from '../common/rate-limit';
 import { requestIdFor } from '../common/request-id';
 import { API_ENV } from '../config/env';
 import { DatabaseModule } from '../database/database.module';
+import { EntitlementsModule } from '../entitlements/entitlements.module';
 import { HealthModule } from '../health/health.module';
 import { MailModule } from '../mail/mail.module';
 import { OrgsModule } from '../orgs/orgs.module';
@@ -49,6 +50,7 @@ export class AppModule {
         DatabaseModule.register(env.DATABASE_URL),
         MailModule.register(env, overrides),
         AuthModule,
+        EntitlementsModule,
         HealthModule,
         OrgsModule,
       ],

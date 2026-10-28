@@ -1,7 +1,7 @@
 import { membersResponse, orgResponse } from '@rejectradar/contracts';
 import { sql } from 'drizzle-orm';
 import request from 'supertest';
-import { joinByInvite, signUpVerified, startTestApp, type TestApp, type TestSession } from '../testing/test-app';
+import { joinByInvite, setPlan, signUpVerified, startTestApp, type TestApp, type TestSession } from '../testing/test-app';
 
 const PASSWORD = 'basmati-export-77';
 
@@ -34,6 +34,8 @@ describe('account settings and members', () => {
     const first = await signUpVerified(t, { email: 'owner@example.com', name: 'Owner One', company: 'Zarfeen Rice Mills' });
     orgId = first.orgId;
     owner = first;
+    // The free plan has one seat; these tests are about roles, so the account has room for the team.
+    await setPlan(t, orgId, 'business');
     admin = await joinByInvite(t, owner.session, { email: 'admin@example.com', role: 'admin', name: 'Admin' });
     member = await joinByInvite(t, owner.session, { email: 'member@example.com', role: 'member', name: 'Member' });
     owner2 = await joinByInvite(t, owner.session, { email: 'owner2@example.com', role: 'admin', name: 'Owner Two' });
@@ -157,6 +159,7 @@ describe('account settings and members', () => {
 
     beforeEach(async () => {
       solo = await signUpVerified(t, { email: 'solo@example.com' });
+      await setPlan(t, solo.orgId, 'business');
       soloAdmin = await joinByInvite(t, solo.session, { email: 'solo.admin@example.com', role: 'admin' });
       soloMember = await joinByInvite(t, solo.session, { email: 'solo.member@example.com', role: 'member' });
     });
@@ -230,6 +233,7 @@ describe('account settings and members', () => {
     await owner.session.post('/v1/org/invites').send({ email: 'late@example.com', role: 'admin' }).expect(201);
     await t.db.execute(sql`update invite set expires_at = now() - interval '1 second' where email = 'late@example.com'`);
     const stranger = await signUpVerified(t, { email: 'stranger@example.com' });
+    await setPlan(t, stranger.orgId, 'business');
     await stranger.session.post('/v1/org/invites').send({ email: 'elsewhere@example.com', role: 'member' }).expect(201);
 
     const res = await member.session.get('/v1/org/members').expect(200);
