@@ -108,7 +108,7 @@ The app API under `/v1` has these product areas. Apart from `GET /taxonomy`, the
 | Import Alerts | `GET /import-alerts/:number`: the alert text and a summary only if a person has approved it.                                                                      |
 | Watchlist     | Firm and topic items, a CSV export and a notice estimate for a topic being added. Adding needs a verified email.                                                  |
 | Alerts        | The alerts list, mark as read, unread counts, and each user's instant-email and digest settings.                                                                  |
-| Plan limits   | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. The web app turns both into the upgrade prompt.   |
+| Plan limits   | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. P9 will show both as an upgrade prompt.           |
 
 Alerts are made by `alerts:run` and the digests by `digest:send` (see the ingestion commands below), not by the API.
 
@@ -234,7 +234,7 @@ docker run --rm -e DATABASE_URL -v "${PWD}:/app:ro" -w /app node:24.15.0-bookwor
 
 Each job first checks the database size, and only one job writes to the database at a time. Every scheduled sync workflow ends with `alerts:run`.
 
-Alerts depend on that. `alerts:run` reads change events in order and moves its cursor past them, so an event committed late by a second writer would never be alerted. The sync workflows therefore share one concurrency group, and `digest.yml` has its own because it only reads alerts. Don't run syncs by hand at the same time as scheduled ones.
+Alerts depend on that. `alerts:run` reads change events in order and moves its cursor past them, so an event committed late by a second writer would never be alerted. The sync workflows therefore share one concurrency group, and `digest.yml` has its own because it inserts no change events or alerts, so it cannot create the late-commit gap that the shared group prevents. Don't run syncs by hand at the same time as scheduled ones.
 
 ## Status and roadmap
 
