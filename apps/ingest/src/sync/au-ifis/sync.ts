@@ -63,7 +63,8 @@ export const AU_FILES: MonthlyFileSource<AuRecord, typeof auFailingFood> = {
     sourceKey: r.sourceKey,
     kind: 'au_failed_test',
     occurredOn: dateOf(r),
-    requiresFirm: r.producerName !== null,
+    // The linker skips a row whose normalised name is empty (a name with no Latin letters or digits), so only a linkable name can require a firm.
+    requiresFirm: r.nameNorm !== '',
     originCountry: r.countryCode,
     commodityId: r.commodityId,
     hazardIds: r.hazardIds,

@@ -517,6 +517,21 @@ describe('Australian sync', () => {
     expect(n.firmName).toBeNull();
   });
 
+  it('does not require a firm for a producer whose name normalises to nothing', async () => {
+    // The linker skips a row with an empty normalised name (here a name with no Latin letters or digits), so an event that
+    // waited for its firm would block alerts:run for good.
+    const csv = `${HEADER}
+8/07/2026,Nameless producer chilli,India,"株式会社",Salmonella detected,Detected/125g,FSC 1.6.1,Risk
+`;
+    await syncAuIfis(backend({ [URL_JULY]: csv }), options);
+    const [typed] = await handle.db.select().from(auFailingFood).where(eq(auFailingFood.productDesc, 'Nameless producer chilli'));
+    expect(typed.producerName).toBe('株式会社');
+    expect(typed.nameNorm).toBe('');
+    const events = await handle.db.select().from(changeEvent).where(eq(changeEvent.occurredOn, '2026-07-08'));
+    expect(events).toHaveLength(1);
+    expect(events[0].requiresFirm).toBe(false);
+  });
+
   it('suppresses events on a first load, then emits them', async () => {
     await handle.db.delete(sourceSyncRun);
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
