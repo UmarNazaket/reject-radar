@@ -13,7 +13,7 @@ function commaList<const T extends readonly [string, ...string[]]>(allowed: T) {
 }
 
 /** A decimal id that fits a Postgres `integer` (`1e3`, signs and spaces are refused; an out-of-range value would be a 500 in the query). */
-const positiveInt = z
+export const positiveInt = z
   .string()
   .regex(/^[1-9][0-9]{0,9}$/, 'must be a positive whole number')
   .transform(Number)

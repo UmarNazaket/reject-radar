@@ -3,6 +3,9 @@ import {
   type Database,
   fdaChargeCode,
   firmAlias,
+  euMrl,
+  euMrlProduct,
+  euPesticideResidue,
   firmFei,
   importAlertListingProduct,
   notice,
@@ -53,7 +56,8 @@ const AFLATOXINS = 300;
  *   - an Australian failed test 40 days ago with a holding order.
  * - "Al Rahman Rice Mills" in Lahore and in Karachi (both PK), without records.
  * - `mergedAway`: a firm with a `firm_alias` row pointing to `zarfeen`.
- * - A RASFF alert from PK to the EU 20 days ago: rice, hazard 100 (pesticide residues).
+ * - A RASFF alert from PK to the EU 20 days ago: rice, hazard 100 (pesticide residues), naming tricyclazole.
+ * - EU MRLs: product 0500060 (Rice) with residues 1001 `tricyclazole` (0.09 mg/kg) and 1002 `under_score test` (0.01 mg/kg, at the limit of determination).
  * - A UK border notification 30 days ago: chilli from IN (201, under spices and herbs 200), hazard 300.
  */
 export async function seedReferenceData(db: Database): Promise<ReferenceFixture> {
@@ -189,7 +193,7 @@ export async function seedReferenceData(db: Database): Promise<ReferenceFixture>
     productCategory: 'cereals and bakery products',
     subject: rasffSubject,
     hazards: [
-      { name: 'chlorpyrifos', category: 'pesticide residues', analyticalResult: '0.12', unit: 'mg/kg', maxPermittedLvl: '0.01' },
+      { name: 'tricyclazole', category: 'pesticide residues', analyticalResult: '0.12', unit: 'mg/kg', maxPermittedLvl: '0.01' },
     ],
     commodityId: RICE,
     hazardIds: [PESTICIDE_RESIDUES],
@@ -250,6 +254,17 @@ export async function seedReferenceData(db: Database): Promise<ReferenceFixture>
       url: null,
     })
     .returning({ id: notice.id });
+
+  // The EU MRLs: rice, two residues, and one limit for each (the second at the limit of determination).
+  await db.insert(euMrlProduct).values({ code: '0500060', name: 'Rice', parentCode: '0500000' });
+  await db.insert(euPesticideResidue).values([
+    { id: '1001', name: 'tricyclazole', nameNorm: 'tricyclazole' },
+    { id: '1002', name: 'under_score test', nameNorm: 'under_score test' },
+  ]);
+  await db.insert(euMrl).values([
+    { productCode: '0500060', residueId: '1001', mrlMgKg: '0.09', isLod: false, legalRef: 'Reg. (EU) 2023/1234', applicableFrom: '2023-09-01' },
+    { productCode: '0500060', residueId: '1002', mrlMgKg: '0.01', isLod: true },
+  ]);
 
   // One succeeded, complete run per source: fresh, except the EU MRL import, which is 50 days old.
   await db.insert(sourceSyncRun).values(
