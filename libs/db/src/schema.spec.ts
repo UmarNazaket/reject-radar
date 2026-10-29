@@ -251,6 +251,33 @@ describe('database schema (spec §7)', () => {
     ).rejects.toMatchObject({ code: '23514', constraint });
   });
 
+  describe('bulk tables', () => {
+    const JOB = '0192c7a0-0000-7000-8000-0000000000c1';
+
+    it('bulk tables have their checks and the unique row index', async () => {
+      await expect(
+        client.query("insert into bulk_job (id, org_id, file_name, status, total) values ($1, $2, 'a.csv', 'done', 1)", [JOB, ORG_A]),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'bulk_job_status_ck' });
+      await client.query("insert into bulk_job (id, org_id, file_name, total) values ($1, $2, 'a.csv', 2)", [JOB, ORG_A]);
+      await expect(
+        client.query("insert into bulk_job_row (job_id, row_nr, input_name, status) values ($1, 1, 'Acme', 'maybe')", [JOB]),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'bulk_job_row_status_ck' });
+      await client.query("insert into bulk_job_row (job_id, row_nr, input_name) values ($1, 1, 'Acme')", [JOB]);
+      await expect(
+        client.query("insert into bulk_job_row (job_id, row_nr, input_name) values ($1, 1, 'Acme again')", [JOB]),
+      ).rejects.toMatchObject({ code: '23505', constraint: 'bulk_job_row_job_row_idx' });
+      const { rows } = await client.query<{ indexname: string; indexdef: string }>(
+        "select indexname, indexdef from pg_indexes where tablename in ('bulk_job', 'bulk_job_row') and indexname in ('bulk_job_row_job_row_idx', 'bulk_job_active_idx', 'bulk_job_finished_idx') order by indexname",
+      );
+      expect(rows.map((r) => r.indexname)).toEqual(['bulk_job_active_idx', 'bulk_job_finished_idx', 'bulk_job_row_job_row_idx']);
+      expect(rows[0].indexdef).toMatch(/\(status\)/);
+      expect(rows[0].indexdef).toMatch(/queued.*running/);
+      expect(rows[1].indexdef).toContain('(finished_at)');
+      expect(rows[2].indexdef).toContain('UNIQUE');
+      expect(rows[2].indexdef).toContain('(job_id, row_nr)');
+    });
+  });
+
   it('stores a dispute kind, defaulting to other', async () => {
     const firm = await client.query<{ id: string }>("insert into firm (display_name, name_norm, country_code) values ('Disputed Foods', 'disputed foods', 'PK') returning id");
     const { rows } = await client.query<{ kind: string }>(

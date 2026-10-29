@@ -109,6 +109,14 @@ describe('catalogs', () => {
       'ALREADY_SUBSCRIBED',
       'NO_BILLING_ACCOUNT',
       'INVALID_SIGNATURE',
+      'UNSUPPORTED_FILE_TYPE',
+      'FILE_TOO_LARGE',
+      'INVALID_ENCODING',
+      'INVALID_HEADER',
+      'INVALID_ROWS',
+      'TOO_MANY_ROWS',
+      'ROW_PENDING',
+      'NOT_A_CANDIDATE',
     ];
     for (const code of codes)
       expect(CATALOGS.en[`errors.${code}`]).toEqual(expect.any(String));

@@ -1,5 +1,7 @@
 import {
   BILLING_INTERVALS,
+  BULK_JOB_STATUSES,
+  BULK_ROW_STATUSES,
   DESTINATIONS,
   DIGEST_FREQUENCIES,
   DISPUTE_KINDS,
@@ -305,7 +307,12 @@ export const bulkJob = pgTable(
     finishedAt: timestamp('finished_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index('bulk_job_org_idx').on(t.orgId)],
+  (t) => [
+    index('bulk_job_org_idx').on(t.orgId),
+    index('bulk_job_active_idx').on(t.status).where(sql`status in ('queued', 'running')`),
+    index('bulk_job_finished_idx').on(t.finishedAt),
+    check('bulk_job_status_ck', oneOf('status', BULK_JOB_STATUSES)),
+  ],
 );
 
 export const bulkJobRow = pgTable(
@@ -324,8 +331,9 @@ export const bulkJobRow = pgTable(
     candidates: jsonb('candidates').notNull().default(sql`'[]'::jsonb`),
   },
   (t) => [
-    index('bulk_job_row_job_row_idx').on(t.jobId, t.rowNr),
+    uniqueIndex('bulk_job_row_job_row_idx').on(t.jobId, t.rowNr),
     index('bulk_job_row_job_status_idx').on(t.jobId, t.status),
+    check('bulk_job_row_status_ck', oneOf('status', BULK_ROW_STATUSES)),
   ],
 );
 
