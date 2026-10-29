@@ -29,5 +29,7 @@ export class AdminLayout {
   protected readonly tabs = [
     { path: '/admin', label: 'Source health' },
     { path: '/admin/summaries', label: 'Summaries' },
+    { path: '/admin/matches', label: 'Match review' },
+    { path: '/admin/firms', label: 'Firms' },
   ];
 }

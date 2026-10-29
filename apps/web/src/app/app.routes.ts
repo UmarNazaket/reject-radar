@@ -45,6 +45,9 @@ export const appRoutes: Route[] = [
         children: [
           { path: '', pathMatch: 'full', loadComponent: () => import('./admin/source-health').then((m) => m.SourceHealth) },
           { path: 'summaries', loadComponent: () => import('./admin/summaries').then((m) => m.AdminSummaries) },
+          { path: 'matches', loadComponent: () => import('./admin/match-reviews').then((m) => m.AdminMatchReviews) },
+          { path: 'firms', loadComponent: () => import('./admin/admin-firm').then((m) => m.AdminFirm) },
+          { path: 'firms/:id', loadComponent: () => import('./admin/admin-firm').then((m) => m.AdminFirm) },
         ],
       },
       { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },
