@@ -104,6 +104,10 @@
   "errors.TOO_MANY_ROWS": "فائل میں 5,000 سے زیادہ قطاریں ہیں۔ اسے چھوٹی فائلوں میں تقسیم کریں۔",
   "errors.ROW_PENDING": "اس پر ابھی کارروائی ہو رہی ہے۔ کچھ دیر بعد دوبارہ کوشش کریں۔",
   "errors.NOT_A_CANDIDATE": "یہ فرم اس قطار کے امیدواروں میں شامل نہیں ہے۔",
+  "errors.API_KEY_MISSING": "اپنی API کلید Authorization ہیڈر میں \"Bearer rr_live_…\" کے طور پر بھیجیں۔",
+  "errors.API_KEY_INVALID": "یہ API کلید درست نہیں ہے یا منسوخ کر دی گئی ہے۔",
+  "errors.API_KEY_LIMIT": "آپ کے اکاؤنٹ میں پہلے ہی 5 API کلیدیں ہیں۔ نئی بنانے سے پہلے ایک منسوخ کریں۔",
+  "errors.SUMMARY_STALE": "یہ خلاصہ بننے کے بعد الرٹ کا متن بدل گیا۔ نئے مسودے کا انتظار کریں۔",
 
   "taxonomy.commodity.cereals": "اناج",
   "taxonomy.commodity.rice": "چاول",

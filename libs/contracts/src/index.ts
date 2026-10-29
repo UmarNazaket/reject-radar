@@ -17,3 +17,4 @@ export * from './lib/watchlist';
 export * from './lib/alerts';
 export * from './lib/billing';
 export * from './lib/bulk';
+export * from './lib/api-keys';

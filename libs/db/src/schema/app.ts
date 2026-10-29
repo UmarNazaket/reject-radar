@@ -395,5 +395,9 @@ export const apiKey = pgTable(
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex('api_key_hash_uq').on(t.keyHash), index('api_key_org_idx').on(t.orgId)],
+  (t) => [
+    uniqueIndex('api_key_hash_uq').on(t.keyHash),
+    index('api_key_org_idx').on(t.orgId),
+    check('api_key_prefix_ck', sql`left(prefix, 8) = 'rr_live_'`),
+  ],
 );

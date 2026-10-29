@@ -104,6 +104,10 @@
   "errors.TOO_MANY_ROWS": "ফাইলে 5,000-এর বেশি সারি আছে। এটিকে ছোট ফাইলে ভাগ করুন।",
   "errors.ROW_PENDING": "এটি এখনও প্রক্রিয়াধীন। কিছুক্ষণ পরে আবার চেষ্টা করুন।",
   "errors.NOT_A_CANDIDATE": "এই ফার্মটি এই সারির প্রার্থীদের মধ্যে নেই।",
+  "errors.API_KEY_MISSING": "আপনার API কী Authorization হেডারে \"Bearer rr_live_…\" হিসেবে পাঠান।",
+  "errors.API_KEY_INVALID": "এই API কী বৈধ নয় অথবা বাতিল করা হয়েছে।",
+  "errors.API_KEY_LIMIT": "আপনার অ্যাকাউন্টে ইতিমধ্যে 5টি API কী আছে। নতুন তৈরির আগে একটি বাতিল করুন।",
+  "errors.SUMMARY_STALE": "এই সারাংশ তৈরির পরে অ্যালার্টের লেখা বদলেছে। নতুন খসড়ার জন্য অপেক্ষা করুন।",
 
   "taxonomy.commodity.cereals": "শস্য",
   "taxonomy.commodity.rice": "চাল",
