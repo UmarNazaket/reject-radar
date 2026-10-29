@@ -8,6 +8,8 @@ async function* chunked(bytes: Buffer, size = 7): AsyncGenerator<Buffer> {
 }
 
 const parseText = (text: string, size?: number) => parseBulkCsv(chunked(Buffer.from(text, 'utf8'), size));
+/** The rows alone, for specs that do not look at the delimiter. */
+const rowsOf = async (text: string, size?: number) => (await parseText(text, size)).rows;
 
 async function rejection(promise: Promise<unknown>): Promise<AppError> {
   try {
@@ -35,11 +37,11 @@ const EXPECTED: BulkInputRow[] = [
 
 describe('parseBulkCsv', () => {
   it('parses a plain file', async () => {
-    await expect(parseText(PLAIN)).resolves.toEqual(EXPECTED);
+    await expect(parseText(PLAIN)).resolves.toEqual({ rows: EXPECTED, delimiter: ',' });
   });
 
   it('gives the same rows however the bytes are chunked', async () => {
-    for (const size of [1, 2, 3, 5, 64, 100000]) await expect(parseText(PLAIN, size)).resolves.toEqual(EXPECTED);
+    for (const size of [1, 2, 3, 5, 64, 100000]) await expect(parseText(PLAIN, size)).resolves.toEqual({ rows: EXPECTED, delimiter: ',' });
   });
 
   it("handles Excel's habits: BOM, semicolons, CRLF, quotes, trailing blank lines and odd headers", async () => {
@@ -49,11 +51,11 @@ describe('parseBulkCsv', () => {
       '"Foods, Ltd";pk;Lahore;\r\n' +
       'Zürich Café Co;India;;\r\n' +
       '\r\n;;;\r\n\r\n';
-    await expect(parseText(excel)).resolves.toEqual(EXPECTED);
+    await expect(parseText(excel)).resolves.toEqual({ rows: EXPECTED, delimiter: ';' });
   });
 
   it('ignores unknown columns and takes columns in any order', async () => {
-    const rows = await parseText('Notes,Country,NAME\nhi,Pakistan,Acme Foods\n');
+    const rows = await rowsOf('Notes,Country,NAME\nhi,Pakistan,Acme Foods\n');
     expect(rows).toEqual([{ rowNr: 1, name: 'Acme Foods', countryCode: 'PK', city: null, fei: null }]);
   });
 
@@ -108,7 +110,7 @@ describe('parseBulkCsv', () => {
 
   it('a name over 300 characters or a city over 120 is too_long; at the limit both are accepted', async () => {
     const atLimit = `${'N'.repeat(300)},PK,${'c'.repeat(120)}`;
-    const rows = await parseText(`name,country,city\n${atLimit}\n`);
+    const rows = await rowsOf(`name,country,city\n${atLimit}\n`);
     expect(rows).toEqual([{ rowNr: 1, name: 'N'.repeat(300), countryCode: 'PK', city: 'c'.repeat(120), fei: null }]);
 
     const error = await rejection(parseText(`name,country,city\n${'N'.repeat(301)},PK,Lahore\nAcme Foods,PK,${'c'.repeat(121)}\n${atLimit}\n`));
@@ -139,21 +141,57 @@ describe('parseBulkCsv', () => {
     }
   });
 
-  it('rejects text that is not valid CSV as invalid rows', async () => {
-    expect((await rejection(parseText('name,country\n"Acme Foods,PK\n'))).code).toBe('INVALID_ROWS');
+  it('rejects text that is not valid CSV as invalid rows, with the line csv-parse reports', async () => {
+    const error = await rejection(parseText('name,country\nGood Foods,PK\n"Acme Foods,PK\nBeta Foods,PK\n'));
+    expect(error.code).toBe('INVALID_ROWS');
+    expect(error.getStatus()).toBe(400);
+    // An unclosed quote runs on to the end of the file, which is the line csv-parse reports.
+    expect(error.details).toEqual({ count: 0, problems: [], line: 4 });
+  });
+
+  it('numbers rows as the sheet does: a blank row in the middle counts, so the next problem is one row further on', async () => {
+    const without = await rejection(parseText('name,country\nAcme Foods,PK\nX,PK\n'));
+    expect(without.details).toEqual({ count: 1, problems: [{ row: 2, column: 'name', problem: 'too_short' }] });
+    const blank = await rejection(parseText('name,country\nAcme Foods,PK\n\nX,PK\n'));
+    expect(blank.details).toEqual({ count: 1, problems: [{ row: 3, column: 'name', problem: 'too_short' }] });
+    // Excel writes a blank row as empty cells; it counts the same.
+    const empties = await rejection(parseText('name;country\r\nAcme Foods;PK\r\n;\r\n;\r\nX;PK\r\n'));
+    expect(empties.details).toEqual({ count: 1, problems: [{ row: 4, column: 'name', problem: 'too_short' }] });
+    expect(await rowsOf('name,country\nAcme Foods,PK\n\nBeta Foods,PK\n')).toEqual([
+      { rowNr: 1, name: 'Acme Foods', countryCode: 'PK', city: null, fei: null },
+      { rowNr: 3, name: 'Beta Foods', countryCode: 'PK', city: null, fei: null },
+    ]);
+  });
+
+  it('decides the delimiter on the first line that is not blank', async () => {
+    for (const lead of ['\r\n', '\n\n', String.fromCharCode(0xfeff) + '\r\n', '  \r\n']) {
+      for (const size of [1, 3, 64]) {
+        await expect(parseText(`${lead}name;country;city\r\nFoods, Ltd;PK;Lahore\r\n`, size)).resolves.toEqual({
+          rows: [{ rowNr: 1, name: 'Foods, Ltd', countryCode: 'PK', city: 'Lahore', fei: null }],
+          delimiter: ';',
+        });
+      }
+    }
   });
 
   describe('limits', () => {
-    const rowsOf = (count: number) => `name,country\n${Array.from({ length: count }, (_, i) => `Firm ${i + 1},PK`).join('\n')}\n`;
+    const fileOf = (count: number) => `name,country\n${Array.from({ length: count }, (_, i) => `Firm ${i + 1},PK`).join('\n')}\n`;
 
     it('accepts 5,000 rows', async () => {
-      const rows = await parseText(rowsOf(BULK_LIMITS.maxRows), 4096);
+      const rows = await rowsOf(fileOf(BULK_LIMITS.maxRows), 4096);
       expect(rows).toHaveLength(5000);
       expect(rows[4999]).toEqual({ rowNr: 5000, name: 'Firm 5000', countryCode: 'PK', city: null, fei: null });
     });
 
+    it('counts only data rows towards the limit: 5,000 rows with a blank row after each are accepted', async () => {
+      const spaced = `name,country\n${Array.from({ length: BULK_LIMITS.maxRows }, (_, i) => `Firm ${i + 1},PK\n`).join('\n')}`;
+      const rows = await rowsOf(spaced, 4096);
+      expect(rows).toHaveLength(5000);
+      expect(rows[4999]).toEqual({ rowNr: 9999, name: 'Firm 5000', countryCode: 'PK', city: null, fei: null });
+    });
+
     it('rejects row 5,001', async () => {
-      const error = await rejection(parseText(rowsOf(BULK_LIMITS.maxRows + 1), 4096));
+      const error = await rejection(parseText(fileOf(BULK_LIMITS.maxRows + 1), 4096));
       expect(error.code).toBe('TOO_MANY_ROWS');
       expect(error.getStatus()).toBe(400);
     });
@@ -163,7 +201,7 @@ describe('parseBulkCsv', () => {
       const head = 'name,country,note\nAcme Foods,PK,';
       const pad = (extra: number) => `${head}${'a'.repeat(BULK_LIMITS.maxBytes - head.length + extra)}`;
       expect(Buffer.byteLength(pad(0))).toBe(BULK_LIMITS.maxBytes);
-      await expect(parseText(pad(0), 65536)).resolves.toHaveLength(1);
+      await expect(rowsOf(pad(0), 65536)).resolves.toHaveLength(1);
       const error = await rejection(parseText(pad(1), 65536));
       expect(error.code).toBe('FILE_TOO_LARGE');
       expect(error.getStatus()).toBe(413);

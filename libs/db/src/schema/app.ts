@@ -1,5 +1,6 @@
 import {
   BILLING_INTERVALS,
+  BULK_DELIMITERS,
   BULK_JOB_STATUSES,
   BULK_ROW_STATUSES,
   DESTINATIONS,
@@ -300,6 +301,8 @@ export const bulkJob = pgTable(
     orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
     createdBy: uuid('created_by').references(() => appUser.id, { onDelete: 'set null' }),
     fileName: text('file_name').notNull(),
+    /** The delimiter the upload used, so the export opens in the same spreadsheet locale (P6-D9). */
+    delimiter: text('delimiter').notNull().default(','),
     status: text('status').notNull().default('queued'),
     total: integer('total').notNull(),
     processed: integer('processed').notNull().default(0),
@@ -312,6 +315,7 @@ export const bulkJob = pgTable(
     index('bulk_job_active_idx').on(t.status).where(sql`status in ('queued', 'running')`),
     index('bulk_job_finished_idx').on(t.finishedAt),
     check('bulk_job_status_ck', oneOf('status', BULK_JOB_STATUSES)),
+    check('bulk_job_delimiter_ck', oneOf('delimiter', BULK_DELIMITERS)),
   ],
 );
 

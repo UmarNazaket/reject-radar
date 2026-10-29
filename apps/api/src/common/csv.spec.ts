@@ -18,6 +18,12 @@ describe('toCsvRow', () => {
     expect(toCsvRow(['say "hi"', 'one\ntwo', 'x,y'])).toBe('"say ""hi""","one\ntwo","x,y"');
   });
 
+  it('writes with a semicolon when asked, quoting a cell that holds one; a comma then needs no quotes', () => {
+    expect(toCsvRow(['a;b', 'x,y', null, 3, '=1'], ';')).toBe(`"a;b";x,y;;3;'=1`);
+    expect(toCsvRow(['say "hi"', 'one\ntwo'], ';')).toBe('"say ""hi""";"one\ntwo"');
+    expect(toCsvRow(['a;b', 'x,y'])).toBe('a;b,"x,y"');
+  });
+
   it('writes numbers as they are', () => {
     expect(toCsvRow([0, 12, -3.5])).toBe('0,12,-3.5');
   });

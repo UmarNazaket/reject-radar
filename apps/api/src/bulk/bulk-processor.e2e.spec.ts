@@ -1,4 +1,4 @@
-import type { BulkCandidate, BulkJobResponse, FirmSearchQuery } from '@rejectradar/contracts';
+import { BULK_LIMITS, type BulkCandidate, type BulkJobResponse, type FirmSearchQuery } from '@rejectradar/contracts';
 import { bulkJob, bulkJobRow, firmFei, testDatabaseUrl, usageCounter, uuidv7 } from '@rejectradar/db';
 import { insertFirm } from '@rejectradar/entities';
 import { asc, eq, sql } from 'drizzle-orm';
@@ -338,6 +338,15 @@ describe('bulk processor (P6-D5, P6-D6)', () => {
     processor.start(id);
     await processor.idle();
 
+    // The third batch holds only the two failing rows: it fails entirely, so the worker pauses with the second one left
+    // for a later resume (row 5 used its third attempt there and is written no_record; row 58 has used two).
+    const paused = await jobOf(id);
+    expect(paused).toMatchObject({ status: 'running', processed: 59 });
+    expect((await rowsOf(id)).filter((row) => row.status === 'pending').map((row) => [row.rowNr, row.attempts])).toEqual([[58, 2]]);
+    await t.db.update(bulkJob).set({ heartbeatAt: sql`now() - interval '61 seconds'` }).where(eq(bulkJob.id, id));
+    expect(await processor.resumeStale()).toBe(1);
+    await processor.idle();
+
     expect(await jobOf(id)).toMatchObject({ status: 'finished', total: 60, processed: 60 });
     const rows = await rowsOf(id);
     const failedRows = [rows[4], rows[57]];
@@ -352,6 +361,88 @@ describe('bulk processor (P6-D5, P6-D6)', () => {
     expect(new Set(lines.map((line) => line.rowId))).toEqual(new Set(failedRows.map((row) => row.id)));
     expect(logLines().filter((line) => line.msg === 'bulk_job_batch_failed')).toEqual([]);
     expect(chunks.join('')).not.toContain(poison);
+  });
+
+  it('a batch in which every row fails stops the worker after one count per row, so the next attempts wait for a resume', async () => {
+    const id = await seedJob({ status: 'queued', heartbeatAgo: null, rows: [STRONG, REVIEW, NO_RECORD] });
+    search.mockImplementation(async () => {
+      throw new Error('the search fails for every row');
+    });
+    chunks.length = 0;
+    processor.start(id);
+    await processor.idle();
+
+    expect(search).toHaveBeenCalledTimes(3);
+    expect((await rowsOf(id)).map((row) => [row.status, row.attempts])).toEqual([
+      ['pending', 1],
+      ['pending', 1],
+      ['pending', 1],
+    ]);
+    expect(logLines().filter((line) => line.msg === 'bulk_row_failed')).toHaveLength(3);
+    expect(logLines().filter((line) => line.msg === 'bulk_batch_all_failed')).toEqual([expect.objectContaining({ level: 40, jobId: id, rows: 3 })]);
+    // The worker beat before it stopped, so the job is left alone until its heartbeat is stale.
+    const [{ fresh }] = (
+      await t.db.execute<{ fresh: boolean }>(sql`select status = 'running' and heartbeat_at > now() - interval '30 seconds' as fresh from bulk_job where id = ${id}`)
+    ).rows;
+    expect(fresh).toBe(true);
+    await t.db.delete(bulkJob).where(eq(bulkJob.id, id));
+  });
+
+  it('a cancelled or timed-out statement (57014) ends the worker without counting against any row', async () => {
+    const id = await seedJob({ status: 'queued', heartbeatAgo: null, rows: [STRONG, REVIEW, NO_RECORD] });
+    search.mockImplementation(async () => {
+      throw Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' });
+    });
+    chunks.length = 0;
+    processor.start(id);
+    await processor.idle();
+
+    expect(logLines().filter((line) => line.msg === 'bulk_job_batch_failed')).toEqual([expect.objectContaining({ level: 50, jobId: id })]);
+    expect(logLines().filter((line) => line.msg === 'bulk_row_failed')).toEqual([]);
+    expect((await rowsOf(id)).map((row) => [row.status, row.attempts])).toEqual([
+      ['pending', 0],
+      ['pending', 0],
+      ['pending', 0],
+    ]);
+    await t.db.delete(bulkJob).where(eq(bulkJob.id, id));
+  });
+
+  it('a sweep every 60 s resumes a stale job the boot scan did not see, without any read of the job', async () => {
+    // Only setInterval is faked: the database, the pool and the workers keep real time.
+    jest.useFakeTimers({
+      doNotFake: [
+        'Date', 'hrtime', 'nextTick', 'performance', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame',
+        'requestIdleCallback', 'cancelIdleCallback', 'setImmediate', 'clearImmediate', 'setTimeout', 'clearTimeout',
+      ],
+    });
+    let other: TestApp | undefined;
+    try {
+      other = await boot();
+      const sweeper = other.app.get(BulkProcessor);
+      await sweeper.idle();
+      // As after a deploy: the job went stale after this instance's boot scan had run.
+      const id = await seedJob({ status: 'running', heartbeatAgo: 61, rows: [STRONG, NO_RECORD] });
+
+      jest.advanceTimersByTime(BULK_LIMITS.sweepEverySec * 1000 - 1);
+      await sweeper.idle();
+      expect(await pendingOf(id)).toBe(2);
+
+      jest.advanceTimersByTime(1);
+      await sweeper.idle();
+      expect(await jobOf(id)).toMatchObject({ status: 'finished', processed: 2 });
+      expect(search).toHaveBeenCalledTimes(2);
+    } finally {
+      await other?.close();
+      jest.useRealTimers();
+    }
+  });
+
+  it('reading the job list resumes a stale job, as reading the job does', async () => {
+    const id = await seedJob({ status: 'running', heartbeatAgo: 61, rows: [STRONG] });
+    const list = await owner.session.get('/v1/bulk-jobs').expect(200);
+    expect((list.body as { jobs: BulkJobResponse[] }).jobs.find((job) => job.id === id)).toMatchObject({ status: 'running', processed: 0 });
+    await processor.idle();
+    expect(await jobOf(id)).toMatchObject({ status: 'finished', processed: 1 });
   });
 
   it('a row that fails once and then succeeds is classified normally, with 1 attempt', async () => {

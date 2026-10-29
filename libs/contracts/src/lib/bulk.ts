@@ -7,6 +7,10 @@ export type BulkJobStatus = (typeof BULK_JOB_STATUSES)[number];
 export const BULK_ROW_STATUSES = ['pending', 'matched', 'review', 'no_record', 'confirmed', 'rejected'] as const;
 export type BulkRowStatus = (typeof BULK_ROW_STATUSES)[number];
 
+/** The delimiters an upload may use (P6-D2); the export is written in the upload's own. */
+export const BULK_DELIMITERS = [',', ';'] as const;
+export type BulkDelimiter = (typeof BULK_DELIMITERS)[number];
+
 /** Upload and processing limits (spec §8.4, §9.8, P6-D2, P6-D5). */
 export const BULK_LIMITS = {
   maxBytes: 2 * 1024 * 1024,
@@ -17,6 +21,8 @@ export const BULK_LIMITS = {
   concurrency: 2,
   /** A running job whose heartbeat is older than this is resumed. */
   staleAfterSec: 60,
+  /** How often each API process looks for stale jobs to resume, besides its startup scan. */
+  sweepEverySec: 60,
   /** Rows per page of results. */
   pageSize: 100,
   /** Problems listed in an `INVALID_ROWS` answer. */
@@ -67,6 +73,11 @@ export interface BulkRowResponse {
   rowNr: number;
   input: { name: string; country: string | null; city: string | null; fei: string | null };
   status: BulkRowStatus;
+  /**
+   * True for a `no_record` row whose search failed `BULK_LIMITS.maxRowAttempts` times: nothing was found because the search
+   * never ran to the end, not because no record exists. The export prints its status as `search_failed`.
+   */
+  failed: boolean;
   score: number | null;
   firm: { id: number; displayName: string; countryCode: string | null } | null;
   /** Summary facts of the matched firm; null for a row without one. */

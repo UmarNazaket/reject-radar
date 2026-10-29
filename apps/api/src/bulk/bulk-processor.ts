@@ -39,21 +39,26 @@ export function claimableJob(): SQL<boolean> {
   return sql<boolean>`(${bulkJob.status} = 'queued' or (${bulkJob.status} = 'running' and (${bulkJob.heartbeatAt} is null or ${bulkJob.heartbeatAt} < now() - ${BULK_LIMITS.staleAfterSec}::int * interval '1 second')))`;
 }
 
-/** Postgres's connection-exception class (08) and its shutdown codes, and node's socket errors. */
-const CONNECTION_CODE = /^(08[0-9A-Z]{3}|57P0[1-3]|ECONNREFUSED|ECONNRESET|EPIPE|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|EAI_AGAIN)$/;
-/** What node-postgres and its pool throw, without a code, when a connection is lost or cannot be had. */
-const CONNECTION_MESSAGE = /^(Connection terminated|Cannot use a pool after calling end on the pool|timeout exceeded when trying to connect)/;
+/**
+ * Postgres's connection-exception class (08), its insufficient-resources class (53: out of memory, disk or connections), a
+ * cancelled or timed-out statement (57014) and the shutdown codes (57P01-57P03), and node's socket errors.
+ */
+const WORKER_CODE = /^(08[0-9A-Z]{3}|53[0-9A-Z]{3}|57014|57P0[1-3]|ECONNREFUSED|ECONNRESET|EPIPE|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|EAI_AGAIN)$/;
+/** What node-postgres and its pool throw, without a code, when a connection is lost, broken or cannot be had. */
+const WORKER_MESSAGE =
+  /^(Connection terminated|Cannot use a pool after calling end on the pool|timeout exceeded when trying to connect|Client has encountered a connection error and is not queryable)/;
 
 /**
- * Whether an error, or one in its cause chain (Drizzle wraps the driver's error), is about the database connection rather
- * than the row being matched. Such an error ends the worker instead of counting against the row.
+ * Whether an error, or one in its cause chain (Drizzle wraps the driver's error), is about the database (its connection,
+ * its resources or a statement it cancelled) rather than the row being matched. Such an error ends the worker instead of
+ * counting against the row: the row is not at fault, and counting it would write a paid row off after a few bad seconds.
  */
-export function isConnectionError(error: unknown): boolean {
+export function endsWorker(error: unknown): boolean {
   let current: unknown = error;
   for (let depth = 0; depth < 5 && typeof current === 'object' && current !== null; depth++) {
     const { code, message, cause } = current as { code?: unknown; message?: unknown; cause?: unknown };
-    if (typeof code === 'string' && CONNECTION_CODE.test(code)) return true;
-    if (typeof message === 'string' && CONNECTION_MESSAGE.test(message)) return true;
+    if (typeof code === 'string' && WORKER_CODE.test(code)) return true;
+    if (typeof message === 'string' && WORKER_MESSAGE.test(message)) return true;
     current = cause;
   }
   return false;
@@ -92,17 +97,25 @@ class Slots {
  * heartbeat is fresh; a set of the jobs running here keeps a second start in this process out.
  *
  * A row whose match fails is retried in the next batch, and after `maxRowAttempts` failures is written `no_record`, so
- * every job finishes. Failures that are not about one row (the claim, reading a batch, the heartbeat, the connection)
- * end the worker instead; the heartbeat then goes stale and the job resumes.
+ * every job finishes. Failures that are not about one row (the claim, reading a batch, the heartbeat, the database) end
+ * the worker instead; the heartbeat then goes stale and the job resumes. A batch in which every row failed ends the worker
+ * too, after counting them: something is wrong beyond one row, and the next attempts come on later resumes rather than
+ * straight after.
+ *
+ * Jobs resume on the startup scan, on a read of the job or the job list, and on a sweep every `sweepEverySec`. The sweep
+ * is what resumes a job after a deploy: Render starts the new instance before it stops the old one, so the new boot scan
+ * still sees the old worker's fresh heartbeat.
  */
 @Injectable()
 export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(BulkProcessor.name);
   /** The worker of each job running in this process. Workers never reject. */
   private readonly workers = new Map<string, Promise<void>>();
-  /** Startup scans still looking for jobs to resume. */
+  /** Scans (at startup, or by the sweep) still looking for jobs to resume. */
   private readonly scans = new Set<Promise<void>>();
   private readonly slots = new Slots(BULK_LIMITS.concurrency);
+  /** The periodic scan, from bootstrap until the module is destroyed. */
+  private sweep: ReturnType<typeof setInterval> | undefined;
   private stopping = false;
 
   constructor(
@@ -128,7 +141,7 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
     return started;
   }
 
-  /** Resolves once no worker and no startup scan is running in this process. */
+  /** Resolves once no worker and no scan is running in this process. */
   async idle(): Promise<void> {
     while (this.workers.size > 0 || this.scans.size > 0) {
       await Promise.allSettled([...this.workers.values(), ...this.scans]);
@@ -136,10 +149,30 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   /**
-   * Resumes interrupted jobs at startup. The scan is not awaited, so the API boots even while the database is unreachable;
-   * `idle()` waits for it.
+   * Resumes interrupted jobs at startup, then every `sweepEverySec`. Neither scan is awaited, so the API boots even while
+   * the database is unreachable; `idle()` waits for them. The interval is `unref`'d, so it never keeps a process alive.
    */
   onApplicationBootstrap(): void {
+    this.scan();
+    this.sweep = setInterval(() => this.scan(), BULK_LIMITS.sweepEverySec * 1000);
+    this.sweep.unref();
+  }
+
+  /**
+   * Stops the sweep, then the workers between batches, and waits for the batch in flight. This is `onModuleDestroy`, not
+   * `onApplicationShutdown`: Nest runs every module's destroy hook before any shutdown hook, and `DatabaseModule` (global, so
+   * destroyed last) ends the pool in its own destroy hook. A shutdown hook would wait for writes against a closed pool.
+   */
+  async onModuleDestroy(): Promise<void> {
+    clearInterval(this.sweep);
+    this.sweep = undefined;
+    this.stopping = true;
+    await this.idle();
+  }
+
+  /** One scan for jobs to resume, unless the process is stopping or a scan is still running. Never rejects. */
+  private scan(): void {
+    if (this.stopping || this.scans.size > 0) return;
     const scan = this.resumeStale().then(
       (count) => {
         if (count > 0) this.logger.log({ count }, 'bulk_jobs_resumed');
@@ -148,16 +181,6 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
     );
     this.scans.add(scan);
     void scan.finally(() => this.scans.delete(scan));
-  }
-
-  /**
-   * Stops the workers between batches and waits for the batch in flight. This is `onModuleDestroy`, not
-   * `onApplicationShutdown`: Nest runs every module's destroy hook before any shutdown hook, and `DatabaseModule` (global, so
-   * destroyed last) ends the pool in its own destroy hook. A shutdown hook would wait for writes against a closed pool.
-   */
-  async onModuleDestroy(): Promise<void> {
-    this.stopping = true;
-    await this.idle();
   }
 
   private launch(jobId: string): boolean {
@@ -180,8 +203,14 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
           await this.finish(jobId);
           return;
         }
-        await this.matchBatch(jobId, rows);
+        const failed = await this.matchBatch(jobId, rows);
         await this.beat(jobId);
+        if (failed === rows.length) {
+          // Every row failed: the rows written off by it may have been the last ones; otherwise pause until a resume.
+          if (await this.finish(jobId)) return;
+          this.logger.warn({ jobId, rows: rows.length }, 'bulk_batch_all_failed');
+          return;
+        }
       }
     } catch (err) {
       // The heartbeat goes stale, so the next read of the job or the next restart resumes it. Ids only: never a row's input.
@@ -211,16 +240,18 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
   /**
    * Matches the batch `concurrency` rows at a time. A row's own failure is counted against it and the batch goes on
    * (`processRow`). After a failure that ends the worker no further row is started, and the rows already in flight are
-   * waited for, so nothing writes after the worker has ended; the first such error is then thrown.
+   * waited for, so nothing writes after the worker has ended; the first such error is then thrown. Resolves with the
+   * number of rows whose failure was counted.
    */
-  private async matchBatch(jobId: string, rows: PendingRow[]): Promise<void> {
+  private async matchBatch(jobId: string, rows: PendingRow[]): Promise<number> {
     let next = 0;
+    let counted = 0;
     const failures: unknown[] = [];
     const lane = async () => {
       while (failures.length === 0 && next < rows.length) {
         const row = rows[next++];
         try {
-          await this.slots.run(() => this.processRow(jobId, row));
+          if (!(await this.slots.run(() => this.processRow(jobId, row)))) counted++;
         } catch (error) {
           failures.push(error);
         }
@@ -228,18 +259,22 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
     };
     await Promise.all(Array.from({ length: BULK_LIMITS.concurrency }, lane));
     if (failures.length > 0) throw failures[0];
+    return counted;
   }
 
   /**
-   * Matches and writes one row. An error raised while doing so counts against the row, unless it is about the database
-   * connection: that one, like a failure of the counting update itself, ends the worker and the job resumes later.
+   * Matches and writes one row; false when it failed and the failure was counted against it. An error about the database
+   * (`endsWorker`), like a failure of the counting update itself, is thrown instead: it ends the worker, and the job
+   * resumes later.
    */
-  private async processRow(jobId: string, row: PendingRow): Promise<void> {
+  private async processRow(jobId: string, row: PendingRow): Promise<boolean> {
     try {
       await this.matchRow(row);
+      return true;
     } catch (error) {
-      if (isConnectionError(error)) throw error;
+      if (endsWorker(error)) throw error;
       await this.countFailure(jobId, row);
+      return false;
     }
   }
 
@@ -289,8 +324,9 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
       .where(and(eq(bulkJob.id, jobId), eq(bulkJob.status, 'running')));
   }
 
-  private async finish(jobId: string): Promise<void> {
-    await this.db
+  /** Finishes the job if no row is pending; true when it did. */
+  private async finish(jobId: string): Promise<boolean> {
+    const finished = await this.db
       .update(bulkJob)
       .set({ status: 'finished', processed: this.processedCount(jobId), heartbeatAt: sql`now()`, finishedAt: sql`now()` })
       .where(
@@ -299,7 +335,9 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
           eq(bulkJob.status, 'running'),
           sql`not exists (select 1 from ${bulkJobRow} where ${bulkJobRow.jobId} = ${jobId} and ${bulkJobRow.status} = 'pending')`,
         ),
-      );
+      )
+      .returning({ id: bulkJob.id });
+    return finished.length > 0;
   }
 
   /**

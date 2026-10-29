@@ -1,5 +1,5 @@
 {
-  "id": "e647795c-f004-4fb0-bcda-facd3c216333",
+  "id": "00b61673-cfc6-4574-af4a-83e360d7e4c0",
   "prevId": "6cfa4eab-7678-45ca-b99f-1767acfda81e",
   "version": "7",
   "dialect": "postgresql",
@@ -3680,6 +3680,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "delimiter": {
+          "name": "delimiter",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "','"
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -3803,6 +3810,10 @@
         "bulk_job_status_ck": {
           "name": "bulk_job_status_ck",
           "value": "status in ('queued', 'running', 'finished')"
+        },
+        "bulk_job_delimiter_ck": {
+          "name": "bulk_job_delimiter_ck",
+          "value": "delimiter in (',', chr(59))"
         }
       },
       "isRLSEnabled": false

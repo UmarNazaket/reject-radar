@@ -288,6 +288,22 @@ describe('database schema (spec §7)', () => {
       expect(columns).toEqual([{ data_type: 'smallint', is_nullable: 'NO', column_default: '0' }]);
       await expect(client.query('update bulk_job_row set attempts = null where job_id = $1', [job])).rejects.toMatchObject({ code: '23502' });
     });
+
+    it("a bulk job keeps its upload's delimiter: a comma by default, a semicolon allowed, nothing else", async () => {
+      const comma = '0192c7a0-0000-7000-8000-0000000000c3';
+      const semicolon = '0192c7a0-0000-7000-8000-0000000000c4';
+      const { rows } = await client.query<{ delimiter: string }>(
+        "insert into bulk_job (id, org_id, file_name, total) values ($1, $2, 'c.csv', 1) returning delimiter",
+        [comma, ORG_A],
+      );
+      expect(rows).toEqual([{ delimiter: ',' }]);
+      await client.query("insert into bulk_job (id, org_id, file_name, total, delimiter) values ($1, $2, 'd.csv', 1, ';')", [semicolon, ORG_A]);
+      await expect(client.query("update bulk_job set delimiter = '|' where id = $1", [semicolon])).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'bulk_job_delimiter_ck',
+      });
+      await expect(client.query('update bulk_job set delimiter = null where id = $1', [semicolon])).rejects.toMatchObject({ code: '23502' });
+    });
   });
 
   it('stores a dispute kind, defaulting to other', async () => {

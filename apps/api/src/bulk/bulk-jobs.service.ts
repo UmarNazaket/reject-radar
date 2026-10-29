@@ -2,6 +2,7 @@ import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import {
   BULK_LIMITS,
   type BulkCandidate,
+  type BulkDelimiter,
   type BulkJobListResponse,
   type BulkJobResponse,
   type BulkJobStatus,
@@ -51,8 +52,30 @@ type RowRecord = typeof bulkJobRow.$inferSelect;
 const notFound = () => new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found.');
 const rowPending = () => new AppError(HttpStatus.CONFLICT, 'ROW_PENDING', 'This is still being processed. Try again in a moment.');
 
+/** The largest row number a cursor may hold: `row_nr` is a Postgres `integer`. */
+const MAX_ROW_NR = 2_147_483_647;
+
+/** UTF-8's byte order mark: without it Excel reads a CSV in the locale's code page, and every non-ASCII name is garbled. */
+const BOM = String.fromCharCode(0xfeff);
+
 /** The score as a number, or null; Postgres returns `numeric` as text. */
 const scoreOf = (row: RowRecord): number | null => (row.score === null ? null : Number(row.score));
+
+/**
+ * A `no_record` row written after `maxRowAttempts` failed searches: nothing is known about it, which is not the same as no
+ * record found. The database keeps it `no_record` (the status check); the API marks it `failed` and the export
+ * `search_failed`.
+ */
+const searchFailed = (row: RowRecord): boolean => row.status === 'no_record' && row.attempts >= BULK_LIMITS.maxRowAttempts;
+
+/** The row number after which a page starts; anything that is not a row number Postgres can hold is `400`, like a malformed cursor. */
+function cursorRowNr(cursor: string): number {
+  const rowNr = Number(decodeCursor(cursor).id);
+  if (!Number.isSafeInteger(rowNr) || rowNr < 1 || rowNr > MAX_ROW_NR) {
+    throw new AppError(HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'The page cursor is not valid.');
+  }
+  return rowNr;
+}
 
 /** The distinct firms rows point at. */
 const distinctFirmIds = (rows: readonly RowRecord[]): number[] => [...new Set(rows.flatMap((row) => (row.firmId === null ? [] : [row.firmId])))];
@@ -64,6 +87,7 @@ const toRowResponse = (row: RowRecord, firms: Map<number, FirmSummary>): BulkRow
     rowNr: row.rowNr,
     input: { name: row.inputName, country: row.inputCountry, city: row.inputCity, fei: row.inputFei },
     status: row.status as BulkRowStatus,
+    failed: searchFailed(row),
     score: scoreOf(row),
     firm: firm ? { id: firm.id, displayName: firm.displayName, countryCode: firm.countryCode } : null,
     facts: firm
@@ -111,14 +135,14 @@ export class BulkJobsService {
   /** Checks the plan, parses `body` as it streams in, stores the job and its rows, and starts the job once they are committed. */
   async upload(ctx: RequestContext, fileName: string, body: AsyncIterable<Buffer>): Promise<BulkJobResponse> {
     await this.entitlements.assertFeature(ctx.orgId, 'bulk');
-    const rows = await parseBulkCsv(body);
+    const { rows, delimiter } = await parseBulkCsv(body);
     const id = uuidv7();
     const job = await this.db.transaction(async (tx) => {
       // The conditional upsert makes two simultaneous uploads unable to pass the limit together (P6-D4).
       await this.entitlements.consume(ctx.orgId, 'bulk_rows', rows.length, tx);
       const [created] = await tx
         .insert(bulkJob)
-        .values({ id, orgId: ctx.orgId, createdBy: ctx.userId, fileName, total: rows.length })
+        .values({ id, orgId: ctx.orgId, createdBy: ctx.userId, fileName, delimiter, total: rows.length })
         .returning();
       for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
         await tx.insert(bulkJobRow).values(rows.slice(i, i + INSERT_CHUNK).map((row) => toRowValues(id, row)));
@@ -129,15 +153,16 @@ export class BulkJobsService {
     return toResponse(job);
   }
 
-  /** The account's newest jobs. */
+  /** The account's newest jobs. Any of them whose worker is gone is started again, as `get` does; the answer is the jobs as read. */
   async list(ctx: RequestContext): Promise<BulkJobListResponse> {
-    const jobs = await this.db
-      .select()
+    const found = await this.db
+      .select({ job: bulkJob, stale: claimableJob() })
       .from(bulkJob)
       .where(byOrg(bulkJob, ctx))
       .orderBy(desc(bulkJob.createdAt), desc(bulkJob.id))
       .limit(LIST_LIMIT);
-    return { jobs: jobs.map(toResponse) };
+    for (const { job, stale } of found) if (stale) this.start(job.id);
+    return { jobs: found.map(({ job }) => toResponse(job)) };
   }
 
   /**
@@ -162,7 +187,7 @@ export class BulkJobsService {
     await this.job(ctx, jobId);
     const conditions: (SQL | undefined)[] = [eq(bulkJobRow.jobId, jobId)];
     if (query.status) conditions.push(eq(bulkJobRow.status, query.status));
-    if (query.cursor) conditions.push(gt(bulkJobRow.rowNr, Number(decodeCursor(query.cursor).id)));
+    if (query.cursor) conditions.push(gt(bulkJobRow.rowNr, cursorRowNr(query.cursor)));
     // One row more than the page tells whether another page follows.
     const found = await this.db
       .select()
@@ -232,12 +257,17 @@ export class BulkJobsService {
     );
   }
 
-  /** The finished job as CSV (P6-D9): the header, then one line per row, each ending in CRLF. */
+  /**
+   * The finished job as CSV (P6-D9): a UTF-8 BOM, the header, then one line per row, each ending in CRLF. It is written with
+   * the delimiter the upload used, so a file from Excel in a `;` locale opens there in columns again. A row whose search
+   * failed every attempt reads `search_failed`, not `no_record`.
+   */
   async exportCsv(ctx: RequestContext, jobId: string): Promise<string> {
     const job = await this.job(ctx, jobId);
     if (job.status !== 'finished') throw rowPending();
     const rows = await this.db.select().from(bulkJobRow).where(eq(bulkJobRow.jobId, jobId)).orderBy(asc(bulkJobRow.rowNr));
     const summaries = await this.firms.summaryFacts(distinctFirmIds(rows));
+    const delimiter = job.delimiter as BulkDelimiter;
     const lines = rows.map((row) => {
       const firm = row.firmId === null ? undefined : summaries.get(row.firmId);
       const score = scoreOf(row);
@@ -246,7 +276,7 @@ export class BulkJobsService {
         row.inputCountry,
         row.inputCity,
         row.inputFei,
-        row.status,
+        searchFailed(row) ? 'search_failed' : row.status,
         score === null ? null : score.toFixed(2),
         firm?.id ?? null,
         firm?.displayName ?? null,
@@ -254,9 +284,9 @@ export class BulkJobsService {
         firm?.facts.fda_refusals_3y ?? null,
         firm ? (firm.facts.import_alert_red.length > 0 ? 'yes' : 'no') : null,
         firm?.facts.au_failed_3y ?? null,
-      ]);
+      ], delimiter);
     });
-    return [toCsvRow(EXPORT_HEADER), ...lines].map((line) => `${line}\r\n`).join('');
+    return BOM + [toCsvRow(EXPORT_HEADER, delimiter), ...lines].map((line) => `${line}\r\n`).join('');
   }
 
   /** The account's job `id`; another account's job is `404`, like one that is not there. */

@@ -147,6 +147,8 @@ export class BulkJobsController {
     const csv = await this.jobs.exportCsv(ctx, id);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="bulk-${id}.csv"`);
+    // The file holds the account's supplier list and profile facts: no shared cache may keep it.
+    res.setHeader('Cache-Control', 'no-store');
     return csv;
   }
 }

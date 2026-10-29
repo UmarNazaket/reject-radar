@@ -78,6 +78,30 @@ describe('bulk review, watch confirmed and export (P6-D7 to P6-D9)', () => {
     return { jobId, rowId: row.id };
   }
 
+  /**
+   * A finished job written straight to the tables with three no_record rows: one whose search failed its 3 attempts, one that
+   * found nothing at the first try, and one that failed twice and then found nothing.
+   */
+  async function seedFailed(): Promise<string> {
+    const jobId = uuidv7();
+    await t.db.insert(bulkJob).values({
+      id: jobId, orgId: owner.orgId, createdBy: owner.userId, fileName: 'failed.csv', status: 'finished', total: 3, processed: 3, finishedAt: sql`now()`,
+    });
+    await t.db.insert(bulkJobRow).values([
+      { jobId, rowNr: 1, inputName: 'Unsearchable Supplier Ltd', inputCountry: 'PK', status: 'no_record', attempts: 3 },
+      { jobId, rowNr: 2, inputName: 'Qzxv Nomatch Holdings', inputCountry: 'PK', status: 'no_record', attempts: 0 },
+      { jobId, rowNr: 3, inputName: 'Flaky Then Nothing Ltd', inputCountry: 'PK', status: 'no_record', attempts: 2 },
+    ]);
+    return jobId;
+  }
+
+  /** Uploads a CSV as it is and waits for the job to finish. */
+  const runText = async (text: string): Promise<string> => {
+    const res = await owner.session.post('/v1/bulk-jobs').query({ fileName: 'suppliers.csv' }).set('Content-Type', 'text/csv').send(text).expect(202);
+    await processor.idle();
+    return (res.body as BulkJobResponse).id;
+  };
+
   const code = (res: Response) => (res.body as { code: string }).code;
 
   describe('GET /v1/bulk-jobs/:id/rows', () => {
@@ -114,13 +138,31 @@ describe('bulk review, watch confirmed and export (P6-D7 to P6-D9)', () => {
       });
       expect(rows[0].score).toBeGreaterThanOrEqual(0.9);
       expect(rows[1].facts).toEqual({ fdaRefusals3y: 0, importAlertRed: false, auFailed3y: 0 });
-      expect(rows[2]).toMatchObject({ status: 'no_record', firm: null, facts: null, score: null, candidates: [] });
+      expect(rows[2]).toMatchObject({ status: 'no_record', failed: false, firm: null, facts: null, score: null, candidates: [] });
+      expect(rows.map((row) => row.failed)).toEqual([false, false, false]);
+    });
+
+    it('marks a no_record row whose search failed every attempt as failed; one that found nothing is not', async () => {
+      const jobId = await seedFailed();
+      const { rows } = await rowsOf(jobId);
+      expect(rows.map((row) => [row.rowNr, row.status, row.failed])).toEqual([
+        [1, 'no_record', true],
+        [2, 'no_record', false],
+        [3, 'no_record', false],
+      ]);
     });
 
     it('rejects an unknown status and a malformed cursor, and hides another account\'s job', async () => {
       const jobId = await run([{ name: 'Qzxv Nomatch Holdings' }]);
       await owner.session.get(`/v1/bulk-jobs/${jobId}/rows?status=clean`).expect(400);
       await owner.session.get(`/v1/bulk-jobs/${jobId}/rows?cursor=nonsense`).expect(400);
+      // A well-formed cursor whose row number is not a row number Postgres can hold is refused the same way, not a 500.
+      const crafted = (rowNr: string) => Buffer.from(`2000-01-01|${rowNr}`, 'utf8').toString('base64url');
+      for (const rowNr of ['0', '2147483648', '999999999999999999']) {
+        const res = await owner.session.get(`/v1/bulk-jobs/${jobId}/rows?cursor=${crafted(rowNr)}`).expect(400);
+        expect(code(res)).toBe('BAD_REQUEST');
+      }
+      expect((await rowsOf(jobId, `?cursor=${crafted('2147483647')}`)).rows).toEqual([]);
       const other = await signUpVerified(t, { email: `other${++n}@bulk-review.test` });
       const res = await other.session.get(`/v1/bulk-jobs/${jobId}/rows`).expect(404);
       expect(code(res)).toBe('NOT_FOUND');
@@ -274,8 +316,11 @@ describe('bulk review, watch confirmed and export (P6-D7 to P6-D9)', () => {
       const res = await exported(jobId);
       expect(res.headers['content-type']).toMatch(/^text\/csv/);
       expect(res.headers['content-disposition']).toBe(`attachment; filename="bulk-${jobId}.csv"`);
+      expect(res.headers['cache-control']).toBe('no-store');
+      // A UTF-8 BOM first, so Excel reads the file as UTF-8 rather than in the locale's code page.
+      expect(res.text.charCodeAt(0)).toBe(0xfeff);
       expect(res.text.endsWith('\r\n')).toBe(true);
-      const records = parse(res.text, { columns: false, skip_empty_lines: true }) as string[][];
+      const records = parse(res.text, { bom: true, columns: false, skip_empty_lines: true }) as string[][];
       expect(records[0]).toEqual([
         'name', 'country', 'city', 'fei', 'status', 'score', 'firm_id', 'firm_name', 'firm_country', 'fda_refusals_3y', 'import_alert_red', 'au_failed_3y',
       ]);
@@ -291,6 +336,42 @@ describe('bulk review, watch confirmed and export (P6-D7 to P6-D9)', () => {
       expect(merged.slice(4, 5)).toEqual(['matched']);
       expect(merged.slice(6, 9)).toEqual([String(survivor), 'Survivor Foods Co', 'PK']);
       expect(review.slice(4)).toEqual(['review', expect.stringMatching(/^\d\.\d{2}$/), '', '', '', '', '', '']);
+    });
+
+    it("writes a semicolon upload's export with semicolons, after the BOM, and it parses back", async () => {
+      const jobId = await runText('name;country;city\r\n"Semi; Colon Traders";PK;Lahore\r\nComma, Traders;PK;\r\nZarfeen Rice Mills;PK;Lahore\r\n');
+      expect((await t.db.select({ delimiter: bulkJob.delimiter }).from(bulkJob).where(eq(bulkJob.id, jobId)))[0].delimiter).toBe(';');
+      const res = await exported(jobId);
+      expect(res.text.charCodeAt(0)).toBe(0xfeff);
+      expect(res.text.slice(1).split('\r\n')[0]).toBe(
+        'name;country;city;fei;status;score;firm_id;firm_name;firm_country;fda_refusals_3y;import_alert_red;au_failed_3y',
+      );
+      const records = parse(res.text, { bom: true, delimiter: ';' }) as string[][];
+      expect(records).toHaveLength(4);
+      expect(records[1].slice(0, 4)).toEqual(['Semi; Colon Traders', 'PK', 'Lahore', '']);
+      expect(records[2].slice(0, 4)).toEqual(['Comma, Traders', 'PK', '', '']);
+      expect(records[3]).toEqual([
+        'Zarfeen Rice Mills', 'PK', 'Lahore', '', 'matched', expect.stringMatching(/^\d\.\d{2}$/), String(firms.zarfeen), 'Zarfeen Rice Mills', 'PK', '4', 'yes', '2',
+      ]);
+    });
+
+    it("writes a comma upload's export with commas", async () => {
+      const jobId = await runText('name,country\r\nZarfeen Rice Mills,PK\r\n');
+      expect((await t.db.select({ delimiter: bulkJob.delimiter }).from(bulkJob).where(eq(bulkJob.id, jobId)))[0].delimiter).toBe(',');
+      const res = await exported(jobId);
+      const [header, first] = res.text.slice(1).split('\r\n');
+      expect(header).toBe('name,country,city,fei,status,score,firm_id,firm_name,firm_country,fda_refusals_3y,import_alert_red,au_failed_3y');
+      expect(first.startsWith('Zarfeen Rice Mills,PK,,,')).toBe(true);
+    });
+
+    it('prints search_failed for a row whose search failed every attempt, and no_record for rows that found nothing', async () => {
+      const jobId = await seedFailed();
+      const records = parse((await exported(jobId)).text, { bom: true }) as string[][];
+      expect(records.slice(1).map((record) => [record[0], record[4]])).toEqual([
+        ['Unsearchable Supplier Ltd', 'search_failed'],
+        ['Qzxv Nomatch Holdings', 'no_record'],
+        ['Flaky Then Nothing Ltd', 'no_record'],
+      ]);
     });
 
     it('an unfinished job answers 409 ROW_PENDING', async () => {
