@@ -35,6 +35,9 @@ import { LanguageSelect } from './language-select';
           <a routerLink="/watchlist" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.watchlist') }}
           </a>
+          <a routerLink="/bulk" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
+            {{ i18n.t('web.nav.bulk') }}
+          </a>
           <a routerLink="/alerts" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.alerts') }}
             @if (alertCount.unread(); as unread) {
