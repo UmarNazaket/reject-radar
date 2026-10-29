@@ -97,21 +97,23 @@ GitHub Actions (scheduled)                        Browser
 
 The app API under `/v1` has these product areas. Apart from `GET /taxonomy`, they need a signed-in user, and the account's plan decides the limits.
 
-| Area           | What it does                                                                                                                                                          |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Taxonomy       | `GET /taxonomy?locale=`: commodities, hazards, destinations and countries, with labels in the language asked for. Public.                                             |
-| Notices        | `GET /notices` with every filter and a cursor (50 a page, no total count), `GET /notices/:id`. A commodity filter includes its sub-commodities.                       |
-| Dashboards     | `GET /dashboards/topic`: monthly counts by destination, top hazards and commodities, the most frequent findings, the latest notices and how fresh each source is.     |
-| Firm search    | `GET /firms/search`: name and optional country and city, or an FEI number. Confidence labels as in the matching rules. 30 requests a minute per user.                 |
-| Firm profile   | `GET /firms/:id`: facts, every record newest first and source freshness. Uses one lookup a month per firm. `POST /firms/:id/disputes` reports a problem.              |
-| MRL checker    | `GET /mrl/residues` finds a pesticide by name; `GET /mrl` gives the EU limits for a commodity and recent RASFF notices that name the residue.                         |
-| Import Alerts  | `GET /import-alerts/:number`: the alert text and a summary only if a person has approved it.                                                                          |
-| Watchlist      | Firm and topic items, a CSV export and a notice estimate for a topic being added. Adding needs a verified email.                                                      |
-| Alerts         | The alerts list, mark as read, unread counts, and each user's instant-email and digest settings.                                                                      |
-| Bulk screening | Business and above. Upload a CSV of suppliers, review the matches, add confirmed firms to the watchlist and export the results. See "Bulk screening and PDF reports". |
-| PDF reports    | A one-page firm report and a topic report, for Pro and above. See "Bulk screening and PDF reports".                                                                   |
-| Billing        | Plans, the account's subscription and usage, Paddle checkout and customer portal for owners, and the Paddle webhook. See "Billing with Paddle".                       |
-| Plan limits    | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. P9 will show both as an upgrade prompt.               |
+| Area           | What it does                                                                                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Taxonomy       | `GET /taxonomy?locale=`: commodities, hazards, destinations and countries, with labels in the language asked for. Public.                                                       |
+| Notices        | `GET /notices` with every filter and a cursor (50 a page, no total count), `GET /notices/:id`. A commodity filter includes its sub-commodities.                                 |
+| Dashboards     | `GET /dashboards/topic`: monthly counts by destination, top hazards and commodities, the most frequent findings, the latest notices and how fresh each source is.               |
+| Firm search    | `GET /firms/search`: name and optional country and city, or an FEI number. Confidence labels as in the matching rules. 30 requests a minute per user.                           |
+| Firm profile   | `GET /firms/:id`: facts, every record newest first and source freshness. Uses one lookup a month per firm. `POST /firms/:id/disputes` reports a problem.                        |
+| MRL checker    | `GET /mrl/residues` finds a pesticide by name; `GET /mrl` gives the EU limits for a commodity and recent RASFF notices that name the residue.                                   |
+| Import Alerts  | `GET /import-alerts/:number`: the alert text and a summary only if a person has approved it.                                                                                    |
+| Watchlist      | Firm and topic items, a CSV export and a notice estimate for a topic being added. Adding needs a verified email.                                                                |
+| Alerts         | The alerts list, mark as read, unread counts, and each user's instant-email and digest settings.                                                                                |
+| Bulk screening | Business and above. Upload a CSV of suppliers, review the matches, add confirmed firms to the watchlist and export the results. See "Bulk screening and PDF reports".           |
+| PDF reports    | A one-page firm report and a topic report, for Pro and above. See "Bulk screening and PDF reports".                                                                             |
+| Billing        | Plans, the account's subscription and usage, Paddle checkout and customer portal for owners, and the Paddle webhook. See "Billing with Paddle".                                 |
+| API keys       | `GET`, `POST` and `DELETE /org/api-keys`: owners and admins of Business and Enterprise accounts manage the keys of the public API. See "Public API and Import Alert summaries". |
+| Summary review | `GET` and `PATCH /admin/import-alert-summaries`: RejectRadar staff approve or reject the Import Alert summaries Gemini drafts. See "Public API and Import Alert summaries".     |
+| Plan limits    | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. P9 will show both as an upgrade prompt.                         |
 
 Alerts are made by `alerts:run` and the digests by `digest:send` (see the ingestion commands below), not by the API.
 
@@ -235,6 +237,54 @@ The API refuses to start without the Paddle variables, so set them before any st
 
 Not in this phase: the billing page in the web app (P9), live Paddle (P11, after the V9 answers), and clearing `paddle_event.payload` after 90 days (P6's `maintenance:purge`).
 
+## Public API and Import Alert summaries
+
+### Public API
+
+Business and Enterprise accounts can read RejectRadar from their own systems. A public call is `GET /v1/public/...` with `Authorization: Bearer rr_live_...`. It answers with the same JSON as the app route of the same name, and it is read-only.
+
+| Route under `/v1/public`             | What it does                                                    |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `GET /notices`, `GET /notices/:id`   | As `/v1/notices`, with the account's history window             |
+| `GET /dashboards/topic`              | As `/v1/dashboards/topic`                                       |
+| `GET /firms/search`                  | As `/v1/firms/search`                                           |
+| `GET /firms/:id`                     | As `/v1/firms/:id`; it also uses one firm lookup, as in the app |
+| `GET /import-alerts/:number?locale=` | The alert text and its approved summary                         |
+| `GET /taxonomy?locale=`              | Commodities, hazards, destinations and countries                |
+| `GET /usage`                         | This month's API calls and the plan's limit; not charged        |
+
+- **Keys.** Owners and admins with a verified email create keys with `POST /v1/org/api-keys` `{ name }` and revoke them with `DELETE /v1/org/api-keys/:id`. A key is shown once, when it is created; only its SHA-256 is stored, with its first 12 characters for display. An account holds at most 5 live keys (`409 API_KEY_LIMIT`). Creating and revoking are written to the audit log.
+- **Quota.** Every call except `/usage` uses one of the plan's monthly API calls: 10,000 on Business and 100,000 by default on Enterprise. The answer carries `X-Quota-Used` and `X-Quota-Limit`. At the limit a call answers `403 PLAN_LIMIT_REACHED` with `details.action` of `api_calls`. A call with a bad query still counts; a call refused by the key check or the rate limit does not.
+- **Rate limit.** 60 calls a minute per key, then `429 RATE_LIMITED` with `Retry-After`.
+- **Errors.** No key or a malformed one answers `401 API_KEY_MISSING`, an unknown or revoked key `401 API_KEY_INVALID`. A plan without the API answers `403 PLAN_UPGRADE_REQUIRED` with `details.feature` of `api`. After a downgrade the keys stop working but are not deleted. A session cookie does not open `/v1/public`, and a key opens nothing else.
+- **Logs** carry the key's id and account, never the key.
+
+### Import Alert summaries
+
+The ingestion CLI drafts a plain-language English summary of each food Import Alert with Google Gemini. A person then approves or rejects it, and approved English is machine-translated into Urdu, Hindi and Bengali. `GET /v1/import-alerts/:number` shows an English summary only once it is approved, and a translation only beside approved English, labelled as a machine translation.
+
+1. `summaries:draft` drafts every listed food alert that has no English summary of its current text. It sends only the alert's own text and asks for JSON in the summary's shape; an answer that fails the contract schema (120 words at most) is asked for once more, then left for the next run.
+2. A platform admin reviews the drafts: `GET /v1/admin/import-alert-summaries?status=draft` lists them beside the alert text, and `PATCH /v1/admin/import-alert-summaries/:number` with `{ "action": "approve" }` (optionally with corrected `content`) or `{ "action": "reject" }` decides. The admin screens come in P10.
+3. `summaries:translate` translates approved English that has no translation of the current text yet.
+
+When FDA changes an alert's text, its old summaries stop being shown at once, and the next `summaries:draft` writes a new draft. A summary of the old text cannot be approved (`409 SUMMARY_STALE`). A rejected summary is not drafted again until the text changes. Approving drops the alert's translations, which the next `summaries:translate` makes again from the approved English.
+
+`summaries:draft` and `summaries:translate` read two more variables; no other command needs them.
+
+| Variable         | What it is                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY` | A Gemini API key from Google AI Studio. In GitHub Actions it is a secret.             |
+| `GEMINI_MODEL`   | The model, such as `gemini-2.5-flash`. In GitHub Actions it is a repository variable. |
+
+### Owner steps for P8
+
+1. **Gemini:** create an API key in Google AI Studio and set a monthly spending cap on its project. Add it as the `GEMINI_API_KEY` repository secret, and the model as the `GEMINI_MODEL` repository variable. The summary steps of `sync-daily.yml` are skipped until `GEMINI_MODEL` is set.
+2. **Migrate staging:** apply `0017` with the direct, not pooled, connection string, after `0016`.
+3. **First summaries:** run `backfill.yml` with the source `summaries`, then review the drafts and approve or reject them. Run it with `summary_translations` once a batch is approved, or let the daily run translate 30 a day.
+4. **After the deploy, on staging:** make a Business test account a platform admin (`update app_user set is_platform_admin = true where email = '...'`) for the review, create an API key with `POST /v1/org/api-keys`, and call `GET /v1/public/notices` with it.
+
+Not in this phase: the API key and review screens (P9 and P10), and an OpenAPI document of the public API.
+
 ## Technology
 
 | Area         | Choice                                                                             |
@@ -247,7 +297,7 @@ Not in this phase: the billing page in the web app (P9), live Paddle (P11, after
 | Ingestion    | Node `fetch`, `csv-parse`, `cheerio`, `unzipper`, `commander`                      |
 | Email        | Resend (Mailpit locally)                                                           |
 | Billing      | Paddle Billing                                                                     |
-| AI summaries | Google Gemini, with structured output and human approval                           |
+| AI summaries | Google Gemini (`generateContent` with a JSON response schema), with human approval |
 | PDF          | `pdfmake`                                                                          |
 | Tests        | Jest, Playwright, real Postgres in CI                                              |
 
@@ -336,6 +386,8 @@ node tools/perf/p6.mjs --base http://localhost:3000 --email <email> --password <
 | `entities:link`                             | Links records to firms and refreshes firm facts                                 |
 | `alerts:run [--no-email]`                   | Turns new change events into alerts and sends the instant emails                |
 | `digest:send`                               | Sends the daily digests, and the weekly ones on Mondays                         |
+| `summaries:draft [--limit n] [--only …]`    | Drafts English Import Alert summaries with Gemini, for a person to approve      |
+| `summaries:translate [--limit n]`           | Translates approved English summaries into Urdu, Hindi and Bengali              |
 | `db:size-check`                             | Exits 1 at or above 900 MB                                                      |
 | `maintenance:purge`                         | Applies the retention rules and prints each count (see "Retention")             |
 | `verify-source`, `probe-page`               | Checks a source: fields, rows, fill rates, duplicate keys, page patterns        |
@@ -350,15 +402,15 @@ docker run --rm -e DATABASE_URL -v "${PWD}:/app:ro" -w /app node:24.15.0-bookwor
 
 ### Schedules (UTC)
 
-| Workflow           | When                                                      | Runs                                                |
-| ------------------ | --------------------------------------------------------- | --------------------------------------------------- |
-| `sync-daily.yml`   | 03:07 every day                                           | Import Alerts, then RASFF, then `entities:link`     |
-| `sync-weekly.yml`  | 08:00 every day for now, then weekly on FDA's refresh day | FDA charge codes and refusals, then `entities:link` |
-| `sync-weekly.yml`  | 06:30 on Mondays                                          | UK, then Australia, then `entities:link`            |
-| `sync-monthly.yml` | 03:30 on the 1st                                          | EU MRLs                                             |
-| `maintenance.yml`  | 02:30 every day                                           | `maintenance:purge`                                 |
-| `digest.yml`       | 03:00 every day                                           | `digest:send` (weekly digests on Mondays)           |
-| `backfill.yml`     | On demand                                                 | One source with `--no-events`                       |
+| Workflow           | When                                                      | Runs                                                                                                                                |
+| ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `sync-daily.yml`   | 03:07 every day                                           | Import Alerts, then RASFF, then `entities:link`; after the Import Alerts' `alerts:run`, `summaries:draft` and `summaries:translate` |
+| `sync-weekly.yml`  | 08:00 every day for now, then weekly on FDA's refresh day | FDA charge codes and refusals, then `entities:link`                                                                                 |
+| `sync-weekly.yml`  | 06:30 on Mondays                                          | UK, then Australia, then `entities:link`                                                                                            |
+| `sync-monthly.yml` | 03:30 on the 1st                                          | EU MRLs                                                                                                                             |
+| `maintenance.yml`  | 02:30 every day                                           | `maintenance:purge`                                                                                                                 |
+| `digest.yml`       | 03:00 every day                                           | `digest:send` (weekly digests on Mondays)                                                                                           |
+| `backfill.yml`     | On demand                                                 | One source with `--no-events`                                                                                                       |
 
 Each job first checks the database size, and only one job writes to the database at a time. Every scheduled sync workflow ends with `alerts:run`.
 
@@ -377,7 +429,7 @@ About 70 development days in 11 phases.
 | P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Built and merged (PR #37). See "The product API". Still to do: the staging migration, mail settings and link check; then the p95 and hand checks.                                                                                |
 | P6    | Bulk supplier screening and PDF reports                                              | Built on branch `p6/bulk-pdf`, not merged. See "Bulk screening and PDF reports". Still to do: review; before merging, the owner steps there (the `0016` staging migration); then the staging measurements and the restart check. |
 | P7    | Billing with Paddle                                                                  | Built and merged (PR #38). See "Billing with Paddle". Still to do: the owner steps there (Paddle token, webhook destination, Render variables, the `0015` staging migration); then the manual sandbox purchase.                  |
-| P8    | Public API and Import Alert summaries                                                | Not started                                                                                                                                                                                                                      |
+| P8    | Public API and Import Alert summaries                                                | Built on branch `umar/ecstatic-pasteur-3tmurd`, not merged. See "Public API and Import Alert summaries". Still to do: review; then the owner steps there (Gemini key, the `0017` staging migration, the first summaries).        |
 | P9    | Web app in four languages                                                            | Not started                                                                                                                                                                                                                      |
 | P10   | Admin panel: health, taxonomy, match review, summaries                               | Not started                                                                                                                                                                                                                      |
 | P11   | Deployment and launch                                                                | Not started                                                                                                                                                                                                                      |
