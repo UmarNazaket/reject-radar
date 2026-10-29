@@ -9,8 +9,9 @@ on:
 permissions:
   contents: read
 
-# Its own group: it only deletes expired rows and clears old payloads, and touches nothing the ingest or alert runs
-# write, so it never waits behind (or holds up) them.
+# Its own group: it only deletes rows past their retention and clears old payloads. That includes `alert_email` rows,
+# which `alerts:run` writes, but only those over 90 days old; `alerts:run` only adds new ones. So the purge and the
+# ingest or alert runs never touch the same rows, and it never waits behind (or holds up) them.
 concurrency:
   group: maintenance
   cancel-in-progress: false
