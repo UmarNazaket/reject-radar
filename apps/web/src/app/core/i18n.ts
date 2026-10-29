@@ -70,6 +70,11 @@ export class I18n {
     return String(formatter.format(params));
   }
 
+  /** A `YYYY-MM-DD` day or ISO timestamp in the current language, read in UTC as the API counts days. */
+  date(value: string, options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }): string {
+    return new Intl.DateTimeFormat(`${this.locale()}-u-nu-latn`, { ...options, timeZone: 'UTC' }).format(new Date(value));
+  }
+
   private async load(locale: Locale): Promise<void> {
     if (this.catalogs()[locale]) return;
     const res = await fetch(`/i18n/${locale}.json`);

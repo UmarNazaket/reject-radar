@@ -8,7 +8,10 @@ export const appRoutes: Route[] = [
     path: '',
     canActivate: [signedIn],
     loadComponent: () => import('./layout/app-layout').then((m) => m.AppLayout),
-    children: [{ path: '', pathMatch: 'full', loadComponent: () => import('./home/home').then((m) => m.Home) }],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'topics' },
+      { path: 'topics', loadComponent: () => import('./topics/topic-check').then((m) => m.TopicCheck) },
+    ],
   },
   {
     path: '',

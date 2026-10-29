@@ -19,8 +19,8 @@ import { LanguageSelect } from './language-select';
       <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
         <a routerLink="/" class="text-lg font-semibold text-slate-900">{{ i18n.t('web.app.name') }}</a>
         <nav class="flex gap-1" [attr.aria-label]="i18n.t('web.nav.label')">
-          <a routerLink="/" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
-            {{ i18n.t('web.nav.home') }}
+          <a routerLink="/topics" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+            {{ i18n.t('web.nav.topics') }}
           </a>
         </nav>
         <div class="ms-auto flex items-center gap-3">
