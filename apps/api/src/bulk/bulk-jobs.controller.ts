@@ -1,15 +1,31 @@
-import { Controller, Get, Header, HttpCode, HttpStatus, Param, Post, Query, Req } from '@nestjs/common';
-import type { BulkJobListResponse, BulkJobResponse } from '@rejectradar/contracts';
-import type { Request } from 'express';
+import { Body, Controller, Get, Header, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  BULK_ROW_STATUSES,
+  type BulkJobListResponse,
+  type BulkJobResponse,
+  type BulkRowResponse,
+  type BulkRowReviewRequest,
+  bulkRowReviewRequest,
+  type BulkRowsResponse,
+  type WatchConfirmedResponse,
+} from '@rejectradar/contracts';
+import type { Request, Response } from 'express';
+import { z } from 'zod';
 import type { RequestContext } from '../auth/context';
 import { CurrentContext, RequireVerifiedEmail } from '../auth/decorators';
 import { AppError } from '../common/errors';
+import { PositiveIntParamPipe } from '../common/int-param.pipe';
 import { RateLimit } from '../common/rate-limit';
 import { UuidParamPipe } from '../common/uuid-param.pipe';
+import { ZodValidationPipe } from '../common/zod-pipe';
 import { BulkJobsService, TEMPLATE_CSV } from './bulk-jobs.service';
 
 const HOUR_MS = 3_600_000;
 const MAX_FILE_NAME_LENGTH = 200;
+
+/** `GET /v1/bulk-jobs/:id/rows?status=&cursor=` */
+const rowsQuery = z.object({ status: z.enum(BULK_ROW_STATUSES).optional(), cursor: z.string().min(1).max(200).optional() });
+type RowsQuery = z.output<typeof rowsQuery>;
 
 const unsupported = () =>
   new AppError(HttpStatus.UNSUPPORTED_MEDIA_TYPE, 'UNSUPPORTED_FILE_TYPE', 'Send a CSV file as the request body (Content-Type: text/csv), with a fileName ending in .csv.');
@@ -89,5 +105,48 @@ export class BulkJobsController {
   @Get(':id')
   get(@CurrentContext() ctx: RequestContext, @Param('id', new UuidParamPipe()) id: string): Promise<BulkJobResponse> {
     return this.jobs.get(ctx, id);
+  }
+
+  /** Reading results needs a verified email like the review does: the rows carry profile facts (P6-D10). */
+  @Get(':id/rows')
+  @RequireVerifiedEmail()
+  rows(
+    @CurrentContext() ctx: RequestContext,
+    @Param('id', new UuidParamPipe()) id: string,
+    @Query(new ZodValidationPipe(rowsQuery)) query: RowsQuery,
+  ): Promise<BulkRowsResponse> {
+    return this.jobs.rows(ctx, id, query);
+  }
+
+  @Patch(':id/rows/:rowId')
+  @RequireVerifiedEmail()
+  review(
+    @CurrentContext() ctx: RequestContext,
+    @Param('id', new UuidParamPipe()) id: string,
+    @Param('rowId', new PositiveIntParamPipe()) rowId: number,
+    @Body(new ZodValidationPipe(bulkRowReviewRequest)) body: BulkRowReviewRequest,
+  ): Promise<BulkRowResponse> {
+    return this.jobs.review(ctx, id, rowId, body);
+  }
+
+  @Post(':id/watch-confirmed')
+  @HttpCode(HttpStatus.OK)
+  @RequireVerifiedEmail()
+  watchConfirmed(@CurrentContext() ctx: RequestContext, @Param('id', new UuidParamPipe()) id: string): Promise<WatchConfirmedResponse> {
+    return this.jobs.watchConfirmed(ctx, id);
+  }
+
+  @Get(':id/export.csv')
+  @RequireVerifiedEmail()
+  async exportCsv(
+    @CurrentContext() ctx: RequestContext,
+    @Param('id', new UuidParamPipe()) id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<string> {
+    // The headers are set only once the file exists, so a 404 or 409 is still a JSON error.
+    const csv = await this.jobs.exportCsv(ctx, id);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="bulk-${id}.csv"`);
+    return csv;
   }
 }

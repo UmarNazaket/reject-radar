@@ -23,6 +23,8 @@ export interface AccountFixture {
   /** The id and file name of the account's bulk job, uploaded by its owner. */
   bulkJobId: string;
   bulkFileName: string;
+  /** The id of the job's only row, which account A's review of it must not change. */
+  bulkRowId: string;
 }
 
 export interface IsolationCase {
@@ -79,6 +81,15 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   },
   { method: 'GET', path: '/v1/bulk-jobs' },
   { method: 'GET', path: '/v1/bulk-jobs/:id', target: (b) => ({ id: b.bulkJobId }) },
+  { method: 'GET', path: '/v1/bulk-jobs/:id/rows', target: (b) => ({ id: b.bulkJobId }) },
+  {
+    method: 'PATCH',
+    path: '/v1/bulk-jobs/:id/rows/:rowId',
+    body: () => ({ action: 'reject' }),
+    target: (b) => ({ id: b.bulkJobId, rowId: b.bulkRowId }),
+  },
+  { method: 'POST', path: '/v1/bulk-jobs/:id/watch-confirmed', target: (b) => ({ id: b.bulkJobId }) },
+  { method: 'GET', path: '/v1/bulk-jobs/:id/export.csv', target: (b) => ({ id: b.bulkJobId }) },
 ];
 
 export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }[] = [

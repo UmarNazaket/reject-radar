@@ -1,12 +1,26 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
-import type { BulkJobListResponse, BulkJobResponse, BulkJobStatus } from '@rejectradar/contracts';
+import {
+  BULK_LIMITS,
+  type BulkCandidate,
+  type BulkJobListResponse,
+  type BulkJobResponse,
+  type BulkJobStatus,
+  type BulkRowResponse,
+  type BulkRowReviewRequest,
+  type BulkRowsResponse,
+  type BulkRowStatus,
+  type WatchConfirmedResponse,
+} from '@rejectradar/contracts';
 import { type Database, bulkJob, bulkJobRow, uuidv7 } from '@rejectradar/db';
-import { desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, type SQL, sql } from 'drizzle-orm';
 import { byOrg, type RequestContext } from '../auth/context';
 import { toCsvRow } from '../common/csv';
+import { decodeCursor, encodeCursor } from '../common/cursor';
 import { AppError } from '../common/errors';
 import { DB } from '../database/database.module';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { type FirmSummary, FirmProfileService } from '../firms/firm-profile.service';
+import { WatchlistsService } from '../watchlists/watchlists.service';
 import { type BulkInputRow, parseBulkCsv } from './bulk-csv';
 import { BulkProcessor, claimableJob } from './bulk-processor';
 
@@ -20,7 +34,44 @@ const INSERT_CHUNK = 500;
 /** `GET /v1/bulk-jobs` returns the newest this many jobs. */
 const LIST_LIMIT = 50;
 
+/** The columns of the export, in order (P6-D9). */
+export const EXPORT_HEADER = [
+  'name', 'country', 'city', 'fei', 'status', 'score', 'firm_id', 'firm_name', 'firm_country', 'fda_refusals_3y', 'import_alert_red', 'au_failed_3y',
+] as const;
+
+/**
+ * The page cursor is the P5 cursor (`<date>|<id>`) with the row number as its id; rows have no date, so a fixed one stands in
+ * and `decodeCursor` still rejects anything that is not a cursor of this shape.
+ */
+const ROW_CURSOR_DATE = '2000-01-01';
+
 type JobRow = typeof bulkJob.$inferSelect;
+type RowRecord = typeof bulkJobRow.$inferSelect;
+
+const notFound = () => new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found.');
+const rowPending = () => new AppError(HttpStatus.CONFLICT, 'ROW_PENDING', 'This is still being processed. Try again in a moment.');
+
+/** The score as a number, or null; Postgres returns `numeric` as text. */
+const scoreOf = (row: RowRecord): number | null => (row.score === null ? null : Number(row.score));
+
+/** The distinct firms rows point at. */
+const distinctFirmIds = (rows: readonly RowRecord[]): number[] => [...new Set(rows.flatMap((row) => (row.firmId === null ? [] : [row.firmId])))];
+
+const toRowResponse = (row: RowRecord, firms: Map<number, FirmSummary>): BulkRowResponse => {
+  const firm = row.firmId === null ? undefined : firms.get(row.firmId);
+  return {
+    id: row.id,
+    rowNr: row.rowNr,
+    input: { name: row.inputName, country: row.inputCountry, city: row.inputCity, fei: row.inputFei },
+    status: row.status as BulkRowStatus,
+    score: scoreOf(row),
+    firm: firm ? { id: firm.id, displayName: firm.displayName, countryCode: firm.countryCode } : null,
+    facts: firm
+      ? { fdaRefusals3y: firm.facts.fda_refusals_3y, importAlertRed: firm.facts.import_alert_red.length > 0, auFailed3y: firm.facts.au_failed_3y }
+      : null,
+    candidates: row.candidates as BulkCandidate[],
+  };
+};
 
 const toResponse = (job: JobRow): BulkJobResponse => ({
   id: job.id,
@@ -53,6 +104,8 @@ export class BulkJobsService {
     @Inject(DB) private readonly db: Database,
     private readonly entitlements: EntitlementsService,
     private readonly processor: BulkProcessor,
+    private readonly firms: FirmProfileService,
+    private readonly watchlist: WatchlistsService,
   ) {}
 
   /** Checks the plan, parses `body` as it streams in, stores the job and its rows, and starts the job once they are committed. */
@@ -96,9 +149,121 @@ export class BulkJobsService {
       .select({ job: bulkJob, stale: claimableJob() })
       .from(bulkJob)
       .where(byOrg(bulkJob, ctx, eq(bulkJob.id, id)));
-    if (!found) throw new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found.');
+    if (!found) throw notFound();
     if (found.stale) this.start(id);
     return toResponse(found.job);
+  }
+
+  /**
+   * One page of a job's rows by row number (P6-D9), optionally only those in `status`. A row with a firm carries the firm's
+   * summary facts. A firm merged away after matching needs no lookup here: the merge re-points `bulk_job_row.firm_id`.
+   */
+  async rows(ctx: RequestContext, jobId: string, query: { status?: BulkRowStatus; cursor?: string }): Promise<BulkRowsResponse> {
+    await this.job(ctx, jobId);
+    const conditions: (SQL | undefined)[] = [eq(bulkJobRow.jobId, jobId)];
+    if (query.status) conditions.push(eq(bulkJobRow.status, query.status));
+    if (query.cursor) conditions.push(gt(bulkJobRow.rowNr, Number(decodeCursor(query.cursor).id)));
+    // One row more than the page tells whether another page follows.
+    const found = await this.db
+      .select()
+      .from(bulkJobRow)
+      .where(and(...conditions))
+      .orderBy(asc(bulkJobRow.rowNr))
+      .limit(BULK_LIMITS.pageSize + 1);
+    const page = found.slice(0, BULK_LIMITS.pageSize);
+    const last = page[page.length - 1];
+    const summaries = await this.firms.summaryFacts(distinctFirmIds(page));
+    return {
+      rows: page.map((row) => toRowResponse(row, summaries)),
+      nextCursor: found.length > BULK_LIMITS.pageSize && last ? encodeCursor(ROW_CURSOR_DATE, last.rowNr) : null,
+    };
+  }
+
+  /**
+   * Confirms one of a row's candidates or rejects the row (P6-D7). A candidate whose firm was merged away since matching is
+   * found by its surviving firm, because a merge re-points `firm_id` but not the ids inside `candidates`; the row then names
+   * the survivor. A row still being processed is `409`.
+   */
+  async review(ctx: RequestContext, jobId: string, rowId: number, body: BulkRowReviewRequest): Promise<BulkRowResponse> {
+    await this.job(ctx, jobId);
+    const [row] = await this.db.select().from(bulkJobRow).where(and(eq(bulkJobRow.id, rowId), eq(bulkJobRow.jobId, jobId)));
+    if (!row) throw notFound();
+    if (row.status === 'pending') throw rowPending();
+
+    let changes: Partial<typeof bulkJobRow.$inferInsert>;
+    if (body.action === 'reject') {
+      changes = { status: 'rejected', firmId: null };
+    } else {
+      const wanted = await this.firms.resolveId(body.firmId);
+      let chosen: { firmId: number; score: number } | null = null;
+      for (const candidate of row.candidates as BulkCandidate[]) {
+        if (wanted !== null && (await this.firms.resolveId(candidate.firmId)) === wanted) {
+          chosen = { firmId: wanted, score: candidate.score };
+          break;
+        }
+      }
+      if (chosen === null) throw new AppError(HttpStatus.BAD_REQUEST, 'NOT_A_CANDIDATE', "That firm is not one of this row's candidates.");
+      changes = { status: 'confirmed', firmId: chosen.firmId, score: chosen.score.toFixed(4) };
+    }
+    // The processor writes a row only while it is pending, so a row decided here is never overwritten by it.
+    const [updated] = await this.db
+      .update(bulkJobRow)
+      .set(changes)
+      .where(and(eq(bulkJobRow.id, rowId), sql`${bulkJobRow.status} <> 'pending'`))
+      .returning();
+    if (!updated) throw rowPending();
+    const summaries = await this.firms.summaryFacts(distinctFirmIds([updated]));
+    return toRowResponse(updated, summaries);
+  }
+
+  /** Adds the firms of the job's `matched` and `confirmed` rows to the account's watchlist, as far as the plan allows (P6-D8). */
+  async watchConfirmed(ctx: RequestContext, jobId: string): Promise<WatchConfirmedResponse> {
+    await this.job(ctx, jobId);
+    // One item per firm, in row order, named by the first row that found it.
+    const { rows } = await this.db.execute<{ firmId: string | number; inputName: string }>(sql`
+      select firm_id as "firmId", (array_agg(input_name order by row_nr))[1] as "inputName"
+      from bulk_job_row
+      where job_id = ${jobId}::uuid and status in ('matched', 'confirmed') and firm_id is not null
+      group by firm_id
+      order by min(row_nr)`);
+    return this.watchlist.addFirms(
+      ctx,
+      rows.map((row) => ({ firmId: Number(row.firmId), inputName: row.inputName })),
+    );
+  }
+
+  /** The finished job as CSV (P6-D9): the header, then one line per row, each ending in CRLF. */
+  async exportCsv(ctx: RequestContext, jobId: string): Promise<string> {
+    const job = await this.job(ctx, jobId);
+    if (job.status !== 'finished') throw rowPending();
+    const rows = await this.db.select().from(bulkJobRow).where(eq(bulkJobRow.jobId, jobId)).orderBy(asc(bulkJobRow.rowNr));
+    const summaries = await this.firms.summaryFacts(distinctFirmIds(rows));
+    const lines = rows.map((row) => {
+      const firm = row.firmId === null ? undefined : summaries.get(row.firmId);
+      const score = scoreOf(row);
+      return toCsvRow([
+        row.inputName,
+        row.inputCountry,
+        row.inputCity,
+        row.inputFei,
+        row.status,
+        score === null ? null : score.toFixed(2),
+        firm?.id ?? null,
+        firm?.displayName ?? null,
+        firm?.countryCode ?? null,
+        firm?.facts.fda_refusals_3y ?? null,
+        firm ? (firm.facts.import_alert_red.length > 0 ? 'yes' : 'no') : null,
+        firm?.facts.au_failed_3y ?? null,
+      ]);
+    });
+    return [toCsvRow(EXPORT_HEADER), ...lines].map((line) => `${line}\r\n`).join('');
+  }
+
+  /** The account's job `id`; another account's job is `404`, like one that is not there. */
+  private async job(ctx: RequestContext, id: string): Promise<JobRow> {
+    const [job] = await this.db.select().from(bulkJob).where(byOrg(bulkJob, ctx, eq(bulkJob.id, id)));
+    if (!job) throw notFound();
+    return job;
   }
 
   /** The job is committed, so a failure to start it must not undo the answer: the next read or restart resumes it (P6-D5). */
