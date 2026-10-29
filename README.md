@@ -287,19 +287,19 @@ Not in this phase: the API key and review screens (P9 and P10), and an OpenAPI d
 
 ## Technology
 
-| Area         | Choice                                                                                |
-| ------------ | ------------------------------------------------------------------------------------- |
-| Runtime      | Node 24                                                                               |
-| Monorepo     | Nx                                                                                    |
-| Web          | Angular, PrimeNG, Tailwind CSS, Transloco (four languages, right to left for Urdu)    |
-| API          | NestJS 11, zod contracts shared with the web app                                      |
-| Database     | PostgreSQL 18 (`pg_trgm`), Drizzle ORM and drizzle-kit migrations                     |
-| Ingestion    | Node `fetch`, `csv-parse`, `cheerio`, `unzipper`, `commander`                         |
-| Email        | Resend (Mailpit locally)                                                              |
-| Billing      | Paddle Billing                                                                        |
-| AI summaries | Claude Opus 5.5 through `@anthropic-ai/sdk` (structured outputs), with human approval |
-| PDF          | `pdfmake`                                                                             |
-| Tests        | Jest, Playwright, real Postgres in CI                                                 |
+| Area         | Choice                                                                                                      |
+| ------------ | ----------------------------------------------------------------------------------------------------------- |
+| Runtime      | Node 24                                                                                                     |
+| Monorepo     | Nx                                                                                                          |
+| Web          | Angular, Angular Material, Tailwind CSS; the `libs/i18n` catalogs in four languages, right to left for Urdu |
+| API          | NestJS 11, zod contracts shared with the web app                                                            |
+| Database     | PostgreSQL 18 (`pg_trgm`), Drizzle ORM and drizzle-kit migrations                                           |
+| Ingestion    | Node `fetch`, `csv-parse`, `cheerio`, `unzipper`, `commander`                                               |
+| Email        | Resend (Mailpit locally)                                                                                    |
+| Billing      | Paddle Billing                                                                                              |
+| AI summaries | Claude Opus 5.5 through `@anthropic-ai/sdk` (structured outputs), with human approval                       |
+| PDF          | `pdfmake`                                                                                                   |
+| Tests        | Jest, Playwright, real Postgres in CI                                                                       |
 
 ## Repository layout
 
@@ -360,11 +360,24 @@ The ingestion CLI reads `MAIL_TRANSPORT`, `MAIL_SMTP_URL`, `MAIL_FROM`, `RESEND_
 
 Locally, `npx nx serve api` sends account emails to Mailpit, whose inbox is at http://localhost:8025. In development and test, http://localhost:3000/v1/dev/emails previews every account email in every language, including the right-to-left Urdu layout. The route does not exist in production.
 
+### The web app
+
+`apps/web` is the Angular app (P9). It calls the API with the session cookies and the CSRF header, and renews the session when the 15-minute access cookie expires. Its text comes from the same `libs/i18n` catalogs as the emails (keys under `web.*`), served as `/i18n/<locale>.json` and formatted with Latin digits; Urdu switches the page to right to left. The UI uses Angular Material (MIT) and Tailwind CSS.
+
+| Build                                      | API it calls                                                                       |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `npx nx serve web`                         | `/v1` on the same origin, proxied to `localhost:3000` (`apps/web/proxy.conf.json`) |
+| `npx nx build web --configuration=staging` | `https://rejectradar-staging-api.umarnazaket.com`                                  |
+| `npx nx build web`                         | The same origin; production gets its API address with P11                          |
+
+Cloudflare Pages builds staging with `npx nx build web --configuration=staging` on Node 24 and publishes `dist/apps/web/browser`. Unknown paths serve `index.html`, so deep links work. The API's `APP_ORIGIN` must be the web app's origin exactly, for CORS and the links in emails.
+
 ### Common commands
 
 ```sh
 npx nx run-many -t lint test build      # lint, test and build every project
 npx nx serve api                        # then open http://localhost:3000/v1/health
+npx nx serve web                        # the web app on http://localhost:4200, calling the API through a proxy
 npx nx build ingest && node dist/apps/ingest/main.js --help
 node tools/perf/load.mjs --base http://localhost:3000 --email <email> --password <password>   # p95 of search and dashboards
 node tools/perf/p6.mjs --base http://localhost:3000 --email <email> --password <password> --csv bulk-1000.csv --firm <id>   # bulk job and PDF times
@@ -430,7 +443,7 @@ About 70 development days in 11 phases.
 | P6    | Bulk supplier screening and PDF reports                                              | Built on branch `p6/bulk-pdf`, not merged. See "Bulk screening and PDF reports". Still to do: review; before merging, the owner steps there (the `0016` staging migration); then the staging measurements and the restart check. |
 | P7    | Billing with Paddle                                                                  | Built and merged (PR #38). See "Billing with Paddle". Still to do: the owner steps there (Paddle token, webhook destination, Render variables, the `0015` staging migration); then the manual sandbox purchase.                  |
 | P8    | Public API and Import Alert summaries                                                | Built and merged (PR #40). See "Public API and Import Alert summaries". Still to do: the owner steps there (the `0017` staging migration, the first summaries).                                                                  |
-| P9    | Web app in four languages                                                            | Not started                                                                                                                                                                                                                      |
+| P9    | Web app in four languages                                                            | In progress. PR 1: app shell, session, the four languages and the sign-in screens. Next: the topic check                                                                                                                         |
 | P10   | Admin panel: health, taxonomy, match review, summaries                               | Not started                                                                                                                                                                                                                      |
 | P11   | Deployment and launch                                                                | Not started                                                                                                                                                                                                                      |
 

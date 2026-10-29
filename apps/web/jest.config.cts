@@ -12,7 +12,8 @@ module.exports = {
       },
     ],
   },
-  transformIgnorePatterns: ['node_modules/(?!.*\\.mjs$)'],
+  // intl-messageformat and its parser ship ES modules as .js, so they are compiled to CommonJS like the .mjs packages.
+  transformIgnorePatterns: ['node_modules/(?!(.*\\.mjs$|intl-messageformat/|@formatjs/))'],
   snapshotSerializers: [
     'jest-preset-angular/build/serializers/no-ng-attributes',
     'jest-preset-angular/build/serializers/ng-snapshot',

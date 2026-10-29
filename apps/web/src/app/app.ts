@@ -1,13 +1,16 @@
-import { Component } from '@angular/core';
-import { RouterModule } from '@angular/router';
-import { NxWelcome } from './nx-welcome';
+import { BidiModule } from '@angular/cdk/bidi';
+import { Component, computed, inject } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { textDirection } from '@rejectradar/contracts/locales';
+import { I18n } from './core/i18n';
 
+/** `dir` on the root tells Material and the CDK the text direction, and updates them when the language changes. */
 @Component({
-  imports: [NxWelcome, RouterModule],
   selector: 'app-root',
-  templateUrl: './app.html',
-  styleUrl: './app.scss',
+  imports: [RouterOutlet, BidiModule],
+  template: '<div [dir]="dir()"><router-outlet /></div>',
 })
 export class App {
-  protected title = 'web';
+  private readonly i18n = inject(I18n);
+  protected readonly dir = computed(() => textDirection(this.i18n.locale()));
 }
