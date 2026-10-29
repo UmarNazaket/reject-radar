@@ -153,6 +153,8 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   },
   { method: 'POST', path: '/v1/firms/:id/disputes', reason: "Writes only to the caller's account; there is no read." },
   { method: 'GET', path: '/v1/import-alerts/:number', reason: 'Reference data.' },
+  { method: 'GET', path: '/v1/admin/import-alert-summaries', reason: 'Platform admins only; Import Alert summaries are reference data.' },
+  { method: 'PATCH', path: '/v1/admin/import-alert-summaries/:number', reason: 'Platform admins only; Import Alert summaries are reference data.' },
   { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl', reason: 'Reference data.' },
   ...['notices', 'notices/:id', 'dashboards/topic', 'firms/search', 'firms/:id', 'import-alerts/:number', 'taxonomy', 'usage'].map((route) => ({

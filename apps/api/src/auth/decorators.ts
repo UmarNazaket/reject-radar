@@ -8,6 +8,7 @@ export const SKIP_CSRF = 'auth:skipCsrf';
 export const ROLES_METADATA = 'auth:roles';
 export const REQUIRE_VERIFIED_EMAIL = 'auth:requireVerifiedEmail';
 export const API_KEY_AUTH = 'auth:apiKey';
+export const PLATFORM_ADMIN = 'auth:platformAdmin';
 
 /** No sign-in needed: the auth, roles and verified-email guards let the route through. CSRF still applies to unsafe methods. */
 export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUBLIC, true);
@@ -17,6 +18,9 @@ export const SkipCsrf = (): MethodDecorator & ClassDecorator => SetMetadata(SKIP
 
 /** Only these roles may call the route; anyone else gets `403 FORBIDDEN`. */
 export const Roles = (...roles: Role[]): MethodDecorator & ClassDecorator => SetMetadata(ROLES_METADATA, roles);
+
+/** Only RejectRadar's own staff (`app_user.is_platform_admin`) may call the route; anyone else gets `403 FORBIDDEN`. */
+export const PlatformAdmin = (): MethodDecorator & ClassDecorator => SetMetadata(PLATFORM_ADMIN, true);
 
 /** The caller's email must be verified; otherwise `403 EMAIL_NOT_VERIFIED`. */
 export const RequireVerifiedEmail = (): MethodDecorator & ClassDecorator => SetMetadata(REQUIRE_VERIFIED_EMAIL, true);
