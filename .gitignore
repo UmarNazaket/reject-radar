@@ -88,3 +88,7 @@ skills-lock.json
 yarn-error.log
 testem.log
 /typings
+
+# ── Generated test data ─────────────────────────────────────────────────────
+# CSVs written for tools/perf/p6.mjs hold real firm names.
+bulk-*.csv

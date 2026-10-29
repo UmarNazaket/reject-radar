@@ -23,7 +23,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 2) {
     const key = argv[i];
     const value = argv[i + 1];
-    if (!key?.startsWith('--') || value === undefined) throw new Error(`Bad argument near "${key ?? ''}"`);
+    if (!key?.startsWith('--') || value === undefined) throw new Error(`Bad argument at position ${i + 1} (expected --name followed by a value)`);
     const name = key.slice(2);
     if (MULTI.has(name)) args[name].push(value);
     else args[name] = value;
@@ -32,7 +32,7 @@ function parseArgs(argv) {
     if (!args[key]) throw new Error(`--${key} is required`);
   }
   for (const id of args.firm) {
-    if (!/^[1-9]\d{0,9}$/.test(id)) throw new Error(`--firm must be a firm id (digits), got "${id}"`);
+    if (!/^[1-9]\d{0,9}$/.test(id)) throw new Error('--firm must be a firm id (1 to 10 digits)');
   }
   args.topic = args.topic.map((query) => query.replace(/^\?/, ''));
   args.base = args.base.replace(/\/+$/, '');
@@ -128,6 +128,7 @@ async function runBulkJob(args) {
     rows: job.total,
     seconds,
     ok: !over,
+    judged: budgeted,
     note: over ? `OVER ${JOB_BUDGET_S} s` : budgeted ? 'ok' : `no budget applies above ${JOB_BUDGET_ROWS} rows`,
   };
 }
@@ -187,14 +188,24 @@ async function main() {
     if (pdf.samples.length) console.log(`  times: ${pdf.samples.map((s) => `${s.ms.toFixed(0)} ms`).join(', ')}`);
   }
 
+  // The verdict names only what was judged: a job over 1,000 rows has no budget, and no --firm/--topic means no PDF was timed.
   const failed = !job.ok || pdfs.some((pdf) => !pdf.ok);
-  console.log(
-    failed
-      ? `\nFAIL: the bulk job is over ${JOB_BUDGET_S} s or failed, or a PDF is over ${PDF_BUDGET_MS} ms or failed.`
-      : `\nOK: the bulk job is within ${JOB_BUDGET_S} s and every PDF within ${PDF_BUDGET_MS} ms.`,
-  );
+  const judged = [];
+  judged.push(job.judged ? `bulk job of ${job.rows} rows within ${JOB_BUDGET_S} s` : null);
+  judged.push(pdfs.length > 0 ? `${pdfs.length} PDF report(s) within ${PDF_BUDGET_MS} ms` : null);
+  const passed = judged.filter(Boolean);
+  const notJudged = [
+    job.judged || !job.ok ? null : `the bulk job (over ${JOB_BUDGET_ROWS} rows, no budget)`,
+    pdfs.length > 0 ? null : 'the PDFs (no --firm or --topic given)',
+  ].filter(Boolean);
+  let line;
+  if (failed) line = `FAIL: the bulk job is over ${JOB_BUDGET_S} s or failed, or a PDF is over ${PDF_BUDGET_MS} ms or failed.`;
+  else if (passed.length === 0) line = `NOTHING JUDGED: ${notJudged.join('; ')}.`;
+  else line = `OK: ${passed.join(' and ')}${notJudged.length ? `; not judged: ${notJudged.join('; ')}` : ''}.`;
+  console.log(`
+${line}`);
   console.log('V11 memory: read the pdf_rendered lines (rssMb) in the API logs; they should stay under 400.');
-  process.exitCode = failed ? 1 : 0;
+  process.exitCode = failed || passed.length === 0 ? 1 : 0;
 }
 
 main().catch((error) => {

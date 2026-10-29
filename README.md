@@ -215,9 +215,9 @@ The API refuses to start unless every one of these is set and well-formed, in ev
 
 See `tools/paddle/README.md`.
 
-### Owner steps before merging `p7/billing-paddle`
+### Owner steps for Paddle (P7)
 
-The API refuses to start without the Paddle variables, so these come before the merge and before any staging redeploy:
+The API refuses to start without the Paddle variables, so set them before any staging redeploy:
 
 1. **Send Paddle the V9 questions:** payouts, the 7 countries, a data-subscription product and domain approval. The answers gate live selling, not the sandbox.
 2. **Client-side token:** in the Paddle sandbox dashboard, go to Developer tools, Authentication, and create a client-side token (`test_…`). Put it in the local `.env` and the Render staging environment as `PADDLE_CLIENT_TOKEN`.

@@ -42,7 +42,7 @@ To write a 1,000-row file from real firms in the local database:
 psql "$DATABASE_URL" -c "\copy (select display_name as name, country_code as country, city, '' as fei from firm where country_code is not null order by random() limit 1000) to 'bulk-1000.csv' csv header"
 ```
 
-Keep the file out of git. Without `psql` on the path, run the same `\copy` inside the Postgres container (`docker compose exec postgres psql -U rejectradar -d rejectradar …`, writing to `/tmp`) and copy it out with `docker compose cp`.
+The file holds real firm names. `.gitignore` covers `bulk-*.csv`, so a file named like that in the repository root is never committed; keep other names outside the repository. Without `psql` on the path, run the same `\copy` inside the Postgres container (`docker compose exec postgres psql -U rejectradar -d rejectradar …`, writing to `/tmp`) and copy it out with `docker compose cp`.
 
 V11 (API memory under 400 MB while a PDF is made) is not measured by the script. The API logs `pdf_rendered` with `kind`, `ms` and `rssMb` for every PDF; on staging read those lines in Render's logs and check that `rssMb` stays under 400.
 
