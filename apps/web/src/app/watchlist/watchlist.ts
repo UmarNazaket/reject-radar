@@ -42,7 +42,7 @@ import { Alert } from '../layout/alert';
             <div class="flex flex-wrap items-start gap-x-4 gap-y-1">
               <div class="min-w-0 flex-1">
                 @if (item.firm; as firm) {
-                  <a [routerLink]="['/firms', firm.id]" class="font-medium text-sky-700 underline">{{ firm.displayName }}</a>
+                  <a [routerLink]="['/firms', firm.id]" class="font-medium text-sky-700 underline" dir="auto">{{ firm.displayName }}</a>
                   <p class="mt-1 text-sm text-slate-600">
                     {{ firm.countryCode ? taxonomy.label('country', firm.countryCode) : '' }}
                     @if (firm.facts.import_alert_red.length > 0) {

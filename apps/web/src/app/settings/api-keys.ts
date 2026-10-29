@@ -41,7 +41,7 @@ import { Alert } from '../layout/alert';
       </form>
       <ul class="max-w-2xl divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
         @for (k of keys.value().keys; track k.id) {
-          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 p-4 text-sm" [class.opacity-60]="k.revokedAt">
+          <li class="flex flex-wrap items-center gap-x-4 gap-y-1 p-4 text-sm">
             <div class="min-w-0 flex-1">
               <p class="font-medium">{{ k.name }} <code class="ms-2 text-slate-600" dir="ltr">{{ k.prefix }}…</code></p>
               <p class="text-slate-600">

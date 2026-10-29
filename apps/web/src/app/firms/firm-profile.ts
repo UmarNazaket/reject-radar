@@ -55,7 +55,7 @@ function threeYearsAgo(): string {
       <app-alert class="mt-4 block">{{ errorText(error) }}</app-alert>
     } @else if (profile.hasValue()) {
       @let p = profile.value();
-      <h1 class="mt-3 text-2xl font-semibold">{{ p.displayName }}</h1>
+      <h1 class="mt-3 text-2xl font-semibold" dir="auto">{{ p.displayName }}</h1>
       @if (p.altNames.length > 0) {
         <p class="mt-1 text-sm text-slate-600">{{ i18n.t('web.firms.altNames', { names: p.altNames.join('; ') }) }}</p>
       }

@@ -7,6 +7,7 @@ import { AlertCount } from '../core/alert-count';
 import { apiUrl } from '../core/api';
 import { FormState } from '../core/form-state';
 import { I18n } from '../core/i18n';
+import { FORM_FIELD_DEFAULTS } from './form-field-defaults';
 import { Session } from '../core/session';
 import { Alert } from './alert';
 import { LanguageSelect } from './language-select';
@@ -15,6 +16,7 @@ import { LanguageSelect } from './language-select';
 @Component({
   selector: 'app-app-layout',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, Alert, LanguageSelect],
+  providers: [FORM_FIELD_DEFAULTS],
   template: `
     <header class="border-b border-slate-200 bg-white">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
@@ -47,7 +49,7 @@ import { LanguageSelect } from './language-select';
         </nav>
         <div class="ms-auto flex items-center gap-3">
           <app-language-select />
-          <a routerLink="/settings" class="text-sm text-slate-600 underline-offset-2 hover:underline" [attr.title]="i18n.t('web.settings.title')">
+          <a routerLink="/settings" dir="auto" class="text-sm text-slate-600 underline-offset-2 hover:underline" [attr.title]="i18n.t('web.settings.title')">
             {{ session.user()?.name }}
           </a>
           <button matButton type="button" (click)="signOut()">{{ i18n.t('web.nav.signOut') }}</button>

@@ -35,7 +35,7 @@ const INVITE_ROLES = ['admin', 'member'];
           @for (m of team.value().members; track m.userId) {
             <li class="flex flex-wrap items-center gap-x-4 gap-y-1 p-4 text-sm">
               <div class="min-w-0 flex-1">
-                <p class="font-medium">{{ m.name }}</p>
+                <p class="font-medium" dir="auto">{{ m.name }}</p>
                 <p class="text-slate-600" dir="ltr">{{ m.email }}</p>
               </div>
               @if (canManage() && m.userId !== me()) {

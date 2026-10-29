@@ -66,7 +66,7 @@ const LABEL_STYLES: Record<string, string> = {
           <ul class="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
             @for (r of results.value().results; track r.id) {
               <li class="flex flex-wrap items-center gap-x-4 gap-y-1 p-4">
-                <a [routerLink]="['/firms', r.id]" [queryParams]="{ q: query()?.['name'] ?? null }" class="font-medium text-sky-700 underline">{{ r.displayName }}</a>
+                <a [routerLink]="['/firms', r.id]" [queryParams]="{ q: query()?.['name'] ?? null }" class="font-medium text-sky-700 underline" dir="auto">{{ r.displayName }}</a>
                 <span class="inline-block rounded px-1.5 py-0.5 text-xs" [class]="labelStyles[r.label]">{{ i18n.t('web.firms.label.' + r.label) }}</span>
                 <span class="text-sm text-slate-600">{{ place(r.city, r.region, r.countryCode) }}</span>
                 @if (r.lastNoticeOn) {

@@ -1,12 +1,14 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { I18n } from '../core/i18n';
+import { FORM_FIELD_DEFAULTS } from './form-field-defaults';
 import { LanguageSelect } from './language-select';
 
 /** Sign-in screens: the brand, the language switch and one card. */
 @Component({
   selector: 'app-public-layout',
   imports: [RouterOutlet, RouterLink, LanguageSelect],
+  providers: [FORM_FIELD_DEFAULTS],
   template: `
     <header class="flex items-center justify-between px-4 py-3 sm:px-6">
       <a routerLink="/" class="text-lg font-semibold text-slate-900">{{ i18n.t('web.app.name') }}</a>
