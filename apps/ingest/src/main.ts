@@ -8,6 +8,7 @@ import { loadMailEnv } from './alerts/mail-env';
 import { runAlerts } from './alerts/run-alerts';
 import { sendDigests } from './alerts/send-digests';
 import { openDb } from './core/db';
+import { describeError } from './core/errors';
 import { loadIngestEnv } from './core/env';
 import { createDeps, utcToday } from './core/deps';
 import { createFetcher } from './core/http';
@@ -341,6 +342,6 @@ program
 // The exit code is set rather than exiting at once: sockets still closing when `process.exit` runs trip a libuv
 // assertion on Windows, which turns exit code 1 into 127.
 program.parseAsync(process.argv).catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(error instanceof Error ? describeError(error) : error);
   process.exitCode = 1;
 });
