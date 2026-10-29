@@ -98,6 +98,41 @@ export const PDF_COPY = {
     'Sources: FDA Data Dashboard (import refusals); FDA Import Alerts, accessdata.fda.gov; Department of Agriculture, Fisheries and Forestry, Imported Food Inspection Scheme failing food reports, CC BY 4.0.',
   noBorderFirms: 'EU and UK border notices do not name exporters, so they are not part of a firm report.',
 
+  // The topic report.
+  topicReport: 'Topic report',
+  commodityLabel: 'Commodity',
+  allCommodities: 'All commodities',
+  destinationsLabel: 'Destinations',
+  allDestinations: 'All destinations',
+  monthlyCounts: 'Notices by month',
+  month: 'Month',
+  total: 'Total',
+  totals12m: 'Last 12 months',
+  noticesLabel: 'Notices',
+  topHazards: 'Most frequent hazards, last 12 months',
+  hazard: 'Hazard',
+  hazardNumber: (id: number) => `Hazard ${id}`,
+  latestNotices: 'Latest notices',
+  noticeTo: 'To',
+  noticeProduct: 'Product',
+  noticeFirm: 'Firm named',
+  noticeHazards: 'Hazards',
+  historyFrom: (date: string) => `Your plan shows notices from ${date}.`,
+  topicNote:
+    'Counts are agency notices that match the topic, by the month each notice is dated. EU and UK notices do not name exporters, and a count says nothing about any one exporter.',
+  topicSourceNames: {
+    fda_refusals: 'FDA import refusals',
+    rasff: 'EU RASFF notifications',
+    uk_bn: 'UK border notifications',
+    au_ifis: 'Australia failing food reports',
+  } as Readonly<Record<string, string>>,
+  topicSources: {
+    US: 'US: FDA Data Dashboard (import refusals).',
+    EU: 'EU: European Commission, RASFF Window public notifications.',
+    UK: 'UK: Food Standards Agency border notifications, data.gov.uk.',
+    AU: 'AU: Department of Agriculture, Fisheries and Forestry, Imported Food Inspection Scheme failing food reports, CC BY 4.0.',
+  } as Readonly<Record<'US' | 'EU' | 'UK' | 'AU', string>>,
+
   disclaimer:
     'RejectRadar reports what agencies published. It is not legal, regulatory or laboratory advice. A refusal or listing is an agency action based on how a shipment appeared, not a court finding. RejectRadar is not affiliated with the FDA or DAFF. Check each record on the agency’s site before acting on it.',
 } as const;

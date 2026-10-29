@@ -90,9 +90,8 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   },
   { method: 'POST', path: '/v1/bulk-jobs/:id/watch-confirmed', target: (b) => ({ id: b.bulkJobId }) },
   { method: 'GET', path: '/v1/bulk-jobs/:id/export.csv', target: (b) => ({ id: b.bulkJobId }) },
-  // A firm is reference data, but the report is the caller's: it names the caller's account and charges the caller's lookup.
-  // No firm belongs to account B, so the id is one no firm has; the harness proves the call neither succeeds nor touches B.
-  { method: 'GET', path: '/v1/firms/:id/report.pdf', target: () => ({ id: '2147483647' }) },
+  // The notices behind the topic report are reference data; the report is the caller's, since it names the caller's own account.
+  { method: 'GET', path: '/v1/dashboards/topic/report.pdf', query: { origin: 'PK' } },
 ];
 
 export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }[] = [
@@ -139,6 +138,12 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   { method: 'GET', path: '/v1/taxonomy', reason: 'Reference data; the same for every caller.' },
   { method: 'GET', path: '/v1/firms/search', reason: 'Reference data; no account data in the results.' },
   { method: 'GET', path: '/v1/firms/:id', reason: "Reference data; the lookup is charged to the caller's own account." },
+  {
+    method: 'GET',
+    path: '/v1/firms/:id/report.pdf',
+    reason:
+      "Reference data; the lookup is charged to, and the account name printed from, the caller's own context, which firm-report.e2e.spec.ts proves.",
+  },
   { method: 'POST', path: '/v1/firms/:id/disputes', reason: "Writes only to the caller's account; there is no read." },
   { method: 'GET', path: '/v1/import-alerts/:number', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },

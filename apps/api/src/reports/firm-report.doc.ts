@@ -1,6 +1,22 @@
 import type { FirmAuFailure, FirmListing, FirmProfileResponse, FirmRefusal } from '@rejectradar/contracts';
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces';
 import { PDF_COPY } from './pdf-copy';
+import {
+  clip,
+  dataDatesLine,
+  empty,
+  grid,
+  MUTED,
+  notesBox,
+  PAGE,
+  quote,
+  reportHeader,
+  RULE,
+  rule,
+  section,
+  th,
+  withMore,
+} from './pdf-layout';
 
 /** What the firm report is built from. `generatedAt` is a UTC date, `YYYY-MM-DD`. */
 export interface FirmReportData {
@@ -13,22 +29,16 @@ export interface FirmReportData {
 const SHOWN = 5;
 /** FDA charges shown for one refusal; the rest are counted. */
 const CHARGES_SHOWN = 1;
+/** FEIs and alternate names shown in the firm header; the rest are counted. */
+const FEIS_SHOWN = 5;
+const ALT_NAMES_SHOWN = 2;
 
-const INK = '#121A2B';
-const MUTED = '#3F4A5C';
-const RULE = '#C5CCD6';
-const HEADER_FILL = '#F4F5F7';
 const RED = '#C2410C';
 const AMBER_FILL = '#FEF3C7';
 const AMBER_INK = '#854D0E';
 const AMBER_RULE = '#E3B341';
 const GREY_FILL = '#EDF0F4';
 const GREY_INK = '#334155';
-
-/** A string cut to `max` characters, with an ellipsis when it was longer. Long agency text must not push the report to a second page. */
-const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`);
-/** Agency wording, in quotation marks. */
-const quote = (text: string): string => `“${text}”`;
 
 // ---------- dates ----------
 
@@ -75,43 +85,6 @@ export function summaryCounts(profile: FirmProfileResponse, generatedAt: string)
 
 // ---------- building blocks ----------
 
-const section = (title: string): Content => ({
-  text: title.toUpperCase(),
-  style: 'section',
-});
-const th = (text: string, alignment: 'left' | 'right' = 'left'): TableCell => ({
-  text,
-  bold: true,
-  fillColor: HEADER_FILL,
-  alignment,
-});
-const empty = (): Content => ({
-  text: PDF_COPY.emptyRecords,
-  color: MUTED,
-  margin: [0, 0, 0, 2],
-});
-
-/** A bordered table whose rows never split across pages. */
-function grid(widths: (number | string)[], header: TableCell[], rows: TableCell[][]): Content {
-  return {
-    table: {
-      headerRows: 1,
-      dontBreakRows: true,
-      widths,
-      body: [header, ...rows],
-    },
-    layout: {
-      hLineWidth: () => 0.5,
-      vLineWidth: () => 0,
-      hLineColor: () => RULE,
-      paddingTop: () => 1.5,
-      paddingBottom: () => 1.5,
-      paddingLeft: () => 4,
-      paddingRight: () => 4,
-    },
-  };
-}
-
 type Tone = 'alert' | 'warn' | 'plain';
 
 /** A plain box with one line of text: the facts row. */
@@ -140,52 +113,10 @@ function box(text: string, tone: Tone): Content {
 
 // ---------- sections ----------
 
-/** The heavy line under the header: an empty one-cell table with a top border, so the page holds no drawing. */
-function rule(): Content {
-  return {
-    table: { widths: ['*'], body: [[{ text: '', fontSize: 1 }]] },
-    layout: {
-      hLineWidth: (i: number) => (i === 0 ? 1.5 : 0),
-      vLineWidth: () => 0,
-      hLineColor: () => '#0F1A2C',
-      paddingTop: () => 0,
-      paddingBottom: () => 0,
-    },
-    margin: [0, 0, 0, 3],
-  };
-}
-
-function header(data: FirmReportData): Content {
-  return {
-    columns: [
-      {
-        width: '*',
-        stack: [
-          { text: PDF_COPY.product, fontSize: 14, bold: true },
-          { text: PDF_COPY.firmReport, color: MUTED },
-        ],
-      },
-      {
-        width: 300,
-        alignment: 'right',
-        color: MUTED,
-        stack: [
-          {
-            text: [`${PDF_COPY.preparedFor} `, { text: clip(data.orgName, 60), bold: true, color: INK }],
-          },
-          {
-            text: `${PDF_COPY.generatedOn} ${data.generatedAt} ${PDF_COPY.utc}`,
-          },
-        ],
-      },
-    ],
-    columnGap: 16,
-    margin: [0, 0, 0, 5],
-  };
-}
-
 function firmBlock(profile: FirmProfileResponse): Content[] {
-  const alsoPublished = profile.altNames.slice(0, 2).map((name) => clip(name, 55));
+  const altNames = withMore(profile.altNames, ALT_NAMES_SHOWN);
+  const alsoPublished = altNames.shown.map((name) => clip(name, 55));
+  const feis = withMore(profile.feis, FEIS_SHOWN);
   const address = [
     profile.address.line,
     profile.address.city,
@@ -196,7 +127,15 @@ function firmBlock(profile: FirmProfileResponse): Content[] {
     .filter((part): part is string => part !== null && part.trim() !== '')
     .join(', ');
   const rows: TableCell[][] = [];
-  if (profile.feis.length > 0) rows.push([{ text: PDF_COPY.fei, color: MUTED }, { text: clip(profile.feis.slice(0, 5).join(', '), 100) }]);
+  if (profile.feis.length > 0) {
+    // The marker stays outside the clipped list, so a long list of FEIs cannot cut it off.
+    rows.push([
+      { text: PDF_COPY.fei, color: MUTED },
+      {
+        text: [clip(feis.shown.join(', '), 100), ...(feis.more === null ? [] : [{ text: ` ${feis.more}`, color: MUTED }])],
+      },
+    ]);
+  }
   rows.push([{ text: PDF_COPY.address, color: MUTED }, { text: address === '' ? PDF_COPY.noAddress : clip(address, 160) }]);
   return [
     {
@@ -208,7 +147,7 @@ function firmBlock(profile: FirmProfileResponse): Content[] {
     ...(alsoPublished.length > 0
       ? [
           {
-            text: `${PDF_COPY.alsoPublishedAs} ${alsoPublished.join('; ')}`,
+            text: `${PDF_COPY.alsoPublishedAs} ${alsoPublished.join('; ')}${altNames.more === null ? '' : ` ${altNames.more}`}`,
             color: MUTED,
           } as Content,
         ]
@@ -385,62 +324,26 @@ function auBlock(profile: FirmProfileResponse): Content[] {
 }
 
 /** When each source was last read successfully; a monthly file shows the month its data runs to. */
-function dataDates(profile: FirmProfileResponse): string {
-  const parts = (Object.keys(PDF_COPY.sourceNames) as (keyof typeof PDF_COPY.sourceNames)[]).map((source) => {
-    const entry = profile.freshness.find((f) => f.source === source);
-    const when =
-      entry === undefined
-        ? PDF_COPY.notSynced
-        : entry.latestMonth !== null
-          ? PDF_COPY.dataToMonth(entry.latestMonth)
-          : entry.lastSuccessAt === null
-            ? PDF_COPY.notSynced
-            : entry.lastSuccessAt.slice(0, 10);
-    return `${PDF_COPY.sourceNames[source]}, ${when}`;
-  });
-  return parts.join(' · ');
-}
+const dataDates = (profile: FirmProfileResponse): string =>
+  dataDatesLine(profile.freshness, Object.keys(PDF_COPY.sourceNames), PDF_COPY.sourceNames);
 
 function sourcesBox(profile: FirmProfileResponse): Content {
-  return {
-    table: {
-      widths: ['*'],
-      body: [
-        [
-          {
-            fillColor: HEADER_FILL,
-            stack: [
-              {
-                text: [{ text: `${PDF_COPY.dataDates}: `, bold: true }, dataDates(profile)],
-              },
-              { text: PDF_COPY.sources, margin: [0, 2, 0, 0] },
-              {
-                text: PDF_COPY.agencyWording,
-                color: MUTED,
-                margin: [0, 2, 0, 0],
-              },
-              {
-                text: PDF_COPY.noBorderFirms,
-                color: MUTED,
-                margin: [0, 2, 0, 0],
-              },
-            ],
-          },
-        ],
-      ],
+  return notesBox([
+    {
+      text: [{ text: `${PDF_COPY.dataDates}: `, bold: true }, dataDates(profile)],
     },
-    layout: {
-      hLineWidth: () => 0.5,
-      vLineWidth: () => 0.5,
-      hLineColor: () => RULE,
-      vLineColor: () => RULE,
-      paddingTop: () => 5,
-      paddingBottom: () => 5,
-      paddingLeft: () => 7,
-      paddingRight: () => 7,
+    { text: PDF_COPY.sources, margin: [0, 2, 0, 0] },
+    {
+      text: PDF_COPY.agencyWording,
+      color: MUTED,
+      margin: [0, 2, 0, 0],
     },
-    margin: [0, 6, 0, 0],
-  };
+    {
+      text: PDF_COPY.noBorderFirms,
+      color: MUTED,
+      margin: [0, 2, 0, 0],
+    },
+  ]);
 }
 
 /**
@@ -452,19 +355,14 @@ function sourcesBox(profile: FirmProfileResponse): Content {
 export function firmReportDoc(data: FirmReportData): TDocumentDefinitions {
   const { profile } = data;
   return {
-    pageSize: 'A4',
-    pageMargins: [36, 24, 36, 20],
+    ...PAGE,
     info: {
       title: `${PDF_COPY.product} ${PDF_COPY.firmReport}`,
       creator: PDF_COPY.product,
       producer: PDF_COPY.product,
     },
-    defaultStyle: { font: 'Roboto', fontSize: 7.5, lineHeight: 1.1, color: INK },
-    styles: {
-      section: { fontSize: 7.5, bold: true, color: MUTED, margin: [0, 4, 0, 2] },
-    },
     content: [
-      header(data),
+      reportHeader(PDF_COPY.firmReport, data.orgName, data.generatedAt),
       rule(),
       ...firmBlock(profile),
       ...factsBlock(profile),

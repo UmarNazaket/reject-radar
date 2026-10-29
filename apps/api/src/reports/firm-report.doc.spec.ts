@@ -151,6 +151,27 @@ describe('firmReportDoc', () => {
     }
   });
 
+  it('shows 5 of 7 FEIs and says how many more there are', () => {
+    const feis = Array.from({ length: 7 }, (_, i) => `30000000${10 + i}`);
+    const text = words(doc(profile({ feis })));
+    for (const fei of feis.slice(0, 5)) expect(text).toContain(fei);
+    for (const fei of feis.slice(5)) expect(text).not.toContain(fei);
+    expect(text).toContain(PDF_COPY.more(2));
+    // Up to the limit nothing is cut, so there is no marker for the FEIs.
+    expect(words(doc(profile({ feis: feis.slice(0, 5), altNames: [] })))).not.toMatch(/\+\d+ more/);
+  });
+
+  it('shows 2 of 4 alternate names and says how many more there are', () => {
+    const altNames = ['ALPHA FOODS ONE', 'BETA FOODS TWO', 'GAMMA FOODS THREE', 'DELTA FOODS FOUR'];
+    const text = words(doc(profile({ altNames, feis: [] })));
+    expect(text).toContain('ALPHA FOODS ONE');
+    expect(text).toContain('BETA FOODS TWO');
+    expect(text).not.toContain('GAMMA FOODS THREE');
+    expect(text).not.toContain('DELTA FOODS FOUR');
+    expect(text).toContain(PDF_COPY.more(2));
+    expect(words(doc(profile({ altNames: altNames.slice(0, 2), feis: [] })))).not.toMatch(/\+\d+ more/);
+  });
+
   it('puts the newest first even when the records arrive in another order', () => {
     const p = profile();
     p.refusals = [...p.refusals].reverse();
