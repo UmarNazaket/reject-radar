@@ -3,7 +3,7 @@ import { type Database, importAlert, importAlertSummary, prepareTestDatabase } f
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { openDb } from '../core/db';
 import { draftSummaries } from './draft';
-import type { GenerateJson } from './gemini';
+import type { GenerateJson } from './claude';
 import { translateSummaries } from './translate';
 
 const SHA = 'a'.repeat(64);
@@ -53,7 +53,7 @@ describe('Import Alert summaries', () => {
       .select({ alertNumber: importAlertSummary.alertNumber, locale: importAlertSummary.locale, status: importAlertSummary.status, sourceSha256: importAlertSummary.sourceSha256, model: importAlertSummary.model, reviewedAt: importAlertSummary.reviewedAt })
       .from(importAlertSummary)
       .orderBy(asc(importAlertSummary.alertNumber), asc(importAlertSummary.locale));
-  const deps = () => ({ db, model: 'gemini-test', generateJson });
+  const deps = () => ({ db, model: 'claude-test', generateJson });
 
   describe('summaries:draft', () => {
     it('drafts food alerts with no English summary of their current text', async () => {
@@ -70,8 +70,8 @@ describe('Import Alert summaries', () => {
       expect(await draftSummaries(deps(), { limit: 20 })).toEqual({ drafted: ['10-01', '10-02'], invalid: [], failed: [] });
       const stored = await rows();
       expect(stored.filter((r) => r.alertNumber === '10-01' || r.alertNumber === '10-02')).toEqual([
-        { alertNumber: '10-01', locale: 'en', status: 'draft', sourceSha256: SHA, model: 'gemini-test', reviewedAt: null },
-        { alertNumber: '10-02', locale: 'en', status: 'draft', sourceSha256: SHA, model: 'gemini-test', reviewedAt: null },
+        { alertNumber: '10-01', locale: 'en', status: 'draft', sourceSha256: SHA, model: 'claude-test', reviewedAt: null },
+        { alertNumber: '10-02', locale: 'en', status: 'draft', sourceSha256: SHA, model: 'claude-test', reviewedAt: null },
       ]);
       const [drafted] = await db.select({ content: importAlertSummary.content }).from(importAlertSummary).where(eq(importAlertSummary.alertNumber, '10-01'));
       expect(drafted.content).toEqual(content('drafted'));
@@ -83,7 +83,7 @@ describe('Import Alert summaries', () => {
       const [{ system, prompt, schema }] = generateJson.mock.calls[0];
       expect(prompt).toBe('Import Alert 10-01: Alert 10-01\n\nReason for alert:\nReason of 10-01\n\nProduct description:\nBasmati rice\n\nCharge:\nCharge of 10-01');
       expect(system).toContain('Use only the alert text');
-      expect(schema).toMatchObject({ type: 'OBJECT', required: ['summary', 'whatTriggersListing', 'howFirmsGetRemoved', 'testsMentioned'] });
+      expect(schema).toMatchObject({ type: 'object', additionalProperties: false, required: ['summary', 'whatTriggersListing', 'howFirmsGetRemoved', 'testsMentioned'] });
     });
 
     it('asks again once when an answer fails the schema, then gives up on that alert', async () => {
@@ -102,10 +102,10 @@ describe('Import Alert summaries', () => {
     it('a failed call ends the run; the rest wait for the next one', async () => {
       await alert('10-01');
       await alert('10-02');
-      generateJson.mockRejectedValueOnce(new Error('Gemini answered HTTP 503'));
+      generateJson.mockRejectedValueOnce(new Error('Claude answered 503'));
       const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
       expect(await draftSummaries(deps(), { limit: 20 })).toEqual({ drafted: [], invalid: [], failed: ['10-01'] });
-      expect(errors).toHaveBeenCalledWith('summaries:draft: 10-01: Gemini answered HTTP 503');
+      expect(errors).toHaveBeenCalledWith('summaries:draft: 10-01: Claude answered 503');
       expect(generateJson).toHaveBeenCalledTimes(1);
       errors.mockRestore();
       expect((await draftSummaries(deps(), { limit: 20 })).drafted).toEqual(['10-01', '10-02']);
@@ -121,7 +121,7 @@ describe('Import Alert summaries', () => {
       await alert('10-01');
       await summary('10-01', 'en', 'approved', OLD_SHA);
       await draftSummaries(deps(), { limit: 20 });
-      expect(await rows()).toEqual([{ alertNumber: '10-01', locale: 'en', status: 'draft', sourceSha256: SHA, model: 'gemini-test', reviewedAt: null }]);
+      expect(await rows()).toEqual([{ alertNumber: '10-01', locale: 'en', status: 'draft', sourceSha256: SHA, model: 'claude-test', reviewedAt: null }]);
     });
   });
 
@@ -143,7 +143,7 @@ describe('Import Alert summaries', () => {
         invalid: [],
         failed: [],
       });
-      const machine = (await rows()).filter((r) => r.status === 'machine' && r.model === 'gemini-test');
+      const machine = (await rows()).filter((r) => r.status === 'machine' && r.model === 'claude-test');
       expect(machine.map((r) => `${r.alertNumber} ${r.locale} ${r.sourceSha256 === SHA}`)).toEqual(['10-01 bn true', '10-01 hi true', '10-04 bn true', '10-04 hi true', '10-04 ur true']);
       expect(await translateSummaries(deps(), { limit: 30 })).toEqual({ translated: [], invalid: [], failed: [] });
     });

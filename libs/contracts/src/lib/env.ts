@@ -186,16 +186,16 @@ export const ingestEnvSchema = z.object({
 
 export type IngestEnv = z.output<typeof ingestEnvSchema>;
 
-/** The Gemini variables; only `summaries:draft` and `summaries:translate` read them, so no other command needs the key. */
+/** The Claude variables; only `summaries:draft` and `summaries:translate` read them, so no other command needs the key. */
 export const summaryEnvSchema = z.object({
-  /** A Gemini API key from Google AI Studio. */
-  GEMINI_API_KEY: z
+  /** An Anthropic API key from the Claude Console. */
+  ANTHROPIC_API_KEY: z
     .string()
     .trim()
-    .min(1, 'GEMINI_API_KEY is required; create one in Google AI Studio')
-    .refine((value) => !PLACEHOLDER.test(value), { message: 'GEMINI_API_KEY looks like a placeholder; use the key from Google AI Studio' }),
-  /** The model, such as `gemini-3.5-flash`: a variable, so a newer model needs no code change. It goes into the request path. */
-  GEMINI_MODEL: z.string().trim().regex(/^[a-z0-9][a-z0-9.-]*$/, 'must be a Gemini model name such as gemini-3.5-flash'),
+    .min(1, 'ANTHROPIC_API_KEY is required; create one in the Claude Console')
+    .refine((value) => !PLACEHOLDER.test(value), { message: 'ANTHROPIC_API_KEY looks like a placeholder; use the key from the Claude Console' }),
+  /** The model, such as `claude-opus-5-5`: a variable, so a newer model needs no code change. */
+  ANTHROPIC_MODEL: z.string().trim().regex(/^claude-[a-z0-9-]+$/, 'must be a Claude model id such as claude-opus-5-5'),
 });
 
 export type SummaryEnv = z.output<typeof summaryEnvSchema>;

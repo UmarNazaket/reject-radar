@@ -2,7 +2,7 @@ import { type ImportAlertSummaryContent, importAlertSummaryContentSchema, LOCALE
 import { type Database, importAlertSummary } from '@rejectradar/db';
 import { sql } from 'drizzle-orm';
 import { generateValid, SUMMARY_RESPONSE_SCHEMA } from './draft';
-import type { GenerateJson } from './gemini';
+import type { GenerateJson } from './claude';
 
 const LANGUAGES: Readonly<Record<string, string>> = { ur: 'Urdu', hi: 'Hindi', bn: 'Bengali' };
 const TARGETS = LOCALES.filter((locale) => locale !== 'en');
@@ -48,7 +48,7 @@ export async function translateSummaries(deps: { db: Database; model: string; ge
       );
     } catch (error) {
       console.error(`summaries:translate: ${label}: ${(error as Error).message}`);
-      // Gemini is down or refuses the key: the rest wait for the next run rather than fail one by one.
+      // Claude is down or refuses the key: the rest wait for the next run rather than fail one by one.
       result.failed.push(label);
       break;
     }

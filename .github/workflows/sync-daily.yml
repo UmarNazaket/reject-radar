@@ -82,25 +82,24 @@ jobs:
           MAIL_FROM: ${{ vars.MAIL_FROM }}
           NODE_ENV: production
         run: node dist/apps/ingest/main.js alerts:run
-      # Last, so a Gemini outage never delays alerts. Drafts wait for a person; only approved English is translated.
-      # Skipped until the owner sets the GEMINI_MODEL variable (and the GEMINI_API_KEY secret).
+      # Last, so a Claude outage never delays alerts. Drafts wait for a person; only approved English is translated.
       - name: summaries:draft
-        if: ${{ !cancelled() && steps.size.outcome == 'success' && vars.GEMINI_MODEL != '' }}
+        if: ${{ !cancelled() && steps.size.outcome == 'success' }}
         timeout-minutes: 20
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}
         run: node dist/apps/ingest/main.js summaries:draft
       - name: summaries:translate
-        if: ${{ !cancelled() && steps.size.outcome == 'success' && vars.GEMINI_MODEL != '' }}
+        if: ${{ !cancelled() && steps.size.outcome == 'success' }}
         timeout-minutes: 20
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}
         run: node dist/apps/ingest/main.js summaries:translate
 
   rasff:

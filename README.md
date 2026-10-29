@@ -112,7 +112,7 @@ The app API under `/v1` has these product areas. Apart from `GET /taxonomy`, the
 | PDF reports    | A one-page firm report and a topic report, for Pro and above. See "Bulk screening and PDF reports".                                                                             |
 | Billing        | Plans, the account's subscription and usage, Paddle checkout and customer portal for owners, and the Paddle webhook. See "Billing with Paddle".                                 |
 | API keys       | `GET`, `POST` and `DELETE /org/api-keys`: owners and admins of Business and Enterprise accounts manage the keys of the public API. See "Public API and Import Alert summaries". |
-| Summary review | `GET` and `PATCH /admin/import-alert-summaries`: RejectRadar staff approve or reject the Import Alert summaries Gemini drafts. See "Public API and Import Alert summaries".     |
+| Summary review | `GET` and `PATCH /admin/import-alert-summaries`: RejectRadar staff approve or reject the Import Alert summaries Claude drafts. See "Public API and Import Alert summaries".     |
 | Plan limits    | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. P9 will show both as an upgrade prompt.                         |
 
 Alerts are made by `alerts:run` and the digests by `digest:send` (see the ingestion commands below), not by the API.
@@ -261,9 +261,9 @@ Business and Enterprise accounts can read RejectRadar from their own systems. A 
 
 ### Import Alert summaries
 
-The ingestion CLI drafts a plain-language English summary of each food Import Alert with Google Gemini. A person then approves or rejects it, and approved English is machine-translated into Urdu, Hindi and Bengali. `GET /v1/import-alerts/:number` shows an English summary only once it is approved, and a translation only beside approved English, labelled as a machine translation.
+The ingestion CLI drafts a plain-language English summary of each food Import Alert with Claude (Anthropic's API). A person then approves or rejects it, and approved English is machine-translated into Urdu, Hindi and Bengali. `GET /v1/import-alerts/:number` shows an English summary only once it is approved, and a translation only beside approved English, labelled as a machine translation.
 
-1. `summaries:draft` drafts every listed food alert that has no English summary of its current text. It sends only the alert's own text and asks for JSON in the summary's shape; an answer that fails the contract schema (120 words at most) is asked for once more, then left for the next run. A call Gemini is too busy for (429 or 5xx) or that times out is tried three times; a call that still fails ends the run, and the rest wait for the next one.
+1. `summaries:draft` drafts every listed food alert that has no English summary of its current text. It sends only the alert's own text and asks for JSON in the summary's shape (structured outputs, at low effort); an answer that fails the contract schema (120 words at most), a refusal or a cut-off answer is asked for once more, then left for the next run. A refusal is first retried server-side on Anthropic's recommended fallback model (`fallbacks: "default"`). The SDK retries a busy (429 or 5xx) or timed-out call twice; a call that still fails ends the run, and the rest wait for the next one.
 2. A platform admin reviews the drafts: `GET /v1/admin/import-alert-summaries?status=draft` lists them beside the alert text, and `PATCH /v1/admin/import-alert-summaries/:number` with `{ "action": "approve" }` (optionally with corrected `content`) or `{ "action": "reject" }` decides. The admin screens come in P10.
 3. `summaries:translate` translates approved English that has no translation of the current text yet.
 
@@ -271,14 +271,14 @@ When FDA changes an alert's text, its old summaries stop being shown at once, an
 
 `summaries:draft` and `summaries:translate` read two more variables; no other command needs them.
 
-| Variable         | What it is                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY` | A Gemini API key from Google AI Studio. In GitHub Actions it is a secret.             |
-| `GEMINI_MODEL`   | The model, such as `gemini-3.5-flash`. In GitHub Actions it is a repository variable. |
+| Variable            | What it is                                                                      |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | An Anthropic API key from the Claude Console. In GitHub Actions it is a secret. |
+| `ANTHROPIC_MODEL`   | The model, `claude-opus-5-5`. In GitHub Actions it is a secret too.             |
 
 ### Owner steps for P8
 
-1. **Gemini:** create an API key in Google AI Studio and set a monthly spending cap on its project. Add it as the `GEMINI_API_KEY` repository secret, and the model as the `GEMINI_MODEL` repository variable. The summary steps of `sync-daily.yml` are skipped until `GEMINI_MODEL` is set.
+1. **Claude:** create an API key in the Claude Console and set a monthly spend limit on its workspace. Add it as the `ANTHROPIC_API_KEY` repository secret, and the model as the `ANTHROPIC_MODEL` secret. (Done.)
 2. **Migrate staging:** apply `0017` with the direct, not pooled, connection string, after `0016`.
 3. **First summaries:** run `backfill.yml` with the source `summaries`, then review the drafts and approve or reject them. Run it with `summary_translations` once a batch is approved, or let the daily run translate 30 a day.
 4. **After the deploy, on staging:** make a Business test account a platform admin (`update app_user set is_platform_admin = true where email = '...'`) for the review, create an API key with `POST /v1/org/api-keys`, and call `GET /v1/public/notices` with it.
@@ -287,19 +287,19 @@ Not in this phase: the API key and review screens (P9 and P10), and an OpenAPI d
 
 ## Technology
 
-| Area         | Choice                                                                             |
-| ------------ | ---------------------------------------------------------------------------------- |
-| Runtime      | Node 24                                                                            |
-| Monorepo     | Nx                                                                                 |
-| Web          | Angular, PrimeNG, Tailwind CSS, Transloco (four languages, right to left for Urdu) |
-| API          | NestJS 11, zod contracts shared with the web app                                   |
-| Database     | PostgreSQL 18 (`pg_trgm`), Drizzle ORM and drizzle-kit migrations                  |
-| Ingestion    | Node `fetch`, `csv-parse`, `cheerio`, `unzipper`, `commander`                      |
-| Email        | Resend (Mailpit locally)                                                           |
-| Billing      | Paddle Billing                                                                     |
-| AI summaries | Google Gemini (`generateContent` with a JSON response schema), with human approval |
-| PDF          | `pdfmake`                                                                          |
-| Tests        | Jest, Playwright, real Postgres in CI                                              |
+| Area         | Choice                                                                                |
+| ------------ | ------------------------------------------------------------------------------------- |
+| Runtime      | Node 24                                                                               |
+| Monorepo     | Nx                                                                                    |
+| Web          | Angular, PrimeNG, Tailwind CSS, Transloco (four languages, right to left for Urdu)    |
+| API          | NestJS 11, zod contracts shared with the web app                                      |
+| Database     | PostgreSQL 18 (`pg_trgm`), Drizzle ORM and drizzle-kit migrations                     |
+| Ingestion    | Node `fetch`, `csv-parse`, `cheerio`, `unzipper`, `commander`                         |
+| Email        | Resend (Mailpit locally)                                                              |
+| Billing      | Paddle Billing                                                                        |
+| AI summaries | Claude Opus 5.5 through `@anthropic-ai/sdk` (structured outputs), with human approval |
+| PDF          | `pdfmake`                                                                             |
+| Tests        | Jest, Playwright, real Postgres in CI                                                 |
 
 ## Repository layout
 
@@ -386,7 +386,7 @@ node tools/perf/p6.mjs --base http://localhost:3000 --email <email> --password <
 | `entities:link`                             | Links records to firms and refreshes firm facts                                 |
 | `alerts:run [--no-email]`                   | Turns new change events into alerts and sends the instant emails                |
 | `digest:send`                               | Sends the daily digests, and the weekly ones on Mondays                         |
-| `summaries:draft [--limit n] [--only …]`    | Drafts English Import Alert summaries with Gemini, for a person to approve      |
+| `summaries:draft [--limit n] [--only …]`    | Drafts English Import Alert summaries with Claude, for a person to approve      |
 | `summaries:translate [--limit n]`           | Translates approved English summaries into Urdu, Hindi and Bengali              |
 | `db:size-check`                             | Exits 1 at or above 900 MB                                                      |
 | `maintenance:purge`                         | Applies the retention rules and prints each count (see "Retention")             |
@@ -429,7 +429,7 @@ About 70 development days in 11 phases.
 | P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Built and merged (PR #37). See "The product API". Still to do: the staging migration, mail settings and link check; then the p95 and hand checks.                                                                                |
 | P6    | Bulk supplier screening and PDF reports                                              | Built on branch `p6/bulk-pdf`, not merged. See "Bulk screening and PDF reports". Still to do: review; before merging, the owner steps there (the `0016` staging migration); then the staging measurements and the restart check. |
 | P7    | Billing with Paddle                                                                  | Built and merged (PR #38). See "Billing with Paddle". Still to do: the owner steps there (Paddle token, webhook destination, Render variables, the `0015` staging migration); then the manual sandbox purchase.                  |
-| P8    | Public API and Import Alert summaries                                                | Built and merged (PR #40). See "Public API and Import Alert summaries". Still to do: the owner steps there (Gemini key, the `0017` staging migration, the first summaries).                                                      |
+| P8    | Public API and Import Alert summaries                                                | Built and merged (PR #40). See "Public API and Import Alert summaries". Still to do: the owner steps there (the `0017` staging migration, the first summaries).                                                                  |
 | P9    | Web app in four languages                                                            | Not started                                                                                                                                                                                                                      |
 | P10   | Admin panel: health, taxonomy, match review, summaries                               | Not started                                                                                                                                                                                                                      |
 | P11   | Deployment and launch                                                                | Not started                                                                                                                                                                                                                      |
