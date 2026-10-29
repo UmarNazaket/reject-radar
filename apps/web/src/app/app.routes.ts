@@ -8,7 +8,13 @@ export const appRoutes: Route[] = [
     path: '',
     canActivate: [signedIn],
     loadComponent: () => import('./layout/app-layout').then((m) => m.AppLayout),
-    children: [{ path: '', pathMatch: 'full', loadComponent: () => import('./home/home').then((m) => m.Home) }],
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'topics' },
+      { path: 'topics', loadComponent: () => import('./topics/topic-check').then((m) => m.TopicCheck) },
+      { path: 'notices', loadComponent: () => import('./notices/notice-search').then((m) => m.NoticeSearch) },
+      { path: 'notices/:id', loadComponent: () => import('./notices/notice-detail').then((m) => m.NoticeDetail) },
+      { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },
+    ],
   },
   {
     path: '',

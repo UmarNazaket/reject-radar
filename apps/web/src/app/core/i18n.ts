@@ -13,6 +13,15 @@ const FONTS: Partial<Record<Locale, string>> = {
   bn: 'Noto+Sans+Bengali:wght@400..700',
 };
 
+/**
+ * Text parameters wrapped in Unicode isolates, so a right-to-left sentence keeps "99-08" or an email address in its own
+ * order instead of reordering it with the words around it.
+ */
+function isolate(params?: Record<string, string | number | Date>): Record<string, string | number | Date> | undefined {
+  if (!params) return params;
+  return Object.fromEntries(Object.entries(params).map(([key, value]) => [key, typeof value === 'string' ? `\u2068${value}\u2069` : value]));
+}
+
 /** The language stored on this device, else the first browser language the app has, else English. */
 function initialLocale(): Locale {
   try {
@@ -67,7 +76,12 @@ export class I18n {
     const cacheKey = `${lang}\u0000${key}`;
     let formatter = this.formatters.get(cacheKey);
     if (!formatter) this.formatters.set(cacheKey, (formatter = new IntlMessageFormat(message, `${lang}-u-nu-latn`)));
-    return String(formatter.format(params));
+    return String(formatter.format(textDirection(locale) === 'rtl' ? isolate(params) : params));
+  }
+
+  /** A `YYYY-MM-DD` day or ISO timestamp in the current language, read in UTC as the API counts days. */
+  date(value: string, options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }): string {
+    return new Intl.DateTimeFormat(`${this.locale()}-u-nu-latn`, { ...options, timeZone: 'UTC' }).format(new Date(value));
   }
 
   private async load(locale: Locale): Promise<void> {
