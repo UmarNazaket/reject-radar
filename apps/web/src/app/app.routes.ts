@@ -1,9 +1,17 @@
-import type { Route } from '@angular/router';
+import { inject } from '@angular/core';
+import { type Route, Router } from '@angular/router';
 import { signedIn, signedOut } from './core/guards';
 
 // The signed-in shell comes first: an empty-path parent also matches the empty URL when none of its children do, so
 // listing the sign-in screens first would show their layout, empty, at `/`.
 export const appRoutes: Route[] = [
+  // Public, for anyone signed in or not, with its own header.
+  { path: 'pricing', loadComponent: () => import('./pricing/pricing').then((m) => m.Pricing) },
+  // Checkout returns and payment-failed emails sent before P9 link here.
+  {
+    path: 'app/settings/billing',
+    redirectTo: ({ queryParams }) => inject(Router).createUrlTree(['/settings/billing'], { queryParams }),
+  },
   {
     path: '',
     canActivate: [signedIn],
@@ -18,6 +26,18 @@ export const appRoutes: Route[] = [
       { path: 'mrl', loadComponent: () => import('./mrl/mrl-check').then((m) => m.MrlCheck) },
       { path: 'watchlist', loadComponent: () => import('./watchlist/watchlist').then((m) => m.Watchlist) },
       { path: 'alerts', loadComponent: () => import('./alerts/alert-list').then((m) => m.AlertList) },
+      { path: 'bulk', loadComponent: () => import('./bulk/bulk-jobs').then((m) => m.BulkJobs) },
+      { path: 'bulk/:id', loadComponent: () => import('./bulk/bulk-job').then((m) => m.BulkJob) },
+      {
+        path: 'settings',
+        loadComponent: () => import('./settings/settings-layout').then((m) => m.SettingsLayout),
+        children: [
+          { path: '', pathMatch: 'full', loadComponent: () => import('./settings/profile').then((m) => m.Profile) },
+          { path: 'team', loadComponent: () => import('./settings/team').then((m) => m.Team) },
+          { path: 'billing', loadComponent: () => import('./settings/billing').then((m) => m.Billing) },
+          { path: 'api-keys', loadComponent: () => import('./settings/api-keys').then((m) => m.ApiKeys) },
+        ],
+      },
       { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },
     ],
   },

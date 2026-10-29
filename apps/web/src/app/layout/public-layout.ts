@@ -10,7 +10,10 @@ import { LanguageSelect } from './language-select';
   template: `
     <header class="flex items-center justify-between px-4 py-3 sm:px-6">
       <a routerLink="/" class="text-lg font-semibold text-slate-900">{{ i18n.t('web.app.name') }}</a>
-      <app-language-select />
+      <div class="flex items-center gap-4">
+        <a routerLink="/pricing" class="text-sm text-sky-700 underline">{{ i18n.t('web.pricing.title') }}</a>
+        <app-language-select />
+      </div>
     </header>
     <main class="mx-auto w-full max-w-md px-4 pb-16 pt-6">
       <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">

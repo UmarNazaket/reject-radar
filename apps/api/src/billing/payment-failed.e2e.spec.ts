@@ -25,7 +25,7 @@ describe('billing: the payment-failed email', () => {
 
   const env = testEnv('postgres://unused');
   const PRO_MONTH = env.PADDLE_PRICE_PRO_MONTHLY;
-  const BILLING_LINK = `${env.APP_ORIGIN}/app/settings/billing`;
+  const BILLING_LINK = `${env.APP_ORIGIN}/settings/billing`;
 
   /** An account on an active Paddle subscription, with an English owner. */
   async function subscribed() {

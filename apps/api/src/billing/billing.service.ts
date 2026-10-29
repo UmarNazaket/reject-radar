@@ -103,7 +103,7 @@ export class BillingService {
       customerEmail: user.email,
       clientToken: this.checkoutEnv.PADDLE_CLIENT_TOKEN,
       environment: this.checkoutEnv.PADDLE_ENV,
-      successUrl: `${this.checkoutEnv.APP_ORIGIN}/app/settings/billing?checkout=success`,
+      successUrl: `${this.checkoutEnv.APP_ORIGIN}/settings/billing?checkout=success`,
     };
   }
 
