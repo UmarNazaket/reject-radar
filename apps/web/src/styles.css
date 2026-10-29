@@ -43,3 +43,7 @@ body {
 :lang(ur) body {
   line-height: 2;
 }
+/* Nastaliq's line box is twice as tall, so a floated label would hang below the field's outline; this centres it on it. */
+:lang(ur) .mat-mdc-form-field .mdc-floating-label--float-above {
+  margin-top: -8px;
+}
