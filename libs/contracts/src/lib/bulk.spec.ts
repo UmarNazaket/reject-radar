@@ -1,9 +1,13 @@
-import { BULK_JOB_STATUSES, BULK_LIMITS, BULK_ROW_STATUSES, bulkRowReviewRequest } from './bulk';
+import { BULK_DELIMITERS, BULK_JOB_STATUSES, BULK_LIMITS, BULK_ROW_STATUSES, bulkRowReviewRequest } from './bulk';
 
 describe('bulk contracts', () => {
   it('lists the job and row statuses', () => {
     expect(BULK_JOB_STATUSES).toEqual(['queued', 'running', 'finished']);
     expect(BULK_ROW_STATUSES).toEqual(['pending', 'matched', 'review', 'no_record', 'confirmed', 'rejected']);
+  });
+
+  it('lists the delimiters an upload may use', () => {
+    expect(BULK_DELIMITERS).toEqual([',', ';']);
   });
 
   it('fixes the upload limits', () => {
@@ -13,6 +17,7 @@ describe('bulk contracts', () => {
       batchSize: 50,
       concurrency: 2,
       staleAfterSec: 60,
+      sweepEverySec: 60,
       pageSize: 100,
       maxProblems: 20,
       maxNameLength: 300,
