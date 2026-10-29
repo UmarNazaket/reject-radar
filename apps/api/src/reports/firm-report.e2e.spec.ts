@@ -198,4 +198,20 @@ describe('firm report PDF', () => {
     expect(await lookups(a.orgId)).toBe(1);
     expect(await lookups(b.orgId)).toBe(0);
   });
+
+  it('allows a user 20 reports a minute across both report routes: the 21st is 429, and another user is not held back', async () => {
+    // A Free account is refused each report (403) after the limiter has counted it, so no PDF has to be rendered.
+    const { session } = await account('free');
+    for (let i = 0; i < 10; i++) {
+      await session.get(`/v1/firms/${fx.firms.zarfeen}/report.pdf`).expect(403);
+      await session.get('/v1/dashboards/topic/report.pdf?origin=PK').expect(403);
+    }
+    const limited = await session.get(`/v1/firms/${fx.firms.zarfeen}/report.pdf`).expect(429);
+    expect(limited.body).toMatchObject({ code: 'RATE_LIMITED' });
+    expect(limited.headers['retry-after']).toMatch(/^\d+$/);
+    await session.get('/v1/dashboards/topic/report.pdf?origin=PK').expect(429);
+
+    const other = await account();
+    await getPdf(other.session, fx.firms.zarfeen).expect(200);
+  });
 });

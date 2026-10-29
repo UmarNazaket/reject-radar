@@ -4,6 +4,7 @@ import type { Response } from 'express';
 import type { RequestContext } from '../auth/context';
 import { CurrentContext, RequireVerifiedEmail } from '../auth/decorators';
 import { PositiveIntParamPipe } from '../common/int-param.pipe';
+import { RateLimit } from '../common/rate-limit';
 import { ZodValidationPipe } from '../common/zod-pipe';
 import { FirmReportService } from './firm-report.service';
 import { TopicReportService } from './topic-report.service';
@@ -13,6 +14,9 @@ import { TopicReportService } from './topic-report.service';
  * imports `FirmsModule` for the profile, so a route in `FirmsController` would make the two modules import each other.
  * `firms/:id` and `firms/:id/report.pdf` are different paths, so neither controller swallows the other's route. The topic
  * report is here for the same reason: `ReportsModule` imports `NoticesModule` for the dashboard, which must not import it back.
+ *
+ * Both routes count against one limit, named `pdf`: 20 reports a minute per user, of either kind. Each render takes CPU
+ * and memory on a small instance, so one user must not be able to ask for them without end.
  */
 @Controller()
 export class ReportsController {
@@ -24,6 +28,7 @@ export class ReportsController {
   /** A PDF needs a plan with PDFs and, like the profile it is made from, a verified email. */
   @Get('firms/:id/report.pdf')
   @RequireVerifiedEmail()
+  @RateLimit({ name: 'pdf', limit: 20, windowMs: 60_000, key: 'user' })
   async firm(
     @CurrentContext() ctx: RequestContext,
     @Param('id', new PositiveIntParamPipe()) id: number,
@@ -39,6 +44,7 @@ export class ReportsController {
 
   /** The topic dashboard as a PDF: the dashboard's own query, a plan with PDFs, and no lookup. */
   @Get('dashboards/topic/report.pdf')
+  @RateLimit({ name: 'pdf', limit: 20, windowMs: 60_000, key: 'user' })
   async topic(
     @CurrentContext() ctx: RequestContext,
     @Query(new ZodValidationPipe(dashboardQuery)) query: DashboardQuery,
