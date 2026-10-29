@@ -25,6 +25,10 @@ export interface AccountFixture {
   bulkFileName: string;
   /** The id of the job's only row, which account A's review of it must not change. */
   bulkRowId: string;
+  /** The id, name and display prefix of the account's API key. */
+  apiKeyId: string;
+  apiKeyName: string;
+  apiKeyPrefix: string;
 }
 
 export interface IsolationCase {
@@ -90,6 +94,9 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   },
   { method: 'POST', path: '/v1/bulk-jobs/:id/watch-confirmed', target: (b) => ({ id: b.bulkJobId }) },
   { method: 'GET', path: '/v1/bulk-jobs/:id/export.csv', target: (b) => ({ id: b.bulkJobId }) },
+  { method: 'GET', path: '/v1/org/api-keys' },
+  { method: 'POST', path: '/v1/org/api-keys', body: () => ({ name: 'Key made by A' }) },
+  { method: 'DELETE', path: '/v1/org/api-keys/:id', target: (b) => ({ id: b.apiKeyId }) },
   // The notices behind the topic report are reference data; the report is the caller's, since it names the caller's own account.
   { method: 'GET', path: '/v1/dashboards/topic/report.pdf', query: { origin: 'PK' } },
 ];

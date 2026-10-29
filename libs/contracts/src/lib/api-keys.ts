@@ -17,7 +17,8 @@ export interface ApiKeyItem {
   name: string;
   /** The first characters of the key, such as `rr_live_AbCd`. */
   prefix: string;
-  createdBy: string | null;
+  /** The name of the person who created the key; null once they are deleted. */
+  createdByName: string | null;
   createdAt: string;
   lastUsedAt: string | null;
   revokedAt: string | null;

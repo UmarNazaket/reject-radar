@@ -4,6 +4,7 @@ import type { ApiEnv } from '@rejectradar/contracts';
 import { LoggerModule } from 'nestjs-pino';
 import type { Options } from 'pino-http';
 import { AlertsModule } from '../alerts/alerts.module';
+import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { AuthModule } from '../auth/auth.module';
 import type { ContextRequest } from '../auth/context';
 import { AuthGuard } from '../auth/guards/auth.guard';
@@ -60,6 +61,7 @@ export class AppModule {
         DatabaseModule.register(env.DATABASE_URL),
         MailModule.register(env, overrides),
         AlertsModule,
+        ApiKeysModule,
         AuthModule,
         BillingModule.register(env, overrides),
         BulkModule,

@@ -86,9 +86,15 @@ describe('account isolation', () => {
     // The job runs in the background; the snapshots compare B's rows before and after a call, so it must be done first.
     await t.app.get(BulkProcessor).idle();
     const [bulkRow] = await t.db.select({ id: bulkJobRow.id }).from(bulkJobRow).where(eq(bulkJobRow.jobId, (bulk.body as { id: string }).id));
+    // One API key, whose name and prefix no other account may ever see.
+    const apiKeyName = `${tag} private API key`;
+    const key = (await owner.session.post('/v1/org/api-keys').send({ name: apiKeyName }).expect(201)).body as { id: string; prefix: string };
     return {
       session: owner.session,
       fixture: {
+        apiKeyId: key.id,
+        apiKeyName,
+        apiKeyPrefix: key.prefix,
         bulkJobId: (bulk.body as { id: string }).id,
         bulkFileName,
         bulkRowId: String(bulkRow.id),
@@ -108,7 +114,7 @@ describe('account isolation', () => {
 
   /**
    * What an outsider could change in account B: its name, its members and roles, its invites, its watchlist, its alerts' read state,
-   * its members' notification settings, its users' profiles and its subscription row.
+   * its members' notification settings, its users' profiles, its subscription row and its API keys.
    * Its lookups and disputes are here too; the firm routes are not account-owned, so the cases below do not call them, and
    * `firm-profile.e2e.spec.ts` and `disputes.e2e.spec.ts` prove that A's calls write only A's rows.
    */
@@ -128,6 +134,7 @@ describe('account isolation', () => {
       watchlist: await rows(sql`select id, label, notes from watchlist_item where org_id = ${orgId} order by id`),
       alerts: await rows(sql`select id, read_at from alert where org_id = ${orgId} order by id`),
       bulkJobs: await rows(sql`select id, file_name, status, total, processed from bulk_job where org_id = ${orgId} order by id`),
+      apiKeys: await rows(sql`select id, name, prefix, revoked_at from api_key where org_id = ${orgId} order by id`),
       bulkRows: await rows(sql`
         select r.id, r.row_nr, r.input_name, r.status from bulk_job_row r join bulk_job j on j.id = r.job_id
         where j.org_id = ${orgId} order by r.id`),
@@ -206,8 +213,8 @@ describe('account isolation', () => {
 
         // A CSV has no JSON body; its text is what the caller gets.
         const text = res.type === 'text/csv' ? res.text : JSON.stringify(res.body);
-        const { orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, emails, paddleIds, bulkJobId, bulkFileName } = b.fixture;
-        const secrets = [orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, bulkJobId, bulkFileName, ...emails, ...paddleIds];
+        const { orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, emails, paddleIds, bulkJobId, bulkFileName, apiKeyId, apiKeyName, apiKeyPrefix } = b.fixture;
+        const secrets = [orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, bulkJobId, bulkFileName, apiKeyId, apiKeyName, apiKeyPrefix, ...emails, ...paddleIds];
         expect({ route: label(c), leaked: secrets.filter((secret) => text.includes(secret)) }).toEqual({ route: label(c), leaked: [] });
         expect(await snapshot(b)).toEqual(before);
       },
