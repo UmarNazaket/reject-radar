@@ -97,21 +97,87 @@ GitHub Actions (scheduled)                        Browser
 
 The app API under `/v1` has these product areas. Apart from `GET /taxonomy`, they need a signed-in user, and the account's plan decides the limits.
 
-| Area          | What it does                                                                                                                                                      |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Taxonomy      | `GET /taxonomy?locale=`: commodities, hazards, destinations and countries, with labels in the language asked for. Public.                                         |
-| Notices       | `GET /notices` with every filter and a cursor (50 a page, no total count), `GET /notices/:id`. A commodity filter includes its sub-commodities.                   |
-| Dashboards    | `GET /dashboards/topic`: monthly counts by destination, top hazards and commodities, the most frequent findings, the latest notices and how fresh each source is. |
-| Firm search   | `GET /firms/search`: name and optional country and city, or an FEI number. Confidence labels as in the matching rules. 30 requests a minute per user.             |
-| Firm profile  | `GET /firms/:id`: facts, every record newest first and source freshness. Uses one lookup a month per firm. `POST /firms/:id/disputes` reports a problem.          |
-| MRL checker   | `GET /mrl/residues` finds a pesticide by name; `GET /mrl` gives the EU limits for a commodity and recent RASFF notices that name the residue.                     |
-| Import Alerts | `GET /import-alerts/:number`: the alert text and a summary only if a person has approved it.                                                                      |
-| Watchlist     | Firm and topic items, a CSV export and a notice estimate for a topic being added. Adding needs a verified email.                                                  |
-| Alerts        | The alerts list, mark as read, unread counts, and each user's instant-email and digest settings.                                                                  |
-| Billing       | Plans, the account's subscription and usage, Paddle checkout and customer portal for owners, and the Paddle webhook. See "Billing with Paddle".                   |
-| Plan limits   | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. P9 will show both as an upgrade prompt.           |
+| Area           | What it does                                                                                                                                                          |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Taxonomy       | `GET /taxonomy?locale=`: commodities, hazards, destinations and countries, with labels in the language asked for. Public.                                             |
+| Notices        | `GET /notices` with every filter and a cursor (50 a page, no total count), `GET /notices/:id`. A commodity filter includes its sub-commodities.                       |
+| Dashboards     | `GET /dashboards/topic`: monthly counts by destination, top hazards and commodities, the most frequent findings, the latest notices and how fresh each source is.     |
+| Firm search    | `GET /firms/search`: name and optional country and city, or an FEI number. Confidence labels as in the matching rules. 30 requests a minute per user.                 |
+| Firm profile   | `GET /firms/:id`: facts, every record newest first and source freshness. Uses one lookup a month per firm. `POST /firms/:id/disputes` reports a problem.              |
+| MRL checker    | `GET /mrl/residues` finds a pesticide by name; `GET /mrl` gives the EU limits for a commodity and recent RASFF notices that name the residue.                         |
+| Import Alerts  | `GET /import-alerts/:number`: the alert text and a summary only if a person has approved it.                                                                          |
+| Watchlist      | Firm and topic items, a CSV export and a notice estimate for a topic being added. Adding needs a verified email.                                                      |
+| Alerts         | The alerts list, mark as read, unread counts, and each user's instant-email and digest settings.                                                                      |
+| Bulk screening | Business and above. Upload a CSV of suppliers, review the matches, add confirmed firms to the watchlist and export the results. See "Bulk screening and PDF reports". |
+| PDF reports    | A one-page firm report and a topic report, for Pro and above. See "Bulk screening and PDF reports".                                                                   |
+| Billing        | Plans, the account's subscription and usage, Paddle checkout and customer portal for owners, and the Paddle webhook. See "Billing with Paddle".                       |
+| Plan limits    | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. P9 will show both as an upgrade prompt.               |
 
 Alerts are made by `alerts:run` and the digests by `digest:send` (see the ingestion commands below), not by the API.
+
+## Bulk screening and PDF reports
+
+Bulk screening is for Business and above: 5,000 rows a month on Business and 50,000 by default on Enterprise. PDF reports are for Pro and above. A plan without the feature answers `403 PLAN_UPGRADE_REQUIRED` with `details.feature` of `bulk` or `pdf`; a used-up row counter answers `403 PLAN_LIMIT_REACHED` with `details.action` of `bulk_rows`. Every route needs a signed-in user.
+
+| Route                                        | Who                         | What it does                                                                                                                                                                                                            |
+| -------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/bulk-jobs/template.csv`             | Any signed-in user          | The header line and one example row.                                                                                                                                                                                    |
+| `POST /v1/bulk-jobs?fileName=x.csv`          | Verified email, Business up | The CSV is the raw request body with `Content-Type: text/csv`. Answers `202` with the job. 10 uploads an hour per user.                                                                                                 |
+| `GET /v1/bulk-jobs`                          | Any member                  | The account's newest 50 jobs. Every member sees every job. A stale `running` job among them is resumed, as on `GET /v1/bulk-jobs/:id`.                                                                                  |
+| `GET /v1/bulk-jobs/:id`                      | Any member                  | The job's status and `processed` of `total`. A `running` job whose heartbeat is older than 60 seconds is resumed.                                                                                                       |
+| `GET /v1/bulk-jobs/:id/rows?status=&cursor=` | Verified email              | 100 rows a page: the input, status, `failed`, score, the top 3 candidates and, for a row with a firm, the FDA refusals in 3 years, the red-list status and Australian failures in 3 years.                              |
+| `PATCH /v1/bulk-jobs/:id/rows/:rowId`        | Verified email              | `{ action: 'confirm', firmId }` (one of the row's candidates) or `{ action: 'reject' }`. `409 ROW_PENDING` for a row not yet processed.                                                                                 |
+| `POST /v1/bulk-jobs/:id/watch-confirmed`     | Verified email              | Adds the firms of `matched` and `confirmed` rows to the watchlist, as many as fit. Answers `{ added, alreadyWatched, overLimit }`.                                                                                      |
+| `GET /v1/bulk-jobs/:id/export.csv`           | Verified email              | The input columns plus the matched firm, score, status and summary facts, after a UTF-8 BOM and with the upload's own delimiter (`,` or `;`). `Cache-Control: no-store`. `409 ROW_PENDING` while the job is unfinished. |
+| `GET /v1/firms/:id/report.pdf`               | Verified email, Pro up      | The one-page firm report. It uses one profile lookup on the same terms as the profile, and none when the plan has no PDFs. 20 reports a minute per user, shared with the topic report.                                  |
+| `GET /v1/dashboards/topic/report.pdf`        | Pro up                      | The topic dashboard as a PDF, from the dashboard's own query (`origin`, `commodity`, `destination`). It uses no lookup. 20 reports a minute per user, shared with the firm report.                                      |
+
+**The upload.**
+
+- The file is CSV only, at most 2 MB and 5,000 data rows, UTF-8 with or without a BOM. Excel's plain "CSV" in many locales is Windows-1252 and answers `400 INVALID_ENCODING`; save as "CSV UTF-8". The first line that is not blank is the header; if it has `;` and no `,`, the file is read with `;` as the delimiter.
+- Columns are `name` and `country` (required; a country code or a name), `city` and `fei`. Headers are trimmed and case-insensitive, and unknown columns are ignored.
+- Every row is checked before anything is written; one bad row rejects the whole file with `400 INVALID_ROWS` and up to 20 problems (`required`, `too_short`, `too_long`, `unknown_country`, `not_digits`). A problem's `row` counts every row under the header, blank ones too, so it matches the sheet; the 5,000-row limit counts only rows with something in them. A file that is not valid CSV (an unclosed quote, say) answers `400 INVALID_ROWS` with the `line` the parser stopped at; for an unclosed quote that is where the file ends. A `name` is 2 to 300 characters, a `city` at most 120, an `fei` 1 to 10 digits.
+- The rows are charged at upload, one bulk row each, and the upload is refused if they exceed what is left of the month. The file itself is never stored.
+- A `fileName` that is missing, over 200 characters or not ending in `.csv`, or any other content type, answers `415 UNSUPPORTED_FILE_TYPE`. Other errors are `413 FILE_TOO_LARGE`, `400 INVALID_HEADER` and `400 TOO_MANY_ROWS`.
+
+**Matching.** Each row runs the firm search within its country (an FEI found exactly scores 1.0) and keeps the top 3 candidates of at least 0.50. A top score of 0.90 or more is `matched`, 0.75 to below 0.90 is `review`, and anything lower is `no_record`. A row whose search fails 3 times ends `no_record` with `failed: true`, and its export status reads `search_failed`: its search never ran to the end, which is not the same as no record found. An error about the database itself (a lost connection, Postgres out of resources, a cancelled statement) counts against no row. Reviewing sets a row `confirmed` or `rejected`.
+
+**Processing.** The API answers the upload at once and works through the rows in batches of 50 in the same process, updating `processed` and a heartbeat. When a job's heartbeat is older than 60 seconds, the next API start, `GET /v1/bulk-jobs/:id`, `GET /v1/bulk-jobs` or the API's own sweep (every 60 seconds) resumes the pending rows, and each row is processed once. The job finishes when no row is pending. A batch in which every row fails pauses the job until a later resume, so the retries are spread out. A deploy or an idle spin-down on Render free pauses a running job until the next sweep after the API wakes: Render starts the new instance before it stops the old one, so the new instance's startup scan still sees a fresh heartbeat.
+
+**The PDFs.** Both are A4, in English whatever the interface language, made with `pdfmake` and sent as an attachment with `Cache-Control: no-store`.
+
+- The firm report is one page: the account's name, the firm, its facts, a 3-year summary, the latest 5 refusals, 5 Import Alert listings and 5 Australian failures, the data dates, the sources and the disclaimer. A list that is cut says "+N more".
+- The topic report shows the monthly counts, the top hazards, the 8 latest notices, the data dates, the sources and the disclaimer.
+- Each is made in 3 seconds or less with the API under 400 MB. Every render logs `pdf_rendered` with `kind`, `ms` and `rssMb`.
+
+`tools/perf/p6.mjs` measures the bulk job and the PDFs (see `tools/perf/README.md`).
+
+### Retention: `maintenance:purge`
+
+`node dist/apps/ingest/main.js maintenance:purge` applies the retention rules, each in its own transaction, and prints how many rows each touched:
+
+- `bulk_job_row` rows are deleted 30 days after their job finished (the `bulk_job` row stays as a record);
+- `paddle_event.payload` is cleared after 90 days;
+- `email_delivery` and `alert_email` rows are deleted after 90 days;
+- `email_token`, `refresh_token` and `invite` rows are deleted 30 days after they were used, revoked or accepted, or after they expired, whichever is later.
+
+`alert` rows are kept: the spec sets no retention for them, and the owner decides at P11 with the size budget. `maintenance.yml` runs it daily at 02:30 UTC (see the schedules below).
+
+### Owner steps before merging `p6/bulk-pdf`
+
+1. **Migrate staging:** apply `0016` with the direct, not pooled, connection string, after P7's `0015`.
+2. **GitHub:** nothing new. `maintenance.yml` uses the `INGEST_DATABASE_URL` secret the other workflows already use. After the merge, run it once by hand (`workflow_dispatch`) and check its counts.
+3. **After the deploy, on Render staging**, with a Business test account (an admin override is fine), set the password in the environment first, so it stays out of the shell history (PowerShell: `$env:P6_PASSWORD = '…'`), then run `node tools/perf/p6.mjs --base https://rejectradar-staging-api.umarnazaket.com --email … --csv bulk-1000.csv --firm <id> --topic "origin=PK&commodity=<id>"`.
+   - Check that the job takes 3 minutes or less and each PDF 3 seconds or less.
+   - Read the `pdf_rendered` lines in Render's logs and check that `rssMb` stays under 400 (V11).
+   - Note the results in `docs/findings/account-checks.md` against A6/V11.
+4. **Restart check on staging:**
+   1. Start a 1,000-row job.
+   2. Restart the service from Render's dashboard while it runs.
+   3. Don't open the job after the restart: wait 2 minutes, then read `processed` and `status` in the database (or in Render's logs, `bulk_jobs_resumed`), and check that the job resumed on its own, through the sweep.
+   4. Check that it finishes with `processed = total` and that the usage counter went up by 1,000 once.
+
+Not in this phase: the bulk page, the PDF buttons and "Download PDF (English)" (P9); the multipart upload path (not needed; revisit `multer` only for the audit, after 2026-11-10); a retention rule for `alert` rows (P11); and `backup:app` with `backup.yml` (named in spec §6.3, flagged for the roadmap at P11).
 
 ## Billing with Paddle
 
@@ -149,9 +215,9 @@ The API refuses to start unless every one of these is set and well-formed, in ev
 
 See `tools/paddle/README.md`.
 
-### Owner steps before merging `p7/billing-paddle`
+### Owner steps for Paddle (P7)
 
-The API refuses to start without the Paddle variables, so these come before the merge and before any staging redeploy:
+The API refuses to start without the Paddle variables, so set them before any staging redeploy:
 
 1. **Send Paddle the V9 questions:** payouts, the 7 countries, a data-subscription product and domain approval. The answers gate live selling, not the sandbox.
 2. **Client-side token:** in the Paddle sandbox dashboard, go to Developer tools, Authentication, and create a client-side token (`test_…`). Put it in the local `.env` and the Render staging environment as `PADDLE_CLIENT_TOKEN`.
@@ -202,12 +268,13 @@ libs/
   entities/   linking records to firms, firm facts, merge and split
   mail/       the mailer, its transports and the email templates, shared by the API and the ingest CLI
 tools/
-  perf/       load.mjs, the p95 check for notice search, dashboards and firm search
+  perf/       load.mjs, the p95 check for notice search, dashboards and firm search; p6.mjs, the bulk job and PDF timings
   paddle/     create-webhook.mjs and checkout.html, the owner's Paddle sandbox tools
 .github/workflows/
   ci.yml       lint, test and build on every push and pull request
   sync-*.yml   scheduled syncs
   digest.yml   daily and weekly alert digests
+  maintenance.yml  the daily retention purge
   backfill.yml manual full loads
 docker-compose.yml  Postgres 18 and Mailpit for local development
 ```
@@ -250,9 +317,10 @@ npx nx run-many -t lint test build      # lint, test and build every project
 npx nx serve api                        # then open http://localhost:3000/v1/health
 npx nx build ingest && node dist/apps/ingest/main.js --help
 node tools/perf/load.mjs --base http://localhost:3000 --email <email> --password <password>   # p95 of search and dashboards
+node tools/perf/p6.mjs --base http://localhost:3000 --email <email> --password <password> --csv bulk-1000.csv --firm <id>   # bulk job and PDF times
 ```
 
-`tools/perf/load.mjs` signs in, warms each route and checks that the 95th-percentile response time of notice search, dashboards and firm search is 800 ms or less. See `tools/perf/README.md`.
+`tools/perf/load.mjs` signs in, warms each route and checks that the 95th-percentile response time of notice search, dashboards and firm search is 800 ms or less. `tools/perf/p6.mjs` uploads a 1,000-row CSV as a bulk job and times the firm and topic PDFs. See `tools/perf/README.md`.
 
 ### Ingestion CLI
 
@@ -269,6 +337,7 @@ node tools/perf/load.mjs --base http://localhost:3000 --email <email> --password
 | `alerts:run [--no-email]`                   | Turns new change events into alerts and sends the instant emails                |
 | `digest:send`                               | Sends the daily digests, and the weekly ones on Mondays                         |
 | `db:size-check`                             | Exits 1 at or above 900 MB                                                      |
+| `maintenance:purge`                         | Applies the retention rules and prints each count (see "Retention")             |
 | `verify-source`, `probe-page`               | Checks a source: fields, rows, fill rates, duplicate keys, page patterns        |
 
 `alerts:run` and `digest:send` send email through the same daily cap as the API, so they read the mail variables above. `alerts:run --no-email` creates the alerts and needs none of them. `alerts:run` exits 3 when a firm-level record has stayed unlinked for 48 hours, because alerts stop at the first such record; GitHub Actions then emails the owner. `digest:send` exits 1 when a digest could not be sent.
@@ -287,30 +356,31 @@ docker run --rm -e DATABASE_URL -v "${PWD}:/app:ro" -w /app node:24.15.0-bookwor
 | `sync-weekly.yml`  | 08:00 every day for now, then weekly on FDA's refresh day | FDA charge codes and refusals, then `entities:link` |
 | `sync-weekly.yml`  | 06:30 on Mondays                                          | UK, then Australia, then `entities:link`            |
 | `sync-monthly.yml` | 03:30 on the 1st                                          | EU MRLs                                             |
+| `maintenance.yml`  | 02:30 every day                                           | `maintenance:purge`                                 |
 | `digest.yml`       | 03:00 every day                                           | `digest:send` (weekly digests on Mondays)           |
 | `backfill.yml`     | On demand                                                 | One source with `--no-events`                       |
 
 Each job first checks the database size, and only one job writes to the database at a time. Every scheduled sync workflow ends with `alerts:run`.
 
-Alerts depend on that. `alerts:run` reads change events in order and moves its cursor past them, so an event committed late by a second writer would never be alerted. The sync workflows therefore share one concurrency group, and `digest.yml` has its own because it inserts no change events or alerts, so it cannot create the late-commit gap that the shared group prevents. Don't run syncs by hand at the same time as scheduled ones.
+Alerts depend on that. `alerts:run` reads change events in order and moves its cursor past them, so an event committed late by a second writer would never be alerted. The sync workflows therefore share one concurrency group, and `digest.yml` has its own because it inserts no change events or alerts, so it cannot create the late-commit gap that the shared group prevents. `maintenance.yml` has its own group too: it only deletes rows past their retention and clears old payloads. Those include `alert_email` rows, which `alerts:run` writes, but only ones over 90 days old; `alerts:run` only adds new `alert_email` rows, so the purge and the runs never touch the same rows. Don't run syncs by hand at the same time as scheduled ones.
 
 ## Status and roadmap
 
 About 70 development days in 11 phases.
 
-| Phase | What                                                                                 | Status                                                                                                                                                                                                                                                        |
-| ----- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1    | Foundation: workspace, database, CI, accounts, checks of every source                | ✅ Done (October 2026)                                                                                                                                                                                                                                        |
-| P2    | Ingestion and taxonomy: six sources, full history, scheduled syncs                   | Built and merged. Staging holds FDA refusals since 2016, RASFF since 2020, UK, Australia and EU MRLs (195 MB). Still to do: the first full Import Alert crawl, a week of green scheduled runs and the final size check.                                       |
-| P3    | Entity resolution: linking, firm facts, merge and split                              | Built and merged; 20,833 firms from 90,614 records on a full local load. Waiting for the labelled-pair precision gate and the first link on staging.                                                                                                          |
-| P4    | Auth, accounts, email and the i18n core                                              | Built and merged (PRs #35 and #36). Sign-up, login, sessions, password reset, members and invites, the email cap and localised emails. Still to do: the staging migrations and settings.                                                                      |
-| P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Built and merged (PR #37). See "The product API". Still to do: the staging migration, mail settings and link check; then the p95 and hand checks.                                                                                                             |
-| P6    | Bulk supplier screening and PDF reports                                              | Not started                                                                                                                                                                                                                                                   |
-| P7    | Billing with Paddle                                                                  | Built on branch `p7/billing-paddle`, not merged. See "Billing with Paddle". Still to do: review; before merging, the owner steps there (Paddle token, webhook destination, Render variables, the `0015` staging migration); then the manual sandbox purchase. |
-| P8    | Public API and Import Alert summaries                                                | Not started                                                                                                                                                                                                                                                   |
-| P9    | Web app in four languages                                                            | Not started                                                                                                                                                                                                                                                   |
-| P10   | Admin panel: health, taxonomy, match review, summaries                               | Not started                                                                                                                                                                                                                                                   |
-| P11   | Deployment and launch                                                                | Not started                                                                                                                                                                                                                                                   |
+| Phase | What                                                                                 | Status                                                                                                                                                                                                                           |
+| ----- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1    | Foundation: workspace, database, CI, accounts, checks of every source                | ✅ Done (October 2026)                                                                                                                                                                                                           |
+| P2    | Ingestion and taxonomy: six sources, full history, scheduled syncs                   | Built and merged. Staging holds FDA refusals since 2016, RASFF since 2020, UK, Australia and EU MRLs (195 MB). Still to do: the first full Import Alert crawl, a week of green scheduled runs and the final size check.          |
+| P3    | Entity resolution: linking, firm facts, merge and split                              | Built and merged; 20,833 firms from 90,614 records on a full local load. Waiting for the labelled-pair precision gate and the first link on staging.                                                                             |
+| P4    | Auth, accounts, email and the i18n core                                              | Built and merged (PRs #35 and #36). Sign-up, login, sessions, password reset, members and invites, the email cap and localised emails. Still to do: the staging migrations and settings.                                         |
+| P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Built and merged (PR #37). See "The product API". Still to do: the staging migration, mail settings and link check; then the p95 and hand checks.                                                                                |
+| P6    | Bulk supplier screening and PDF reports                                              | Built on branch `p6/bulk-pdf`, not merged. See "Bulk screening and PDF reports". Still to do: review; before merging, the owner steps there (the `0016` staging migration); then the staging measurements and the restart check. |
+| P7    | Billing with Paddle                                                                  | Built and merged (PR #38). See "Billing with Paddle". Still to do: the owner steps there (Paddle token, webhook destination, Render variables, the `0015` staging migration); then the manual sandbox purchase.                  |
+| P8    | Public API and Import Alert summaries                                                | Not started                                                                                                                                                                                                                      |
+| P9    | Web app in four languages                                                            | Not started                                                                                                                                                                                                                      |
+| P10   | Admin panel: health, taxonomy, match review, summaries                               | Not started                                                                                                                                                                                                                      |
+| P11   | Deployment and launch                                                                | Not started                                                                                                                                                                                                                      |
 
 ## Data and privacy principles
 

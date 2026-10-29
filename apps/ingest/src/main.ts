@@ -12,6 +12,7 @@ import { loadIngestEnv } from './core/env';
 import { createDeps, utcToday } from './core/deps';
 import { createFetcher } from './core/http';
 import { assertBelowSizeLimit, databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
+import { purge } from './maintenance/purge';
 import { syncChargeCodes } from './sync/fda/charge-codes';
 import { syncAuIfis } from './sync/au-ifis/sync';
 import { syncEuMrl } from './sync/eu-mrl/sync';
@@ -270,6 +271,19 @@ program
       await mkdir(path.dirname(options.out), { recursive: true });
       await writeFile(options.out, toCsv(LABELLED_PAIR_COLUMNS, rows), 'utf8');
       console.log(JSON.stringify({ out: options.out, ...sampleSummary(rows) }));
+    } finally {
+      await close();
+    }
+  });
+
+program
+  .command('maintenance:purge')
+  .description('Apply the retention rules: bulk rows 30 days after their job finished, Paddle payloads, email logs and alert emails after 90 days, used or expired tokens and invites after 30 days (spec §6.3, §7.2). Prints one count per rule, never row content')
+  .action(async () => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      const counts = await purge(db);
+      for (const [rule, count] of Object.entries(counts)) console.log(`${rule}: ${count}`);
     } finally {
       await close();
     }

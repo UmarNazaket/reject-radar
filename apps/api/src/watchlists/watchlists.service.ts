@@ -7,10 +7,11 @@ import {
   type UpdateWatchlistItemRequest,
   type WatchlistItem,
   type WatchlistKind,
+  type WatchConfirmedResponse,
   type WatchlistResponse,
 } from '@rejectradar/contracts';
 import { type Database, notice, topicMatchesItem, uuidv7, watchlistItem } from '@rejectradar/db';
-import { count, eq, sql } from 'drizzle-orm';
+import { count, eq, inArray, sql } from 'drizzle-orm';
 import { byOrg, type RequestContext } from '../auth/context';
 import { toCsvRow } from '../common/csv';
 import { AppError } from '../common/errors';
@@ -108,6 +109,38 @@ export class WatchlistsService {
       throw error;
     }
     return this.one(ctx, row.id);
+  }
+
+  /**
+   * Watches many firms at once, for the bulk "watch confirmed" (P6-D8). `items` are distinct firms in the order they should
+   * be added, each with the name the account typed. Firms the account watches already are counted and skipped; as many of
+   * the rest as fit in the plan's remaining room are added; the others are `overLimit`. The count, the check and the inserts
+   * are one step under the same per-account lock as `add`, so the places are counted once.
+   */
+  async addFirms(ctx: RequestContext, items: readonly { firmId: number; inputName: string }[]): Promise<WatchConfirmedResponse> {
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('watchlist:' || ${ctx.orgId}::text, 0))`);
+      const [{ used }] = await tx.select({ used: count() }).from(watchlistItem).where(byOrg(watchlistItem, ctx));
+      const firmIds = items.map((item) => item.firmId);
+      const watched =
+        firmIds.length === 0
+          ? []
+          : await tx
+              .select({ firmId: watchlistItem.firmId })
+              .from(watchlistItem)
+              .where(byOrg(watchlistItem, ctx, inArray(watchlistItem.firmId, firmIds)));
+      const watchedIds = new Set(watched.map((row) => row.firmId));
+      const fresh = items.filter((item) => !watchedIds.has(item.firmId));
+      const { limits } = await this.entitlements.resolvePlan(ctx.orgId, tx);
+      const room = Math.max(0, limits.watchlistSize - used);
+      const toAdd = fresh.slice(0, room);
+      if (toAdd.length > 0) {
+        await tx
+          .insert(watchlistItem)
+          .values(toAdd.map((item) => ({ id: uuidv7(), orgId: ctx.orgId, addedBy: ctx.userId, kind: 'firm', firmId: item.firmId, inputName: orNull(item.inputName) })));
+      }
+      return { added: toAdd.length, alreadyWatched: items.length - fresh.length, overLimit: fresh.length - toAdd.length };
+    });
   }
 
   /** Changes the label and notes; `null` clears one. Another account's item is `404`, like one that is not there. */

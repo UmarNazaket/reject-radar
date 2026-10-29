@@ -11,6 +11,7 @@ import { CsrfGuard } from '../auth/guards/csrf.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
 import { BillingModule } from '../billing/billing.module';
+import { BulkModule } from '../bulk/bulk.module';
 import { errSerializer, reqSerializer, resSerializer } from '../common/logging';
 import { FixedWindowLimiter, RateLimitGuard } from '../common/rate-limit';
 import { requestIdFor } from '../common/request-id';
@@ -24,6 +25,7 @@ import { ImportAlertsModule } from '../import-alerts/import-alerts.module';
 import { MrlModule } from '../mrl/mrl.module';
 import { NoticesModule } from '../notices/notices.module';
 import { OrgsModule } from '../orgs/orgs.module';
+import { ReportsModule } from '../reports/reports.module';
 import { TaxonomyModule } from '../taxonomy/taxonomy.module';
 import { WatchlistsModule } from '../watchlists/watchlists.module';
 import type { AppOverrides } from './app-overrides';
@@ -60,6 +62,7 @@ export class AppModule {
         AlertsModule,
         AuthModule,
         BillingModule.register(env, overrides),
+        BulkModule,
         EntitlementsModule,
         FirmsModule,
         HealthModule,
@@ -67,6 +70,7 @@ export class AppModule {
         MrlModule,
         NoticesModule,
         OrgsModule,
+        ReportsModule,
         TaxonomyModule,
         WatchlistsModule,
       ],

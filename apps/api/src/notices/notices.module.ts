@@ -10,6 +10,6 @@ import { NoticesService } from './notices.service';
   imports: [EntitlementsModule],
   controllers: [NoticesController, DashboardsController],
   providers: [NoticesService, FreshnessService, DashboardsService],
-  exports: [NoticesService, FreshnessService],
+  exports: [NoticesService, FreshnessService, DashboardsService],
 })
 export class NoticesModule {}

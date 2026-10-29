@@ -251,6 +251,61 @@ describe('database schema (spec §7)', () => {
     ).rejects.toMatchObject({ code: '23514', constraint });
   });
 
+  describe('bulk tables', () => {
+    const JOB = '0192c7a0-0000-7000-8000-0000000000c1';
+
+    it('bulk tables have their checks and the unique row index', async () => {
+      await expect(
+        client.query("insert into bulk_job (id, org_id, file_name, status, total) values ($1, $2, 'a.csv', 'done', 1)", [JOB, ORG_A]),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'bulk_job_status_ck' });
+      await client.query("insert into bulk_job (id, org_id, file_name, total) values ($1, $2, 'a.csv', 2)", [JOB, ORG_A]);
+      await expect(
+        client.query("insert into bulk_job_row (job_id, row_nr, input_name, status) values ($1, 1, 'Acme', 'maybe')", [JOB]),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'bulk_job_row_status_ck' });
+      await client.query("insert into bulk_job_row (job_id, row_nr, input_name) values ($1, 1, 'Acme')", [JOB]);
+      await expect(
+        client.query("insert into bulk_job_row (job_id, row_nr, input_name) values ($1, 1, 'Acme again')", [JOB]),
+      ).rejects.toMatchObject({ code: '23505', constraint: 'bulk_job_row_job_row_idx' });
+      const { rows } = await client.query<{ indexname: string; indexdef: string }>(
+        "select indexname, indexdef from pg_indexes where tablename in ('bulk_job', 'bulk_job_row') and indexname in ('bulk_job_row_job_row_idx', 'bulk_job_active_idx', 'bulk_job_finished_idx') order by indexname",
+      );
+      expect(rows.map((r) => r.indexname)).toEqual(['bulk_job_active_idx', 'bulk_job_finished_idx', 'bulk_job_row_job_row_idx']);
+      expect(rows[0].indexdef).toMatch(/\(status\)/);
+      expect(rows[0].indexdef).toMatch(/queued.*running/);
+      expect(rows[1].indexdef).toContain('(finished_at)');
+      expect(rows[2].indexdef).toContain('UNIQUE');
+      expect(rows[2].indexdef).toContain('(job_id, row_nr)');
+    });
+
+    it('a bulk row starts with no failed attempts, and attempts is never null', async () => {
+      const job = '0192c7a0-0000-7000-8000-0000000000c2';
+      await client.query("insert into bulk_job (id, org_id, file_name, total) values ($1, $2, 'b.csv', 1)", [job, ORG_A]);
+      const { rows } = await client.query<{ attempts: number }>("insert into bulk_job_row (job_id, row_nr, input_name) values ($1, 1, 'Acme') returning attempts", [job]);
+      expect(rows).toEqual([{ attempts: 0 }]);
+      const { rows: columns } = await client.query<{ data_type: string; is_nullable: string; column_default: string }>(
+        "select data_type, is_nullable, column_default from information_schema.columns where table_name = 'bulk_job_row' and column_name = 'attempts'",
+      );
+      expect(columns).toEqual([{ data_type: 'smallint', is_nullable: 'NO', column_default: '0' }]);
+      await expect(client.query('update bulk_job_row set attempts = null where job_id = $1', [job])).rejects.toMatchObject({ code: '23502' });
+    });
+
+    it("a bulk job keeps its upload's delimiter: a comma by default, a semicolon allowed, nothing else", async () => {
+      const comma = '0192c7a0-0000-7000-8000-0000000000c3';
+      const semicolon = '0192c7a0-0000-7000-8000-0000000000c4';
+      const { rows } = await client.query<{ delimiter: string }>(
+        "insert into bulk_job (id, org_id, file_name, total) values ($1, $2, 'c.csv', 1) returning delimiter",
+        [comma, ORG_A],
+      );
+      expect(rows).toEqual([{ delimiter: ',' }]);
+      await client.query("insert into bulk_job (id, org_id, file_name, total, delimiter) values ($1, $2, 'd.csv', 1, ';')", [semicolon, ORG_A]);
+      await expect(client.query("update bulk_job set delimiter = '|' where id = $1", [semicolon])).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'bulk_job_delimiter_ck',
+      });
+      await expect(client.query('update bulk_job set delimiter = null where id = $1', [semicolon])).rejects.toMatchObject({ code: '23502' });
+    });
+  });
+
   it('stores a dispute kind, defaulting to other', async () => {
     const firm = await client.query<{ id: string }>("insert into firm (display_name, name_norm, country_code) values ('Disputed Foods', 'disputed foods', 'PK') returning id");
     const { rows } = await client.query<{ kind: string }>(
