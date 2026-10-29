@@ -1,6 +1,6 @@
 import type { PlansResponse, SubscriptionResponse } from '@rejectradar/contracts';
-import { org, subscription } from '@rejectradar/db';
-import { eq } from 'drizzle-orm';
+import { invite, org, subscription } from '@rejectradar/db';
+import { eq, sql } from 'drizzle-orm';
 import { type ReferenceFixture, seedReferenceData } from '../testing/reference-data';
 import { joinByInvite, signUpVerified, startTestApp, type TestApp, type TestSession, testEnv } from '../testing/test-app';
 
@@ -64,7 +64,7 @@ describe('billing: plans and subscription', () => {
       canManage: true,
       limits: { lookupsPerMonth: 10 },
     });
-    expect(sub.usage).toMatchObject({ lookups: 0, bulkRows: 0, apiCalls: 0, watchlist: 0, members: 1 });
+    expect(sub.usage).toMatchObject({ lookups: 0, bulkRows: 0, apiCalls: 0, watchlist: 0, members: 1, seats: 1 });
     expect(sub.usage.period).toMatch(/^\d{4}-\d{2}$/);
   });
 
@@ -125,6 +125,20 @@ describe('billing: plans and subscription', () => {
     const seen = await read(member.session);
     expect(seen.canManage).toBe(false);
     expect(seen.usage.members).toBe(2);
+  });
+
+  it('seats count open invites the way the invite limit does', async () => {
+    const { session: owner, orgId } = await account();
+    await t.db.update(org).set({ planOverride: 'pro' }).where(eq(org.id, orgId));
+    await owner.post('/v1/org/invites').send({ email: `expired${n}@billing-read.test`, role: 'member' }).expect(201);
+    await t.db.update(invite).set({ expiresAt: sql`now() - interval '1 minute'` }).where(eq(invite.email, `expired${n}@billing-read.test`));
+    await joinByInvite(t, owner, { email: `seated${n}@billing-read.test`, role: 'member' });
+    await owner.post('/v1/org/invites').send({ email: `open${n}@billing-read.test`, role: 'member' }).expect(201);
+
+    // Two members and one open invite: the accepted and the expired invites hold no seat.
+    expect((await read(owner)).usage).toMatchObject({ members: 2, seats: 3 });
+    // Pro allows three, so the invite limit is reached exactly when seats reaches it.
+    await owner.post('/v1/org/invites').send({ email: `fourth${n}@billing-read.test`, role: 'member' }).expect(403);
   });
 
   it('the subscription needs a session', async () => {

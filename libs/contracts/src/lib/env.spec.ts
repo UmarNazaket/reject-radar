@@ -186,6 +186,22 @@ describe('apiEnvSchema Paddle variables (P7-D10)', () => {
     expect(errorFor({ PADDLE_WEBHOOK_SECRET }).issues.some((issue) => issue.startsWith('PADDLE_WEBHOOK_SECRET:'))).toBe(true);
   });
 
+  it.each([
+    ['PADDLE_WEBHOOK_SECRET', 'pdl_ntfset_'],
+    ['PADDLE_WEBHOOK_SECRET', `pdl_ntfset_${'a'.repeat(20)}`],
+    ['PADDLE_WEBHOOK_SECRET', 'a1B2'.repeat(7)],
+    ['PADDLE_CLIENT_TOKEN', 'test_'],
+    ['PADDLE_API_KEY', 'pdl_sdbx_apikey_'],
+  ])('rejects %s with nothing real after the prefix or too short (%j)', (name, value) => {
+    expect(errorFor({ [name]: value }).issues.some((issue) => issue.startsWith(`${name}:`))).toBe(true);
+  });
+
+  it('accepts a 32-character local webhook secret, and the test env passes', () => {
+    const PADDLE_WEBHOOK_SECRET = 'a1B2'.repeat(8);
+    expect(parseEnv(apiEnvSchema, { ...valid, PADDLE_WEBHOOK_SECRET }).PADDLE_WEBHOOK_SECRET).toBe(PADDLE_WEBHOOK_SECRET);
+    expect(() => parseEnv(apiEnvSchema, valid)).not.toThrow();
+  });
+
   it('accepts a real-looking webhook secret', () => {
     const PADDLE_WEBHOOK_SECRET = `pdl_ntfset_01hkq3x0c4bz9m2v7n8d5e6f7g_${'a1B2'.repeat(8)}`;
     expect(parseEnv(apiEnvSchema, { ...valid, PADDLE_WEBHOOK_SECRET }).PADDLE_WEBHOOK_SECRET).toBe(PADDLE_WEBHOOK_SECRET);

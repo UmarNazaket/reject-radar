@@ -3,6 +3,7 @@ import {
   type ApiEnv,
   type CheckoutRequest,
   type CheckoutResponse,
+  isPaidSubscriptionStatus,
   PAID_PLAN_IDS,
   type PaidPlanId,
   PLAN_IDS,
@@ -21,14 +22,12 @@ import { AppError } from '../common/errors';
 import { API_ENV } from '../config/env';
 import { DB } from '../database/database.module';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { InvitesService } from '../orgs/invites.service';
 import { MembersService } from '../orgs/members.service';
 import { WatchlistsService } from '../watchlists/watchlists.service';
 import { PADDLE_GATEWAY, type PaddleGateway } from './paddle/gateway';
 
 const isPaidPlan = (id: string): id is PaidPlanId => (PAID_PLAN_IDS as readonly string[]).includes(id);
-
-/** A Paddle subscription in one of these statuses is still billing the account, so a second checkout would double-charge it (P7-D8). */
-const BILLING_STATUSES: ReadonlySet<string> = new Set(['active', 'trialing', 'past_due']);
 
 /** What an account pays for and how much of it is used (spec §10, P7-D11), what the owner needs to start a purchase (P7-D8) and the way into Paddle's portal (P7-D9). */
 @Injectable()
@@ -41,6 +40,7 @@ export class BillingService {
     @Inject(API_ENV) env: ApiEnv,
     private readonly entitlements: EntitlementsService,
     private readonly members: MembersService,
+    private readonly invites: InvitesService,
     private readonly watchlists: WatchlistsService,
     @Inject(PADDLE_GATEWAY) private readonly paddle: PaddleGateway,
   ) {
@@ -60,12 +60,13 @@ export class BillingService {
 
   /** The caller's plan and where it comes from, the Paddle state behind it, and this UTC month's usage. */
   async subscription(ctx: RequestContext): Promise<SubscriptionResponse> {
-    const [{ plan, source, limits }, [row], usage, watchlist, members] = await Promise.all([
+    const [{ plan, source, limits }, [row], usage, watchlist, members, seats] = await Promise.all([
       this.entitlements.resolvePlan(ctx.orgId),
       this.db.select().from(subscription).where(byOrg(subscription, ctx)),
       this.entitlements.usage(ctx.orgId),
       this.watchlists.count(ctx.orgId),
       this.members.count(ctx.orgId),
+      this.invites.seats(ctx.orgId),
     ]);
     // Sign-up leaves a free row without Paddle ids; its status says nothing a billing page should show.
     const paddle = row?.paddleSubscriptionId ? row : null;
@@ -79,7 +80,7 @@ export class BillingService {
       hasBillingAccount: Boolean(row?.paddleCustomerId),
       canManage: ctx.role === 'owner',
       limits,
-      usage: { ...usage, watchlist, members },
+      usage: { ...usage, watchlist, members, seats },
     };
   }
 
@@ -92,7 +93,8 @@ export class BillingService {
       this.db.select({ status: subscription.status, paddleSubscriptionId: subscription.paddleSubscriptionId }).from(subscription).where(byOrg(subscription, ctx)),
       this.db.select({ email: appUser.email }).from(appUser).where(eq(appUser.id, ctx.userId)),
     ]);
-    if (row?.paddleSubscriptionId && BILLING_STATUSES.has(row.status)) {
+    // A subscription that still bills the account would be charged twice by a second checkout.
+    if (row?.paddleSubscriptionId && isPaidSubscriptionStatus(row.status)) {
       throw new AppError(HttpStatus.CONFLICT, 'ALREADY_SUBSCRIBED', 'The account already has a subscription; change it in the billing portal');
     }
     return {

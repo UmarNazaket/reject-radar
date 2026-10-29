@@ -1,7 +1,8 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
-import { type ApiEnv, priceCatalog, type PriceCatalog } from '@rejectradar/contracts';
+import { type ApiEnv, isPaidSubscriptionStatus, priceCatalog, type PriceCatalog } from '@rejectradar/contracts';
 import { type Database, paddleEvent, subscription } from '@rejectradar/db';
 import { eq, type SQL, sql } from 'drizzle-orm';
+import { ZodError } from 'zod';
 import { AppError } from '../common/errors';
 import { API_ENV } from '../config/env';
 import { DB } from '../database/database.module';
@@ -17,9 +18,6 @@ export interface WebhookResult {
 
 /** Postgres reads any hex UUID; anything else in `custom_data.orgId` cannot name an account, and would fail the uuid cast. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** A subscription in one of these statuses is still billing the account, so events about any other subscription must not replace it. */
-const BILLING_STATUSES: ReadonlySet<string> = new Set(['active', 'trialing', 'past_due']);
 
 interface AccountRefs {
   orgId?: string | null;
@@ -73,10 +71,16 @@ export class PaddleWebhookService {
     try {
       json = JSON.parse(rawBody.toString('utf8'));
       return { json, event: parsePaddleEvent(json) };
-    } catch {
+    } catch (error) {
       // Signed by Paddle but not a shape the API reads: answering 400 leaves it in Paddle's retry queue until the parser is fixed.
-      const eventId = (json as { event_id?: unknown } | undefined)?.event_id;
-      this.logger.warn({ eventId: typeof eventId === 'string' ? eventId : null }, 'Paddle event does not fit the expected shape');
+      const raw = (json as { event_id?: unknown } | undefined)?.event_id;
+      const eventId = typeof raw === 'string' ? raw : null;
+      if (error instanceof ZodError) {
+        // The paths say which fields to fix; the values could hold an email address, so they are never logged.
+        this.logger.error({ eventId, issues: error.issues.map((issue) => issue.path.join('.')) }, 'Paddle event does not fit the expected shape');
+      } else {
+        this.logger.warn({ eventId }, 'Paddle event body is not JSON');
+      }
       throw new AppError(HttpStatus.BAD_REQUEST, 'BAD_REQUEST', 'The body is not a Paddle event the API can read');
     }
   }
@@ -101,10 +105,16 @@ export class PaddleWebhookService {
       this.logger.warn({ eventId }, 'Paddle event matches no account');
       return [];
     }
+    const otherSubscription = account.paddleSubscriptionId !== data.id;
     // A paused or canceled subscription can be replaced by a new checkout; a later event about the old one (canceling it in
     // the portal, say) must not overwrite the one that now bills the account. The row is locked, so this read holds.
-    if (account.paddleSubscriptionId && account.paddleSubscriptionId !== data.id && BILLING_STATUSES.has(account.status)) {
-      this.logger.debug({ eventId }, 'Paddle event is about a subscription the account has replaced; recorded, not applied');
+    if (account.paddleSubscriptionId && otherSubscription && isPaidSubscriptionStatus(account.status)) {
+      if (isPaidSubscriptionStatus(data.status)) {
+        // The old one is billing again (resumed, say) next to the tracked one: the owner is being charged twice.
+        this.logger.warn({ eventId, orgId: account.orgId }, 'The account has two live Paddle subscriptions; the event about the untracked one is recorded, not applied');
+      } else {
+        this.logger.debug({ eventId }, 'Paddle event is about a subscription the account has replaced; recorded, not applied');
+      }
       return [];
     }
     const price = this.catalog.byPrice.get(data.items[0]?.price.id ?? '');
@@ -114,6 +124,10 @@ export class PaddleWebhookService {
     // Timestamps go to Postgres as Paddle's strings, so the microseconds survive for the order check.
     const at = (value: string | null | undefined): SQL | null => (value ? sql`${value}::timestamptz` : null);
     const cancelAt = data.scheduled_change?.action === 'cancel' ? data.scheduled_change.effective_at : null;
+    // The order watermark belongs to the tracked subscription. A different one that now bills replaces it whenever its
+    // event is stamped, since Paddle's clocks say nothing about the order of two subscriptions; one that does not bill
+    // still has to be newer, so a late event about an old canceled subscription can never relink the row.
+    const ordered = otherSubscription && isPaidSubscriptionStatus(data.status) ? sql`true` : sql`${occurredAt}::timestamptz > coalesce(${subscription.paddleOccurredAt}, '-infinity'::timestamptz)`;
     const [updated] = await tx
       .update(subscription)
       .set({
@@ -126,7 +140,7 @@ export class PaddleWebhookService {
         paddleOccurredAt: at(occurredAt),
         updatedAt: sql`now()`,
       })
-      .where(sql`${subscription.orgId} = ${account.orgId} and ${occurredAt}::timestamptz > coalesce(${subscription.paddleOccurredAt}, '-infinity'::timestamptz)`)
+      .where(sql`${subscription.orgId} = ${account.orgId} and ${ordered}`)
       .returning({ status: subscription.status });
     if (!updated) {
       this.logger.debug({ eventId }, 'Paddle event is older than the last one applied; recorded, not applied');

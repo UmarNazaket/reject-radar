@@ -1,4 +1,4 @@
-import { PAID_PLAN_IDS, PADDLE_ENVS, priceCatalog } from './billing';
+import { isPaidSubscriptionStatus, PAID_PLAN_IDS, PAID_SUBSCRIPTION_STATUSES, PADDLE_ENVS, priceCatalog } from './billing';
 
 const prices = {
   PADDLE_PRICE_PRO_MONTHLY: 'pri_01m61npvnr18pc5g8fjpjfnhne',
@@ -11,6 +11,11 @@ describe('billing constants', () => {
   it('lists the Paddle environments and the plans checkout can sell', () => {
     expect(PADDLE_ENVS).toEqual(['sandbox', 'production']);
     expect(PAID_PLAN_IDS).toEqual(['pro', 'business']);
+  });
+
+  it('lists the subscription statuses that pay for a plan (P7-D6)', () => {
+    expect(PAID_SUBSCRIPTION_STATUSES).toEqual(['active', 'trialing', 'past_due']);
+    expect(['active', 'trialing', 'past_due', 'paused', 'canceled', null, undefined].map(isPaidSubscriptionStatus)).toEqual([true, true, true, false, false, false, false]);
   });
 });
 

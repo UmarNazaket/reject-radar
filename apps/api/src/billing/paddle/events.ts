@@ -60,7 +60,14 @@ export type PaddleEvent =
 export function parsePaddleEvent(json: unknown): PaddleEvent {
   const { event_id, event_type, occurred_at, data } = envelope.parse(json);
   const head = { event_id, event_type, occurred_at };
-  if (SUBSCRIPTION_EVENTS.has(event_type)) return { kind: 'subscription', ...head, data: subscriptionData.parse(data) };
-  if (event_type === 'transaction.completed') return { kind: 'transaction', ...head, data: transactionData.parse(data) };
+  if (SUBSCRIPTION_EVENTS.has(event_type)) return { kind: 'subscription', ...head, data: parseData(subscriptionData, data) };
+  if (event_type === 'transaction.completed') return { kind: 'transaction', ...head, data: parseData(transactionData, data) };
   return { kind: 'other', ...head, data };
+}
+
+/** Parses the envelope's `data`, so a failure's issue paths start at `data` like the envelope's own do. */
+function parseData<T extends z.ZodType>(schema: T, data: unknown): z.output<T> {
+  const result = schema.safeParse(data);
+  if (!result.success) throw new z.ZodError(result.error.issues.map((issue) => ({ ...issue, path: ['data', ...issue.path] })));
+  return result.data;
 }

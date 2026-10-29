@@ -81,20 +81,25 @@ function refineMailEnv(env: { NODE_ENV: string; MAIL_TRANSPORT: string; RESEND_A
   }
 }
 
-/** A Paddle credential that must carry one of `prefixes` and, after it, not be a placeholder such as `replace_me`. */
-function paddleCredential(name: string, prefixes: readonly string[]) {
+/**
+ * A Paddle credential that may carry one of `prefixes` (which one each `PADDLE_ENV` needs is checked by
+ * `refinePaddleEnv`). After the prefix something real must follow: not nothing and not a placeholder such as
+ * `replace_me`. `minLength` counts the whole value, prefix included.
+ */
+function paddleCredential(name: string, prefixes: readonly string[], minLength = 1) {
+  const restOf = (value: string) => {
+    const prefix = prefixes.find((candidate) => value.startsWith(candidate));
+    return prefix ? value.slice(prefix.length) : value;
+  };
   return z
     .string()
     .trim()
     .min(1, 'is required')
-    .refine(
-      (value) => {
-        const prefix = prefixes.find((candidate) => value.startsWith(candidate));
-        const rest = prefix ? value.slice(prefix.length) : value;
-        return !(PLACEHOLDER.test(value) || PLACEHOLDER.test(rest));
-      },
-      { message: `${name} looks like a placeholder; copy the real value from the Paddle dashboard` },
-    );
+    .refine((value) => restOf(value).length > 0, { message: `${name} is only a prefix; copy the whole value from the Paddle dashboard` })
+    .refine((value) => value.length >= minLength, { message: `must be at least ${minLength} characters` })
+    .refine((value) => !(PLACEHOLDER.test(value) || PLACEHOLDER.test(restOf(value))), {
+      message: `${name} looks like a placeholder; copy the real value from the Paddle dashboard`,
+    });
 }
 
 const paddlePriceId = z
@@ -114,7 +119,7 @@ const paddleEnvFields = {
   /** The client-side token Paddle.js initialises with; safe to send to the browser. */
   PADDLE_CLIENT_TOKEN: paddleCredential('PADDLE_CLIENT_TOKEN', ['test_', 'live_']),
   /** The notification destination's endpoint secret; verifies `Paddle-Signature`. */
-  PADDLE_WEBHOOK_SECRET: paddleCredential('PADDLE_WEBHOOK_SECRET', ['pdl_ntfset_']),
+  PADDLE_WEBHOOK_SECRET: paddleCredential('PADDLE_WEBHOOK_SECRET', ['pdl_ntfset_'], 32),
   PADDLE_PRICE_PRO_MONTHLY: paddlePriceId,
   PADDLE_PRICE_PRO_YEARLY: paddlePriceId,
   PADDLE_PRICE_BUSINESS_MONTHLY: paddlePriceId,

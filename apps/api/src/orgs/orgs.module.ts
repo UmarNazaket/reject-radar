@@ -11,6 +11,6 @@ import { OrgController } from './org.controller';
   imports: [AuthModule, EntitlementsModule],
   controllers: [MeController, OrgController, InvitesController],
   providers: [MembersService, InvitesService],
-  exports: [MembersService],
+  exports: [MembersService, InvitesService],
 })
 export class OrgsModule {}

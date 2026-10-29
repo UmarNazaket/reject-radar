@@ -45,9 +45,9 @@ export class MembersService {
     };
   }
 
-  /** How many people belong to the account; open invites are not counted (they are not seats yet, P5-D3). */
-  async count(orgId: string): Promise<number> {
-    const [row] = await this.db.select({ members: count() }).from(membership).where(byOrg(membership, { orgId }));
+  /** How many people belong to the account; open invites are not counted (they are not seats yet, P5-D3). Takes the caller's transaction when there is one. */
+  async count(orgId: string, executor: Database | Tx = this.db): Promise<number> {
+    const [row] = await executor.select({ members: count() }).from(membership).where(byOrg(membership, { orgId }));
     return row.members;
   }
 

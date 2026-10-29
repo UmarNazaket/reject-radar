@@ -11,6 +11,18 @@ export type PaddleEnv = (typeof PADDLE_ENVS)[number];
 export const PAID_PLAN_IDS = ['pro', 'business'] as const;
 export type PaidPlanId = (typeof PAID_PLAN_IDS)[number];
 
+/**
+ * The Paddle statuses in which a subscription still bills the account and pays for its plan. `past_due` stays paid
+ * while Paddle retries a failed payment (P7-D6); while one of these holds, checkout is refused (P7-D8) and events
+ * about any other subscription do not replace it.
+ */
+export const PAID_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due'] as const satisfies readonly SubscriptionStatus[];
+
+/** True when `status` is one of `PAID_SUBSCRIPTION_STATUSES`. */
+export function isPaidSubscriptionStatus(status: string | null | undefined): boolean {
+  return (PAID_SUBSCRIPTION_STATUSES as readonly (string | null | undefined)[]).includes(status);
+}
+
 /** A Paddle price and the plan and interval it sells. */
 export interface PriceEntry {
   priceId: string;
@@ -77,7 +89,10 @@ export interface BillingUsage {
   bulkRows: number;
   apiCalls: number;
   watchlist: number;
+  /** People who belong to the account. */
   members: number;
+  /** Members plus open invites: what the member limit is checked against when someone is invited (P5-D3). */
+  seats: number;
 }
 
 /** `GET /billing/subscription`: the resolved plan, the Paddle state behind it, and this month's usage (P7-D11). */

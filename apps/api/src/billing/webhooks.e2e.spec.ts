@@ -296,6 +296,65 @@ describe('billing: Paddle webhooks', () => {
     expect(await row(orgId)).toMatchObject({ plan: 'business', status: 'past_due', paddleSubscriptionId: b.id });
   });
 
+  it('a second live subscription is not applied and warns', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn');
+    const debug = jest.spyOn(Logger.prototype, 'debug');
+    const { orgId } = await account();
+    const customerId = paddleId('ctm');
+    const a = { id: paddleId('sub'), customerId, orgId, priceId: PRO_MONTH };
+    const b = { id: paddleId('sub'), customerId, orgId, priceId: BUSINESS_MONTH };
+    await deliver(paddleEvent('subscription.created', paddleSubscription(a), { occurred_at: '2030-01-15T10:00:00Z' }));
+    await deliver(paddleEvent('subscription.updated', paddleSubscription({ ...a, status: 'paused' }), { occurred_at: '2030-01-15T10:01:00Z' }));
+    await deliver(paddleEvent('subscription.created', paddleSubscription(b), { occurred_at: '2030-01-15T10:02:00Z' }));
+    const forEvent = (spy: jest.SpyInstance, eventId: string) =>
+      spy.mock.calls.filter(([context]) => typeof context === 'object' && context !== null && (context as { eventId?: unknown }).eventId === eventId);
+
+    // A late event about the replaced subscription, which no longer bills: nothing to warn about.
+    const late = paddleEvent('subscription.canceled', paddleSubscription({ ...a, status: 'canceled', periodEndsAt: null }), { occurred_at: '2030-01-15T10:03:00Z' });
+    await deliver(late);
+    expect(forEvent(warn, late.event_id)).toEqual([]);
+    expect(forEvent(debug, late.event_id)).toEqual([[{ eventId: late.event_id }, expect.any(String)]]);
+
+    // The replaced subscription is live again while the tracked one bills too: the owner is charged twice.
+    const resumed = paddleEvent('subscription.updated', paddleSubscription({ ...a, status: 'active' }), { occurred_at: '2030-01-15T10:04:00Z' });
+    await deliver(resumed);
+    expect(await row(orgId)).toMatchObject({ plan: 'business', status: 'active', paddleSubscriptionId: b.id });
+    expect(forEvent(warn, resumed.event_id)).toEqual([[{ eventId: resumed.event_id, orgId }, expect.stringMatching(/two live Paddle subscriptions/)]]);
+  });
+
+  it('a new live subscription is linked even when its event is older than the last one applied', async () => {
+    const { orgId } = await account();
+    const customerId = paddleId('ctm');
+    const a = { id: paddleId('sub'), customerId, orgId, priceId: PRO_MONTH };
+    const b = { id: paddleId('sub'), customerId, orgId, priceId: BUSINESS_MONTH };
+    await deliver(paddleEvent('subscription.created', paddleSubscription(a), { occurred_at: '2030-01-15T09:50:00Z' }));
+    await deliver(paddleEvent('subscription.updated', paddleSubscription({ ...a, status: 'paused' }), { occurred_at: '2030-01-15T10:05:00Z' }));
+
+    // B's creation is stamped before A's pause, but A no longer bills and B does.
+    await deliver(paddleEvent('subscription.created', paddleSubscription(b), { occurred_at: '2030-01-15T10:00:00Z' }));
+    expect(await row(orgId)).toMatchObject({ plan: 'business', status: 'active', paddleSubscriptionId: b.id });
+    expect(await occurredAtIs(orgId, '2030-01-15T10:00:00Z')).toBe(true);
+
+    // B's own older events still lose to the watermark.
+    await deliver(paddleEvent('subscription.updated', paddleSubscription({ ...b, status: 'past_due' }), { occurred_at: '2030-01-15T09:59:00Z' }));
+    expect(await row(orgId)).toMatchObject({ status: 'active', paddleSubscriptionId: b.id });
+  });
+
+  it('a late event about another subscription that no longer bills never relinks the row', async () => {
+    const { orgId } = await account();
+    const customerId = paddleId('ctm');
+    const a = { id: paddleId('sub'), customerId, orgId, priceId: PRO_MONTH };
+    const old = { id: paddleId('sub'), customerId, orgId, priceId: BUSINESS_MONTH };
+    await deliver(paddleEvent('subscription.created', paddleSubscription(a), { occurred_at: '2030-01-15T09:50:00Z' }));
+    await deliver(paddleEvent('subscription.canceled', paddleSubscription({ ...a, status: 'canceled', periodEndsAt: null }), { occurred_at: '2030-01-15T10:05:00Z' }));
+
+    for (const status of ['canceled', 'paused'] as const) {
+      await deliver(paddleEvent('subscription.updated', paddleSubscription({ ...old, status }), { occurred_at: '2030-01-15T10:00:00Z' }));
+      expect(await row(orgId)).toMatchObject({ plan: 'pro', status: 'canceled', paddleSubscriptionId: a.id });
+      expect(await occurredAtIs(orgId, '2030-01-15T10:05:00Z')).toBe(true);
+    }
+  });
+
   it('transaction.completed fills a missing customer', async () => {
     const { orgId } = await account();
     const customerId = paddleId('ctm');
@@ -367,8 +426,18 @@ describe('billing: Paddle webhooks', () => {
   });
 
   it('a signed body that is not a Paddle event answers 400 and keeps nothing', async () => {
+    const error = jest.spyOn(Logger.prototype, 'error');
     const res = await postWebhook(t, { event_type: 'subscription.created', occurred_at: '2030-01-15T10:00:00Z', data: {} }).expect(400);
     expect(res.body).toMatchObject({ code: 'BAD_REQUEST' });
+    expect(error).toHaveBeenLastCalledWith({ eventId: null, issues: ['event_id'] }, expect.any(String));
+
+    // A body whose data does not fit is logged by the paths that failed, never by the values in them.
+    const { orgId } = await account();
+    const event = paddleEvent('subscription.created', { ...paddleSubscription({ orgId, priceId: PRO_MONTH }), status: 'not-a-status-zq9', customer_id: undefined });
+    await postWebhook(t, event).expect(400);
+    expect(error).toHaveBeenLastCalledWith({ eventId: event.event_id, issues: ['data.status', 'data.customer_id'] }, expect.any(String));
+    expect(JSON.stringify(error.mock.calls)).not.toContain('not-a-status-zq9');
+    expect(await eventRows(event.event_id)).toEqual([]);
   });
 
   it('a handler error answers 500 and keeps nothing', async () => {
