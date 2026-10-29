@@ -20,14 +20,19 @@ export interface AccountFixture {
   paddleIds: string[];
   /** The owner's, the member's and the pending invite's email addresses. */
   emails: string[];
+  /** The id and file name of the account's bulk job, uploaded by its owner. */
+  bulkJobId: string;
+  bulkFileName: string;
 }
 
 export interface IsolationCase {
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   /** The route as Express lists it, with `:params`, for example `/v1/org/members/:userId`. */
   path: string;
-  /** A valid request body for the route, built from account B's fixture when it needs one. */
+  /** A valid request body for the route, built from account B's fixture when it needs one. A string body is sent as it is. */
   body?: (b: AccountFixture) => unknown;
+  /** The `Content-Type` of the body when it is not JSON (the bulk upload sends `text/csv`). */
+  contentType?: string;
   /** Query parameters the route needs to answer 200. */
   query?: Record<string, string>;
   /** Fills the `:params` of `path` with account B's ids; the harness then expects 404 and B unchanged. */
@@ -65,6 +70,15 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   { method: 'GET', path: '/v1/billing/subscription' },
   { method: 'POST', path: '/v1/billing/checkout', body: () => ({ plan: 'pro', interval: 'month' }) },
   { method: 'POST', path: '/v1/billing/portal' },
+  {
+    method: 'POST',
+    path: '/v1/bulk-jobs',
+    body: () => 'name,country,city,fei\r\nIsolation Uploader Ltd,PK,Karachi,\r\n',
+    contentType: 'text/csv',
+    query: { fileName: 'isolation-upload.csv' },
+  },
+  { method: 'GET', path: '/v1/bulk-jobs' },
+  { method: 'GET', path: '/v1/bulk-jobs/:id', target: (b) => ({ id: b.bulkJobId }) },
 ];
 
 export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }[] = [
@@ -106,6 +120,7 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
     reason: "Reference data; the plan's history window is the only account-dependent part.",
   },
   { method: 'GET', path: '/v1/billing/plans', reason: 'Public price list; no account data.' },
+  { method: 'GET', path: '/v1/bulk-jobs/template.csv', reason: 'The same template for every caller; no account data' },
   { method: 'POST', path: '/v1/webhooks/paddle', reason: 'Paddle calls it; the verified payload names the account.' },
   { method: 'GET', path: '/v1/taxonomy', reason: 'Reference data; the same for every caller.' },
   { method: 'GET', path: '/v1/firms/search', reason: 'Reference data; no account data in the results.' },

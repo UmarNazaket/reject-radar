@@ -74,9 +74,19 @@ describe('account isolation', () => {
       .update(subscription)
       .set({ plan: 'pro', status: 'canceled', paddleCustomerId, paddleSubscriptionId })
       .where(eq(subscription.orgId, owner.orgId));
+    // One bulk job, whose file name no other account may ever see.
+    const bulkFileName = `${tag}-private-suppliers.csv`;
+    const bulk = await owner.session
+      .post('/v1/bulk-jobs')
+      .query({ fileName: bulkFileName })
+      .set('Content-Type', 'text/csv')
+      .send(`name,country\r\n${tag} Private Supplier Ltd,PK\r\n`)
+      .expect(202);
     return {
       session: owner.session,
       fixture: {
+        bulkJobId: (bulk.body as { id: string }).id,
+        bulkFileName,
         orgId: owner.orgId,
         ownerId: owner.userId,
         memberId: member.userId,
@@ -112,6 +122,10 @@ describe('account isolation', () => {
       disputes: await rows(sql`select id, firm_id, status, message from dispute where org_id = ${orgId} order by id`),
       watchlist: await rows(sql`select id, label, notes from watchlist_item where org_id = ${orgId} order by id`),
       alerts: await rows(sql`select id, read_at from alert where org_id = ${orgId} order by id`),
+      bulkJobs: await rows(sql`select id, file_name, status, total, processed from bulk_job where org_id = ${orgId} order by id`),
+      bulkRows: await rows(sql`
+        select r.id, r.row_nr, r.input_name, r.status from bulk_job_row r join bulk_job j on j.id = r.job_id
+        where j.org_id = ${orgId} order by r.id`),
       subscription: await rows(sql`
         select plan, status, interval, paddle_customer_id, paddle_subscription_id, current_period_end, cancel_at, paddle_occurred_at
         from subscription where org_id = ${orgId}`),
@@ -162,6 +176,7 @@ describe('account isolation', () => {
   describe('account A never reaches account B', () => {
     const send = (session: TestSession, c: IsolationCase, path: string, body: unknown) => {
       const req = session[c.method.toLowerCase() as 'get' | 'post' | 'patch' | 'put' | 'delete'](path).query(c.query ?? {});
+      if (c.contentType) req.set('Content-Type', c.contentType);
       return body === undefined ? req : req.send(body as object);
     };
 
@@ -186,8 +201,8 @@ describe('account isolation', () => {
 
         // A CSV has no JSON body; its text is what the caller gets.
         const text = res.type === 'text/csv' ? res.text : JSON.stringify(res.body);
-        const { orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, emails, paddleIds } = b.fixture;
-        const secrets = [orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, ...emails, ...paddleIds];
+        const { orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, emails, paddleIds, bulkJobId, bulkFileName } = b.fixture;
+        const secrets = [orgId, ownerId, memberId, inviteId, watchlistItemId, watchlistLabel, watchlistFirmName, alertId, bulkJobId, bulkFileName, ...emails, ...paddleIds];
         expect({ route: label(c), leaked: secrets.filter((secret) => text.includes(secret)) }).toEqual({ route: label(c), leaked: [] });
         expect(await snapshot(b)).toEqual(before);
       },
