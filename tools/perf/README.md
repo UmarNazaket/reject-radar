@@ -29,11 +29,14 @@ Run it against a local API (`npx nx serve api`) and against staging, where the o
 node tools/perf/p6.mjs --base http://localhost:3000 --email <email> --password <password> --csv bulk-1000.csv [--firm <id>]... [--topic "<dashboard query string>"]...
 ```
 
+Without `--password` the script reads the password from the `P6_PASSWORD` environment variable, which keeps it out of the shell history (PowerShell: `$env:P6_PASSWORD = '…'`; bash: `read -rs P6_PASSWORD && export P6_PASSWORD`).
+
 - The account needs a verified email and the Business plan (bulk screening is Business and above). Use `org.plan_override = 'business'`. Each run uploads the file, so it uses the file's rows from the account's 5,000 a month; the upload is also limited to 10 an hour per user.
 - `--firm` and `--topic` can be given more than once. A topic is the dashboard's query string, for example `--topic "origin=PK&commodity=12"`. Every firm PDF uses one profile lookup (the same firm twice in a month costs one).
 - It logs in, wakes the API with `GET /v1/health`, then:
   - uploads the CSV, polls `GET /v1/bulk-jobs/:id` every 2 seconds until the job is `finished`, and prints the seconds taken. It exits 1 when that is over 180 for a file of up to 1,000 rows, or when `processed` does not equal `total`;
   - times 5 requests for each firm PDF and each topic PDF, checks that the answer is a PDF, prints the times and the maximum, and exits 1 when the maximum is over 3 seconds or any request failed.
+- It ends with one verdict line naming what was judged. When nothing was judged (a file of over 1,000 rows, which has no budget, and no `--firm` or `--topic`), it prints `NOTHING JUDGED` and exits 1 rather than pass.
 - It never prints the password or a cookie.
 
 To write a 1,000-row file from real firms in the local database:

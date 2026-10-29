@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Phase 6 measurements: a 1,000-row bulk job and the two PDF reports (roadmap P6; spec §9.8, §9.9, V11).
-// Usage: node tools/perf/p6.mjs --base <url> --email <e> --password <p> --csv <file> [--firm <id>]... [--topic <dashboard query string>]...
+// Usage: node tools/perf/p6.mjs --base <url> --email <e> [--password <p>] --csv <file> [--firm <id>]... [--topic <dashboard query string>]...
+//   The password may come from the P6_PASSWORD environment variable instead, which keeps it out of the shell history.
 //   e.g. --topic "origin=PK&commodity=12"
 // No dependencies: Node 20+ `fetch`. Exits 1 when the job takes over 180 s (for a file of up to 1,000 rows), when any PDF takes
-// over 3 s, or when any request fails. It never prints the password or a cookie.
+// over 3 s, when any request fails, or when nothing was judged. It never prints the password or a cookie.
 
 import { readFile } from 'node:fs/promises';
 
@@ -28,8 +29,10 @@ function parseArgs(argv) {
     if (MULTI.has(name)) args[name].push(value);
     else args[name] = value;
   }
+  // --password wins; without it the password is read from P6_PASSWORD, so it need not be typed on the command line.
+  if (!args.password && process.env.P6_PASSWORD) args.password = process.env.P6_PASSWORD;
   for (const key of ['base', 'email', 'password', 'csv']) {
-    if (!args[key]) throw new Error(`--${key} is required`);
+    if (!args[key]) throw new Error(key === 'password' ? '--password or the P6_PASSWORD environment variable is required' : `--${key} is required`);
   }
   for (const id of args.firm) {
     if (!/^[1-9]\d{0,9}$/.test(id)) throw new Error('--firm must be a firm id (1 to 10 digits)');
