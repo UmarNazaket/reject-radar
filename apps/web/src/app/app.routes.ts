@@ -1,3 +1,27 @@
-import { Route } from '@angular/router';
+import type { Route } from '@angular/router';
+import { signedIn, signedOut } from './core/guards';
 
-export const appRoutes: Route[] = [];
+// The signed-in shell comes first: an empty-path parent also matches the empty URL when none of its children do, so
+// listing the sign-in screens first would show their layout, empty, at `/`.
+export const appRoutes: Route[] = [
+  {
+    path: '',
+    canActivate: [signedIn],
+    loadComponent: () => import('./layout/app-layout').then((m) => m.AppLayout),
+    children: [{ path: '', pathMatch: 'full', loadComponent: () => import('./home/home').then((m) => m.Home) }],
+  },
+  {
+    path: '',
+    loadComponent: () => import('./layout/public-layout').then((m) => m.PublicLayout),
+    children: [
+      { path: 'login', canActivate: [signedOut], loadComponent: () => import('./auth/login').then((m) => m.Login) },
+      { path: 'signup', canActivate: [signedOut], loadComponent: () => import('./auth/signup').then((m) => m.Signup) },
+      { path: 'forgot', canActivate: [signedOut], loadComponent: () => import('./auth/forgot').then((m) => m.Forgot) },
+      // These come from emails and work whether or not someone is signed in on this browser.
+      { path: 'verify', loadComponent: () => import('./auth/verify').then((m) => m.Verify) },
+      { path: 'reset', loadComponent: () => import('./auth/reset').then((m) => m.Reset) },
+      { path: 'invite/:token', loadComponent: () => import('./auth/invite').then((m) => m.Invite) },
+    ],
+  },
+  { path: '**', loadComponent: () => import('./layout/not-found').then((m) => m.NotFound) },
+];

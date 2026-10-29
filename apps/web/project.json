@@ -21,11 +21,19 @@
           {
             "glob": "**/*",
             "input": "apps/web/public"
+          },
+          {
+            "glob": "*.json",
+            "input": "libs/i18n/src/catalogs",
+            "output": "i18n"
           }
         ],
         "styles": [
-          "apps/web/src/styles.scss"
-        ]
+          "apps/web/src/styles.css"
+        ],
+        "define": {
+          "API_ORIGIN": "''"
+        }
       },
       "configurations": {
         "production": {
@@ -42,6 +50,24 @@
             }
           ],
           "outputHashing": "all"
+        },
+        "staging": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "500kb",
+              "maximumError": "1mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "4kb",
+              "maximumError": "8kb"
+            }
+          ],
+          "outputHashing": "all",
+          "define": {
+            "API_ORIGIN": "'https://rejectradar-staging-api.umarnazaket.com'"
+          }
         },
         "development": {
           "optimization": false,
@@ -61,6 +87,9 @@
         "development": {
           "buildTarget": "web:build:development"
         }
+      },
+      "options": {
+        "proxyConfig": "apps/web/proxy.conf.json"
       }
     },
     "lint": {
