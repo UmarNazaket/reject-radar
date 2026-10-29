@@ -16,3 +16,9 @@ export const signedOut: CanActivateFn = async () => {
   const router = inject(Router);
   return (await current(inject(Session))) ? router.createUrlTree(['/']) : true;
 };
+
+/** Staff screens: anyone else sees the page-not-found screen, as if the area did not exist. The API checks again. */
+export const staffOnly: CanActivateFn = async () => {
+  const router = inject(Router);
+  return (await current(inject(Session)))?.user.isPlatformAdmin ? true : router.createUrlTree(['/not-found']);
+};

@@ -43,6 +43,10 @@ body {
 :lang(ur) body {
   line-height: 2;
 }
+/* English inside another language's page (FDA's text, the admin area) keeps the Latin font. */
+[lang='en'] {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
 /* Nastaliq's line box is twice as tall, so a floated label would hang below the field's outline; this centres it on it. */
 :lang(ur) .mat-mdc-form-field .mdc-floating-label--float-above {
   margin-top: -8px;
