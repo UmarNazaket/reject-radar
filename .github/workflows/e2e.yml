@@ -1,0 +1,83 @@
+name: E2E
+
+on:
+  schedule:
+    # Nightly at 01:41 UTC, ahead of the 02:30 maintenance run.
+    - cron: '41 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e
+  cancel-in-progress: true
+
+# The web app against the real API and Postgres, with apps/web-e2e/seed.sql as its data. No real secrets: the API gets
+# a fresh JWT secret and Paddle values that only pass its start-up checks.
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: rejectradar
+          POSTGRES_PASSWORD: rejectradar
+          POSTGRES_DB: rejectradar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rejectradar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://rejectradar:rejectradar@localhost:5432/rejectradar
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - name: Migrate and seed the database
+        run: |
+          npx drizzle-kit migrate --config=libs/db/drizzle.config.ts
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f apps/web-e2e/seed.sql
+      - run: npx nx build api
+      - name: Start the API
+        env:
+          NODE_ENV: development
+          PORT: 3000
+          APP_ORIGIN: http://localhost:4200
+          MAIL_TRANSPORT: smtp
+          MAIL_FROM: RejectRadar <e2e@example.com>
+          PADDLE_ENV: sandbox
+          PADDLE_API_KEY: pdl_sdbx_apikey_e2enightly
+          PADDLE_CLIENT_TOKEN: test_e2enightly
+          PADDLE_WEBHOOK_SECRET: pdl_ntfset_e2enightlye2enightlye2enightly
+          PADDLE_PRICE_PRO_MONTHLY: pri_e2e00000000000000000000001
+          PADDLE_PRICE_PRO_YEARLY: pri_e2e00000000000000000000002
+          PADDLE_PRICE_BUSINESS_MONTHLY: pri_e2e00000000000000000000003
+          PADDLE_PRICE_BUSINESS_YEARLY: pri_e2e00000000000000000000004
+        run: |
+          JWT_SECRET="$(npm run -s secret)" nohup node dist/apps/api/main.js > api.log 2>&1 &
+          for _ in $(seq 1 30); do curl -sf http://localhost:3000/v1/health > /dev/null && exit 0; sleep 2; done
+          cat api.log
+          exit 1
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright
+        run: npx nx e2e web-e2e -- --project=chromium
+      - name: API log
+        if: failure()
+        run: cat api.log
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/.playwright/apps/web-e2e
+          if-no-files-found: ignore
+          retention-days: 14
