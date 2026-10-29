@@ -25,6 +25,7 @@ import { ImportAlertsModule } from '../import-alerts/import-alerts.module';
 import { MrlModule } from '../mrl/mrl.module';
 import { NoticesModule } from '../notices/notices.module';
 import { OrgsModule } from '../orgs/orgs.module';
+import { ReportsModule } from '../reports/reports.module';
 import { TaxonomyModule } from '../taxonomy/taxonomy.module';
 import { WatchlistsModule } from '../watchlists/watchlists.module';
 import type { AppOverrides } from './app-overrides';
@@ -69,6 +70,7 @@ export class AppModule {
         MrlModule,
         NoticesModule,
         OrgsModule,
+        ReportsModule,
         TaxonomyModule,
         WatchlistsModule,
       ],

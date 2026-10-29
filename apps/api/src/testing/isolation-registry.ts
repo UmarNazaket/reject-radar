@@ -90,6 +90,9 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   },
   { method: 'POST', path: '/v1/bulk-jobs/:id/watch-confirmed', target: (b) => ({ id: b.bulkJobId }) },
   { method: 'GET', path: '/v1/bulk-jobs/:id/export.csv', target: (b) => ({ id: b.bulkJobId }) },
+  // A firm is reference data, but the report is the caller's: it names the caller's account and charges the caller's lookup.
+  // No firm belongs to account B, so the id is one no firm has; the harness proves the call neither succeeds nor touches B.
+  { method: 'GET', path: '/v1/firms/:id/report.pdf', target: () => ({ id: '2147483647' }) },
 ];
 
 export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }[] = [
