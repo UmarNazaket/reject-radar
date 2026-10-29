@@ -8,7 +8,7 @@ export interface RateLimitRule {
   name: string;
   limit: number;
   windowMs: number;
-  key: 'ip' | 'ip+email' | 'email' | 'user';
+  key: 'ip' | 'ip+email' | 'email' | 'user' | 'apiKey';
 }
 
 export interface LimitResult {
@@ -114,8 +114,8 @@ export const RATE_LIMIT_METADATA = 'rateLimit:rules';
 /** Applies every rule to the route (or controller); the request is refused if any of them refuses. */
 export const RateLimit = (...rules: RateLimitRule[]): MethodDecorator & ClassDecorator => SetMetadata(RATE_LIMIT_METADATA, rules);
 
-/** What the guard reads of the request; `context` is set by the auth guard (RequestContext). */
-type LimitedRequest = Request & { context?: { userId: string } };
+/** What the guard reads of the request; `context` is set by the auth guard (RequestContext), `apiKey` by the API key guard. */
+type LimitedRequest = Request & { context?: { userId: string }; apiKey?: { keyId: string } };
 
 /** The longest address a valid request can carry (RFC 5321 path limit); anything longer is junk. */
 const MAX_EMAIL_LENGTH = 254;
@@ -134,7 +134,7 @@ function emailOf(req: LimitedRequest): string | undefined {
   return normalised.length > MAX_EMAIL_LENGTH ? INVALID_EMAIL : normalised;
 }
 
-/** The value a rule counts by. A missing email or signed-in user falls back to the IP (the caller is not known yet). */
+/** The value a rule counts by. A missing email, signed-in user or API key falls back to the IP (the caller is not known yet). */
 function keyValue(rule: RateLimitRule, req: LimitedRequest): string {
   const ip = req.ip ?? 'unknown';
   switch (rule.key) {
@@ -148,6 +148,8 @@ function keyValue(rule: RateLimitRule, req: LimitedRequest): string {
     }
     case 'user':
       return req.context?.userId ?? ip;
+    case 'apiKey':
+      return req.apiKey?.keyId ?? ip;
   }
 }
 

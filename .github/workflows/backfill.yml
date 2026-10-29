@@ -17,6 +17,8 @@ on:
           - eu_mrl
           - taxonomy_remap
           - entities
+          - summaries
+          - summary_translations
       from:
         description: Earliest date to load, YYYY-MM-DD (fda_refusals and rasff; blank uses the command default)
         type: string
@@ -64,6 +66,8 @@ jobs:
           SOURCE: ${{ inputs.source }}
           FROM: ${{ inputs.from }}
           DETAILS_LIMIT: ${{ inputs.details_limit }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
         run: |
           set -euo pipefail
           if [ -n "$FROM" ] && ! printf '%s' "$FROM" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
@@ -87,6 +91,8 @@ jobs:
             eu_mrl)           "${cli[@]}" sync:eu-mrl --no-events ;;
             taxonomy_remap)   "${cli[@]}" taxonomy:remap ;;
             entities)         "${cli[@]}" entities:link ;;
+            summaries)        "${cli[@]}" summaries:draft --limit 1000 ;;
+            summary_translations) "${cli[@]}" summaries:translate --limit 3000 ;;
             *) echo "unknown source: $SOURCE" >&2; exit 1 ;;
           esac
       # A page-structure failure saves the page under INGEST_FAILURE_DIR (default tmp/ingest-failures).

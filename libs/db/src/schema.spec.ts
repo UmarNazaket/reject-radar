@@ -251,6 +251,27 @@ describe('database schema (spec §7)', () => {
     ).rejects.toMatchObject({ code: '23514', constraint });
   });
 
+  it('import_alert_summary allows only the app locales and statuses, and an approved summary records its review', async () => {
+    await client.query("insert into import_alert (number, title, text_sha256, url) values ('99-19', 'Seafood', 'abc', 'https://example.gov/99-19')");
+    const insert = (locale: string, status: string, reviewedAt: string | null) =>
+      client.query(
+        "insert into import_alert_summary (alert_number, locale, content, source_sha256, model, status, reviewed_at) values ('99-19', $1, '{}', 'abc', 'm', $2, $3)",
+        [locale, status, reviewedAt],
+      );
+    await expect(insert('fr', 'draft', null)).rejects.toMatchObject({ code: '23514', constraint: 'import_alert_summary_locale_ck' });
+    await expect(insert('en', 'published', null)).rejects.toMatchObject({ code: '23514', constraint: 'import_alert_summary_status_ck' });
+    await expect(insert('en', 'approved', null)).rejects.toMatchObject({ code: '23514', constraint: 'import_alert_summary_reviewed_ck' });
+    await insert('en', 'approved', '2026-10-29T00:00:00Z');
+    await insert('ur', 'machine', null);
+  });
+
+  it('api_key prefixes start with rr_live_', async () => {
+    const insert = (prefix: string, hash: string) =>
+      client.query("insert into api_key (id, org_id, name, prefix, key_hash) values (gen_random_uuid(), $1, 'k', $2, $3)", [ORG_A, prefix, hash]);
+    await expect(insert('sk_live_AbCd', 'h1')).rejects.toMatchObject({ code: '23514', constraint: 'api_key_prefix_ck' });
+    await insert('rr_live_AbCd', 'h2');
+  });
+
   describe('bulk tables', () => {
     const JOB = '0192c7a0-0000-7000-8000-0000000000c1';
 

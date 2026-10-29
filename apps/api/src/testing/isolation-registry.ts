@@ -25,6 +25,10 @@ export interface AccountFixture {
   bulkFileName: string;
   /** The id of the job's only row, which account A's review of it must not change. */
   bulkRowId: string;
+  /** The id, name and display prefix of the account's API key. */
+  apiKeyId: string;
+  apiKeyName: string;
+  apiKeyPrefix: string;
 }
 
 export interface IsolationCase {
@@ -90,6 +94,9 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   },
   { method: 'POST', path: '/v1/bulk-jobs/:id/watch-confirmed', target: (b) => ({ id: b.bulkJobId }) },
   { method: 'GET', path: '/v1/bulk-jobs/:id/export.csv', target: (b) => ({ id: b.bulkJobId }) },
+  { method: 'GET', path: '/v1/org/api-keys' },
+  { method: 'POST', path: '/v1/org/api-keys', body: () => ({ name: 'Key made by A' }) },
+  { method: 'DELETE', path: '/v1/org/api-keys/:id', target: (b) => ({ id: b.apiKeyId }) },
   // The notices behind the topic report are reference data; the report is the caller's, since it names the caller's own account.
   { method: 'GET', path: '/v1/dashboards/topic/report.pdf', query: { origin: 'PK' } },
 ];
@@ -146,8 +153,15 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   },
   { method: 'POST', path: '/v1/firms/:id/disputes', reason: "Writes only to the caller's account; there is no read." },
   { method: 'GET', path: '/v1/import-alerts/:number', reason: 'Reference data.' },
+  { method: 'GET', path: '/v1/admin/import-alert-summaries', reason: 'Platform admins only; Import Alert summaries are reference data.' },
+  { method: 'PATCH', path: '/v1/admin/import-alert-summaries/:number', reason: 'Platform admins only; Import Alert summaries are reference data.' },
   { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl', reason: 'Reference data.' },
+  ...['notices', 'notices/:id', 'dashboards/topic', 'firms/search', 'firms/:id', 'import-alerts/:number', 'taxonomy', 'usage'].map((route) => ({
+    method: 'GET',
+    path: `/v1/public/${route}`,
+    reason: "Public API: an API key, not a session, names the account, and only the key's own account is read or charged (public-api.e2e.spec.ts).",
+  })),
   { method: 'POST', path: '/v1/invites/preview', reason: 'The invite token in the body decides the account; the caller needs no session.' },
   { method: 'POST', path: '/v1/invites/accept', reason: 'The invite token in the body decides the account; the caller needs no session.' },
 ];

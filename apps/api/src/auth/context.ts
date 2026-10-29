@@ -21,6 +21,15 @@ export interface RequestContext {
 /** An Express request after `AuthGuard`: `context` is unset on public routes. The one place the request is typed with it. */
 export type ContextRequest = Request & { context?: RequestContext };
 
+/** The caller of a public API route, set by `ApiKeyGuard`: the key and the account it belongs to. */
+export interface ApiKeyContext {
+  keyId: string;
+  orgId: string;
+}
+
+/** An Express request after `ApiKeyGuard`: `apiKey` is set only on `@ApiKeyAuth()` routes. */
+export type ApiKeyRequest = Request & { apiKey?: ApiKeyContext };
+
 /**
  * The `where` clause of an account-owned table: the caller's `orgId` plus any further conditions. Services filter
  * these tables through this and nothing else, so a query can never reach another account's rows.

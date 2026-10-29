@@ -104,6 +104,10 @@
   "errors.TOO_MANY_ROWS": "The file has more than 5,000 rows. Split it into smaller files.",
   "errors.ROW_PENDING": "This is still being processed. Try again in a moment.",
   "errors.NOT_A_CANDIDATE": "That firm is not one of this row's candidates.",
+  "errors.API_KEY_MISSING": "Send your API key in the Authorization header as \"Bearer rr_live_…\".",
+  "errors.API_KEY_INVALID": "This API key is not valid or has been revoked.",
+  "errors.API_KEY_LIMIT": "Your account already has 5 API keys. Revoke one before creating another.",
+  "errors.SUMMARY_STALE": "The alert text changed after this summary was drafted. Wait for a new draft.",
 
   "taxonomy.commodity.cereals": "Cereals",
   "taxonomy.commodity.rice": "Rice",

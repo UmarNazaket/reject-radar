@@ -80,6 +80,7 @@ async function seedImportAlertSummaries(db: Database): Promise<void> {
     sourceSha256,
     content: summaryContent(locale),
     model: 'fixture',
+    reviewedAt: status === 'approved' ? new Date() : null,
   });
   await db.insert(importAlertSummary).values([
     row('99-08', 'en', 'approved', ALERT_SHA),

@@ -104,6 +104,10 @@
   "errors.TOO_MANY_ROWS": "फ़ाइल में 5,000 से अधिक पंक्तियाँ हैं। उसे छोटी फ़ाइलों में बाँटें।",
   "errors.ROW_PENDING": "इस पर अभी कार्रवाई चल रही है। थोड़ी देर बाद फिर कोशिश करें।",
   "errors.NOT_A_CANDIDATE": "यह फ़र्म इस पंक्ति के उम्मीदवारों में शामिल नहीं है।",
+  "errors.API_KEY_MISSING": "अपनी API कुंजी Authorization हेडर में \"Bearer rr_live_…\" के रूप में भेजें।",
+  "errors.API_KEY_INVALID": "यह API कुंजी मान्य नहीं है या रद्द कर दी गई है।",
+  "errors.API_KEY_LIMIT": "आपके खाते में पहले से 5 API कुंजियाँ हैं। नई बनाने से पहले एक रद्द करें।",
+  "errors.SUMMARY_STALE": "यह सारांश बनने के बाद अलर्ट का पाठ बदल गया। नए मसौदे की प्रतीक्षा करें।",
 
   "taxonomy.commodity.cereals": "अनाज",
   "taxonomy.commodity.rice": "चावल",

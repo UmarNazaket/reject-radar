@@ -2,6 +2,7 @@ import {
   DESTINATIONS,
   EVENT_KINDS,
   LISTS,
+  LOCALES,
   MATCH_REVIEW_REASONS,
   MATCH_REVIEW_STATUSES,
   NOTICE_SOURCES,
@@ -9,6 +10,7 @@ import {
   RULE_MATCH_TYPES,
   RULE_SOURCES,
   SEVERITIES,
+  SUMMARY_STATUSES,
   SYNC_SOURCES,
   SYNC_STATUSES,
 } from '@rejectradar/contracts';
@@ -286,7 +288,12 @@ export const importAlertSummary = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.alertNumber, t.locale] })],
+  (t) => [
+    primaryKey({ columns: [t.alertNumber, t.locale] }),
+    check('import_alert_summary_locale_ck', oneOf('locale', LOCALES)),
+    check('import_alert_summary_status_ck', oneOf('status', SUMMARY_STATUSES)),
+    check('import_alert_summary_reviewed_ck', sql`status <> 'approved' or reviewed_at is not null`),
+  ],
 );
 
 // ── Other border sources ────────────────────────────────────────────────────
