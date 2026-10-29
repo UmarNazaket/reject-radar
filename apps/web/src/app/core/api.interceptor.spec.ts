@@ -76,6 +76,18 @@ describe('apiInterceptor', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/login'], { queryParams: { next: '/firms/12' } });
   });
 
+  it('passes on the retried request’s own error without ending the session', async () => {
+    const result = firstValueFrom(http.get('/v1/firms/1')).catch((error: unknown) => error);
+    backend.expectOne('/v1/firms/1').flush({ code: 'UNAUTHORIZED' }, expired);
+    await Promise.resolve();
+    backend.expectOne('/v1/auth/refresh').flush(null, { status: 204, statusText: 'No Content' });
+    await new Promise((resolve) => setTimeout(resolve));
+    backend.expectOne('/v1/firms/1').flush({ code: 'PLAN_LIMIT_REACHED' }, { status: 403, statusText: 'Forbidden' });
+    expect(((await result) as { status: number }).status).toBe(403);
+    expect(session.clear).not.toHaveBeenCalled();
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
   it('does not redirect a visitor who was never signed in', async () => {
     session.signedIn.mockReturnValue(false);
     const result = firstValueFrom(http.get('/v1/me')).catch((error: unknown) => error);
