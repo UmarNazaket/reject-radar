@@ -1,19 +1,19 @@
 import { importAlertEnglishSummaryContentSchema, type ImportAlertSummaryContent } from '@rejectradar/contracts';
 import { type Database, importAlert, importAlertSummary } from '@rejectradar/db';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import type { GenerateJson, ResponseSchema } from './gemini';
+import type { GenerateJson, ResponseSchema } from './claude';
 
-/** The shape Gemini is asked for; the contract schema checks it again, with the word limit. */
+/** The shape the model is asked for; the contract schema checks it again, with the word limit. */
 export const SUMMARY_RESPONSE_SCHEMA: ResponseSchema = {
-  type: 'OBJECT',
+  type: 'object',
   properties: {
-    summary: { type: 'STRING' },
-    whatTriggersListing: { type: 'STRING' },
-    howFirmsGetRemoved: { type: 'STRING' },
-    testsMentioned: { type: 'ARRAY', items: { type: 'STRING' } },
+    summary: { type: 'string' },
+    whatTriggersListing: { type: 'string' },
+    howFirmsGetRemoved: { type: 'string' },
+    testsMentioned: { type: 'array', items: { type: 'string' } },
   },
   required: ['summary', 'whatTriggersListing', 'howFirmsGetRemoved', 'testsMentioned'],
-  propertyOrdering: ['summary', 'whatTriggersListing', 'howFirmsGetRemoved', 'testsMentioned'],
+  additionalProperties: false,
 };
 
 export const DRAFT_SYSTEM = [
@@ -50,7 +50,7 @@ export interface DraftResult {
   drafted: string[];
   /** Alerts whose answers failed the schema twice; drafted again on the next run. */
   invalid: string[];
-  /** The alert whose Gemini call failed, which ends the run; drafted again on the next run. */
+  /** The alert whose model call failed, which ends the run; drafted again on the next run. */
   failed: string[];
 }
 
@@ -99,7 +99,7 @@ export async function draftSummaries(
       );
     } catch (error) {
       console.error(`summaries:draft: ${alert.number}: ${(error as Error).message}`);
-      // Gemini is down or refuses the key: the rest wait for the next run rather than fail one by one.
+      // Claude is down or refuses the key: the rest wait for the next run rather than fail one by one.
       result.failed.push(alert.number);
       break;
     }

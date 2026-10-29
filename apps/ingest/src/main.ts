@@ -21,7 +21,7 @@ import { syncImportAlerts } from './sync/import-alerts/sync';
 import { DEFAULT_DETAILS_LIMIT, syncRasff } from './sync/rasff/sync';
 import { remapTaxonomy } from './sync/remap';
 import { draftSummaries } from './summaries/draft';
-import { createGemini } from './summaries/gemini';
+import { createClaude } from './summaries/claude';
 import { loadSummaryEnv } from './summaries/summary-env';
 import { translateSummaries } from './summaries/translate';
 import { syncUkBn } from './sync/uk-bn/sync';
@@ -263,13 +263,13 @@ program
 
 program
   .command('summaries:draft')
-  .description('Draft English summaries of the food Import Alerts whose text is new or changed, with Gemini, for a person to approve (spec §9.10). Exits 1 when an alert could not be drafted')
+  .description('Draft English summaries of the food Import Alerts whose text is new or changed, with Claude, for a person to approve (spec §9.10). Exits 1 when an alert could not be drafted')
   .option('--limit <n>', 'most alerts to draft in this run', positiveInt, 20)
   .option('--only <numbers>', 'only these alerts, e.g. 99-08,16-131', list)
   .action(async (options: { limit: number; only?: string[] }) => {
     const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
     try {
-      const result = await draftSummaries({ db, ...createGemini(loadSummaryEnv()) }, options);
+      const result = await draftSummaries({ db, ...createClaude(loadSummaryEnv()) }, options);
       console.log(JSON.stringify(result, null, 2));
       if (result.failed.length + result.invalid.length > 0) process.exitCode = 1;
     } finally {
@@ -279,12 +279,12 @@ program
 
 program
   .command('summaries:translate')
-  .description('Machine-translate approved English Import Alert summaries into Urdu, Hindi and Bengali, with Gemini (spec §9.10). Exits 1 when a translation could not be made')
+  .description('Machine-translate approved English Import Alert summaries into Urdu, Hindi and Bengali, with Claude (spec §9.10). Exits 1 when a translation could not be made')
   .option('--limit <n>', 'most translations to make in this run', positiveInt, 30)
   .action(async (options: { limit: number }) => {
     const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
     try {
-      const result = await translateSummaries({ db, ...createGemini(loadSummaryEnv()) }, options);
+      const result = await translateSummaries({ db, ...createClaude(loadSummaryEnv()) }, options);
       console.log(JSON.stringify(result, null, 2));
       if (result.failed.length + result.invalid.length > 0) process.exitCode = 1;
     } finally {
