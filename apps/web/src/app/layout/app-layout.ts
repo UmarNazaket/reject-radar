@@ -40,15 +40,15 @@ import { LanguageSelect } from './language-select';
           <a routerLink="/bulk" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.bulk') }}
           </a>
-          @if (session.user()?.isPlatformAdmin) {
-            <a routerLink="/admin" routerLinkActive="bg-slate-100" lang="en" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">Admin</a>
-          }
           <a routerLink="/alerts" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.alerts') }}
             @if (alertCount.unread(); as unread) {
               <span class="ms-1 inline-block rounded-full bg-red-600 px-1.5 text-xs text-white" [attr.aria-label]="i18n.t('web.alerts.unreadCount', { count: unread })">{{ unread }}</span>
             }
           </a>
+          @if (session.user()?.isPlatformAdmin) {
+            <a routerLink="/admin" routerLinkActive="bg-slate-100" lang="en" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">Admin</a>
+          }
         </nav>
         <div class="ms-auto flex items-center gap-3">
           <app-language-select />

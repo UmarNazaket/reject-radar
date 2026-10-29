@@ -42,7 +42,10 @@ export const appRoutes: Route[] = [
         path: 'admin',
         canActivate: [staffOnly],
         loadComponent: () => import('./admin/admin-layout').then((m) => m.AdminLayout),
-        children: [{ path: '', pathMatch: 'full', loadComponent: () => import('./admin/source-health').then((m) => m.SourceHealth) }],
+        children: [
+          { path: '', pathMatch: 'full', loadComponent: () => import('./admin/source-health').then((m) => m.SourceHealth) },
+          { path: 'summaries', loadComponent: () => import('./admin/summaries').then((m) => m.AdminSummaries) },
+        ],
       },
       { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },
     ],

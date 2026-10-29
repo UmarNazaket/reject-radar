@@ -26,5 +26,8 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
   `,
 })
 export class AdminLayout {
-  protected readonly tabs = [{ path: '/admin', label: 'Source health' }];
+  protected readonly tabs = [
+    { path: '/admin', label: 'Source health' },
+    { path: '/admin/summaries', label: 'Summaries' },
+  ];
 }
