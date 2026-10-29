@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { type Route, Router } from '@angular/router';
-import { signedIn, signedOut } from './core/guards';
+import { signedIn, signedOut, staffOnly } from './core/guards';
 
 // The signed-in shell comes first: an empty-path parent also matches the empty URL when none of its children do, so
 // listing the sign-in screens first would show their layout, empty, at `/`.
@@ -37,6 +37,12 @@ export const appRoutes: Route[] = [
           { path: 'billing', loadComponent: () => import('./settings/billing').then((m) => m.Billing) },
           { path: 'api-keys', loadComponent: () => import('./settings/api-keys').then((m) => m.ApiKeys) },
         ],
+      },
+      {
+        path: 'admin',
+        canActivate: [staffOnly],
+        loadComponent: () => import('./admin/admin-layout').then((m) => m.AdminLayout),
+        children: [{ path: '', pathMatch: 'full', loadComponent: () => import('./admin/source-health').then((m) => m.SourceHealth) }],
       },
       { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },
     ],

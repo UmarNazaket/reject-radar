@@ -40,6 +40,9 @@ import { LanguageSelect } from './language-select';
           <a routerLink="/bulk" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.bulk') }}
           </a>
+          @if (session.user()?.isPlatformAdmin) {
+            <a routerLink="/admin" routerLinkActive="bg-slate-100" lang="en" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">Admin</a>
+          }
           <a routerLink="/alerts" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.alerts') }}
             @if (alertCount.unread(); as unread) {

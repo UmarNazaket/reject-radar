@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import type { ApiEnv } from '@rejectradar/contracts';
 import { LoggerModule } from 'nestjs-pino';
 import type { Options } from 'pino-http';
+import { AdminModule } from '../admin/admin.module';
 import { AlertsModule } from '../alerts/alerts.module';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { AuthModule } from '../auth/auth.module';
@@ -64,6 +65,7 @@ export class AppModule {
         LoggerModule.forRoot({ pinoHttp: overrides.logStream ? [pinoOptions(env, false), overrides.logStream] : pinoOptions(env, true) }),
         DatabaseModule.register(env.DATABASE_URL),
         MailModule.register(env, overrides),
+        AdminModule,
         AlertsModule,
         ApiKeysModule,
         AuthModule,
