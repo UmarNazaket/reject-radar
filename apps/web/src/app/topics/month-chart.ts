@@ -31,23 +31,25 @@ export const DESTINATION_COLORS: Record<Destination, string> = { US: '#2a78d6', 
         <span>{{ monthLabel(months()[0].month) }}</span>
         <span>{{ monthLabel(months()[months().length - 1].month) }}</span>
       </div>
-      <table class="sr-only">
-        <caption>{{ caption() }}</caption>
-        <tr>
-          <th scope="col">{{ i18n.t('web.topics.month') }}</th>
-          @for (d of destinations(); track d) {
-            <th scope="col">{{ taxonomy.label('destination', d) }}</th>
-          }
-        </tr>
-        @for (m of months(); track m.month) {
+      <div class="sr-only">
+        <table>
+          <caption>{{ caption() }}</caption>
           <tr>
-            <th scope="row">{{ monthLabel(m.month) }}</th>
+            <th scope="col">{{ i18n.t('web.topics.month') }}</th>
             @for (d of destinations(); track d) {
-              <td>{{ m[d] }}</td>
+              <th scope="col">{{ taxonomy.label('destination', d) }}</th>
             }
           </tr>
-        }
-      </table>
+          @for (m of months(); track m.month) {
+            <tr>
+              <th scope="row">{{ monthLabel(m.month) }}</th>
+              @for (d of destinations(); track d) {
+                <td>{{ m[d] }}</td>
+              }
+            </tr>
+          }
+        </table>
+      </div>
     </figure>
   `,
 })

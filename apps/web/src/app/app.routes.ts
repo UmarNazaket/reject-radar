@@ -16,6 +16,8 @@ export const appRoutes: Route[] = [
       { path: 'firms', loadComponent: () => import('./firms/firm-search').then((m) => m.FirmSearch) },
       { path: 'firms/:id', loadComponent: () => import('./firms/firm-profile').then((m) => m.FirmProfile) },
       { path: 'mrl', loadComponent: () => import('./mrl/mrl-check').then((m) => m.MrlCheck) },
+      { path: 'watchlist', loadComponent: () => import('./watchlist/watchlist').then((m) => m.Watchlist) },
+      { path: 'alerts', loadComponent: () => import('./alerts/alert-list').then((m) => m.AlertList) },
       { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },
     ],
   },

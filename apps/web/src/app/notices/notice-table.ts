@@ -9,7 +9,7 @@ import { Taxonomy } from '../core/taxonomy';
   selector: 'app-notice-table',
   imports: [RouterLink],
   template: `
-    <div class="overflow-x-auto">
+    <div class="relative overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="text-slate-600">
           <tr class="border-b border-slate-200">

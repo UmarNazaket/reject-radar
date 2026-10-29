@@ -3,6 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
+import { AlertCount } from '../core/alert-count';
 import { apiUrl } from '../core/api';
 import { FormState } from '../core/form-state';
 import { I18n } from '../core/i18n';
@@ -18,18 +19,27 @@ import { LanguageSelect } from './language-select';
     <header class="border-b border-slate-200 bg-white">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
         <a routerLink="/" class="text-lg font-semibold text-slate-900">{{ i18n.t('web.app.name') }}</a>
-        <nav class="flex gap-1" [attr.aria-label]="i18n.t('web.nav.label')">
-          <a routerLink="/topics" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+        <nav class="flex max-w-full gap-1 overflow-x-auto" [attr.aria-label]="i18n.t('web.nav.label')">
+          <a routerLink="/topics" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.topics') }}
           </a>
-          <a routerLink="/notices" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+          <a routerLink="/notices" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.notices') }}
           </a>
-          <a routerLink="/firms" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+          <a routerLink="/firms" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.firms') }}
           </a>
-          <a routerLink="/mrl" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+          <a routerLink="/mrl" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.mrl') }}
+          </a>
+          <a routerLink="/watchlist" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
+            {{ i18n.t('web.nav.watchlist') }}
+          </a>
+          <a routerLink="/alerts" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
+            {{ i18n.t('web.nav.alerts') }}
+            @if (alertCount.unread(); as unread) {
+              <span class="ms-1 inline-block rounded-full bg-red-600 px-1.5 text-xs text-white" [attr.aria-label]="i18n.t('web.alerts.unreadCount', { count: unread })">{{ unread }}</span>
+            }
           </a>
         </nav>
         <div class="ms-auto flex items-center gap-3">
@@ -68,6 +78,11 @@ export class AppLayout {
   private readonly router = inject(Router);
   protected readonly form = new FormState(this.i18n);
   protected readonly sent = signal(false);
+  protected readonly alertCount = inject(AlertCount);
+
+  constructor() {
+    this.alertCount.refresh();
+  }
 
   protected resend(email: string): void {
     void this.form.run(async () => {
