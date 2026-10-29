@@ -165,7 +165,7 @@ Bulk screening is for Business and above: 5,000 rows a month on Business and 50,
 
 `alert` rows are kept: the spec sets no retention for them, and the owner decides at P11 with the size budget. `maintenance.yml` runs it daily at 02:30 UTC (see the schedules below).
 
-### Owner steps before merging `p6/bulk-pdf`
+### Owner steps for P6
 
 1. **Migrate staging:** apply `0016` with the direct, not pooled, connection string, after P7's `0015`.
 2. **GitHub:** nothing new. `maintenance.yml` uses the `INGEST_DATABASE_URL` secret the other workflows already use. After the merge, run it once by hand (`workflow_dispatch`) and check its counts.
@@ -370,7 +370,7 @@ Locally, `npx nx serve api` sends account emails to Mailpit, whose inbox is at h
 | `npx nx build web --configuration=staging` | `https://rejectradar-staging-api.umarnazaket.com`                                  |
 | `npx nx build web`                         | The same origin; production gets its API address with P11                          |
 
-Cloudflare Pages builds staging with `npx nx build web --configuration=staging` on Node 24 and publishes `dist/apps/web/browser`. Unknown paths serve `index.html`, so deep links work. The API's `APP_ORIGIN` must be the web app's origin exactly, for CORS and the links in emails.
+Cloudflare Pages deploys `main` as the staging site and every other branch as a preview. It builds with `npx -y npm@11.12.1 ci && npx nx build web --configuration=staging` on the Node version in `.nvmrc` and publishes `dist/apps/web/browser`. The project sets `SKIP_DEPENDENCY_INSTALL`, so the build command installs the dependencies itself, with npm 11, because the build image's npm 10 rejects this lockfile; keep that npm version in step with the one that writes `package-lock.json`. Unknown paths serve `index.html`, so deep links work. The API's `APP_ORIGIN` must be the web app's origin exactly, for CORS and the links in emails.
 
 `apps/web-e2e` holds the Playwright tests. The E2E workflow runs them nightly at 01:41 UTC (and on demand) in Chromium against the real API and Postgres, migrated and loaded with `apps/web-e2e/seed.sql`; a failed run uploads the Playwright report. To run them locally, load the seed into an empty, migrated database, start the API against it, and run `npx nx e2e web-e2e -- --project=chromium`.
 
@@ -442,7 +442,7 @@ About 70 development days in 11 phases.
 | P3    | Entity resolution: linking, firm facts, merge and split                              | Built and merged; 20,833 firms from 90,614 records on a full local load. Waiting for the labelled-pair precision gate and the first link on staging.                                                                                                             |
 | P4    | Auth, accounts, email and the i18n core                                              | Built and merged (PRs #35 and #36). Sign-up, login, sessions, password reset, members and invites, the email cap and localised emails. Still to do: the staging migrations and settings.                                                                         |
 | P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Built and merged (PR #37). See "The product API". Still to do: the staging migration, mail settings and link check; then the p95 and hand checks.                                                                                                                |
-| P6    | Bulk supplier screening and PDF reports                                              | Built on branch `p6/bulk-pdf`, not merged. See "Bulk screening and PDF reports". Still to do: review; before merging, the owner steps there (the `0016` staging migration); then the staging measurements and the restart check.                                 |
+| P6    | Bulk supplier screening and PDF reports                                              | Built and merged (PR #39). See "Bulk screening and PDF reports". Still to do: the owner steps there (the `0016` staging migration); then the staging measurements and the restart check.                                                                         |
 | P7    | Billing with Paddle                                                                  | Built and merged (PR #38). See "Billing with Paddle". Still to do: the owner steps there (Paddle token, webhook destination, Render variables, the `0015` staging migration); then the manual sandbox purchase.                                                  |
 | P8    | Public API and Import Alert summaries                                                | Built and merged (PR #40). See "Public API and Import Alert summaries". Still to do: the owner steps there (the `0017` staging migration, the first summaries).                                                                                                  |
 | P9    | Web app in four languages                                                            | Done: every screen in the four languages (#42, #44, #46, #47), with the right-to-left and accessibility (axe, WCAG 2.1 AA) passes and a first download of about 100 kB. Playwright tests run nightly. Open: a native-speaker review of the ur, hi and bn strings |
