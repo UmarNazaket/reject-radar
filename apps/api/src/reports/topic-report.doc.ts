@@ -1,7 +1,22 @@
 import { type DashboardQuery, type DashboardResponse, DESTINATIONS, type Destination, type NoticeItem } from '@rejectradar/contracts';
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces';
 import { PDF_COPY } from './pdf-copy';
-import { clip, dataDatesLine, empty, grid, GRID_LAYOUT, MUTED, notesBox, PAGE, reportHeader, rule, section, th } from './pdf-layout';
+import {
+  breakable,
+  clip,
+  dataCell,
+  dataDatesLine,
+  empty,
+  grid,
+  GRID_LAYOUT,
+  MUTED,
+  notesBox,
+  PAGE,
+  reportHeader,
+  rule,
+  section,
+  th,
+} from './pdf-layout';
 
 /**
  * What the topic report is built from: the query, the dashboard's answer for it, and the English names the dashboard
@@ -20,8 +35,11 @@ export interface TopicReportData {
   dashboard: DashboardResponse;
 }
 
-/** Notices listed in the report (the dashboard returns 20; the page has room for 10). */
-const NOTICES_SHOWN = 10;
+/** Notices listed in the report (the dashboard returns 20; 8 leave real room on the page in the worst case). */
+/** The commodity name is cut here, so the topic line stays within two lines. */
+const COMMODITY_CLIP = 45;
+
+const NOTICES_SHOWN = 8;
 
 /** The dashboard's source for each destination, and which freshness entry says how current it is. */
 const SOURCE_OF: Record<Destination, string> = {
@@ -37,10 +55,14 @@ const hazardName = (data: TopicReportData, id: number): string => data.hazardNam
 const shownDestinations = (query: DashboardQuery): Destination[] =>
   DESTINATIONS.filter((d) => query.destination === undefined || query.destination.includes(d));
 
-const num = (value: number): TableCell => ({
-  text: String(value),
-  alignment: 'right',
-});
+/**
+ * A right-aligned count. The month cells are about 22 pt wide, which holds five digits; a longer count is set smaller, so it
+ * stays in its cell and never wraps (a number has no space to wrap at).
+ */
+const num = (value: number): TableCell => {
+  const digits = String(value).length;
+  return { text: String(value), alignment: 'right', ...(digits <= 5 ? {} : { fontSize: digits === 6 ? 6 : 5 }) };
+};
 
 /** `[US, EU, ..., total]`: one cell for each destination shown, and a total when there is more than one. */
 function countCells(counts: Record<Destination, number>, destinations: readonly Destination[], total: number): TableCell[] {
@@ -61,10 +83,18 @@ const sum = (counts: Record<Destination, number>, destinations: readonly Destina
 function topicBlock(data: TopicReportData): Content[] {
   const { query } = data;
   const destinations = query.destination === undefined ? PDF_COPY.allDestinations : shownDestinations(query).join(', ');
-  const commodity = data.commodityName === null ? PDF_COPY.allCommodities : clip(data.commodityName, 60);
+  const commodityName =
+    data.commodityName !== null
+      ? clip(data.commodityName, COMMODITY_CLIP)
+      : query.commodity === undefined
+        ? null
+        : // The dashboard does not check that the id exists, so a commodity without a label is still a filter and is named by its id.
+          PDF_COPY.commodityNumber(query.commodity);
+  const commodity = commodityName ?? PDF_COPY.allCommodities;
   return [
     {
       text: `${clip(data.originName, 36)} (${query.origin})`,
+      ...breakable(data.originName),
       fontSize: 14,
       bold: true,
       margin: [0, 2, 0, 1],
@@ -72,7 +102,7 @@ function topicBlock(data: TopicReportData): Content[] {
     {
       text: [
         { text: `${PDF_COPY.commodityLabel}: `, color: MUTED },
-        commodity,
+        { text: commodity, ...breakable(commodity) },
         { text: `   ${PDF_COPY.destinationsLabel}: `, color: MUTED },
         destinations,
       ],
@@ -148,7 +178,7 @@ function hazardsBlock(data: TopicReportData, destinations: readonly Destination[
           ['*', ...destinations.map(() => 40), ...(destinations.length > 1 ? [40] : [])],
           [th(PDF_COPY.hazard), ...countHeaders(destinations)],
           findings.map((f): TableCell[] => [
-            { text: clip(hazardName(data, f.hazardId), 44) },
+            dataCell(hazardName(data, f.hazardId), 36),
             ...countCells(f.byDestination, destinations, f.count),
           ]),
           1,
@@ -158,7 +188,7 @@ function hazardsBlock(data: TopicReportData, destinations: readonly Destination[
 
 function noticesBlock(data: TopicReportData): Content[] {
   const latest = data.dashboard.latest.slice(0, NOTICES_SHOWN);
-  const hazards = (notice: NoticeItem): string => clip(notice.hazardIds.map((id) => hazardName(data, id)).join(', '), 28);
+  const hazardList = (notice: NoticeItem): string => notice.hazardIds.map((id) => hazardName(data, id)).join(', ');
   const table =
     latest.length === 0
       ? empty()
@@ -168,9 +198,9 @@ function noticesBlock(data: TopicReportData): Content[] {
           latest.map((n): TableCell[] => [
             { text: n.noticeOn },
             { text: n.destination },
-            { text: clip(n.productText ?? n.title ?? '', 40) },
-            { text: clip(n.firmName ?? '', 22) },
-            { text: hazards(n) },
+            dataCell(n.productText ?? n.title ?? '', 40),
+            dataCell(n.firmName ?? '', 22),
+            dataCell(hazardList(n), 28),
           ]),
           1,
         );

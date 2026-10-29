@@ -102,13 +102,14 @@ describe('topic report PDF', () => {
   });
 
   it('refuses a Free account with PLAN_UPGRADE_REQUIRED, as JSON', async () => {
-    const { session } = await account('free');
+    const { session, orgId } = await account('free');
     const res = await session.get('/v1/dashboards/topic/report.pdf?origin=PK').expect(403);
     expect(res.headers['content-type']).toMatch(/application\/json/);
     expect(res.body).toMatchObject({
       code: 'PLAN_UPGRADE_REQUIRED',
       details: { feature: 'pdf', plan: 'free' },
     });
+    expect(await lookups(orgId)).toBe(0);
   });
 
   it.each([
@@ -176,11 +177,11 @@ describe('topic report PDF', () => {
       expect(hazardRows).toHaveLength(dash.findings.length);
 
       const text = textOf(doc).join('\n');
-      for (const item of dash.latest.slice(0, 10)) {
+      for (const item of dash.latest.slice(0, 8)) {
         expect(text).toContain(item.noticeOn);
         expect(text).toContain((item.productText ?? '').slice(0, 30));
       }
-      for (const item of dash.latest.slice(10)) expect(text).not.toContain(item.productText ?? '\u0000');
+      for (const item of dash.latest.slice(8)) expect(text).not.toContain(item.productText ?? '\u0000');
       expect(text).toContain(PDF_COPY.disclaimer);
       expect(text).toContain(company);
       expect(text).not.toContain(other.company);
@@ -199,6 +200,14 @@ describe('topic report PDF', () => {
     expect(text).toContain(labels.commodities.find((c) => c.id === 101)?.label);
     expect(text).toContain(labels.hazards.find((h) => h.id === 100)?.label);
     expect(text).not.toContain(PDF_COPY.hazardNumber(100));
+  });
+
+  it('names a commodity id the taxonomy does not have by its id, not as all commodities', async () => {
+    const { orgId } = await account();
+    const { doc } = await t.app.get(TopicReportService).document({ orgId }, { origin: 'PK', commodity: 2147483000 });
+    const text = textOf(doc).join(String.fromCharCode(10));
+    expect(text).toContain(PDF_COPY.commodityNumber(2147483000));
+    expect(text).not.toContain(PDF_COPY.allCommodities);
   });
 
   it('puts a busy topic, 36 months with every destination, on one page', async () => {

@@ -182,20 +182,28 @@ describe('topicReportDoc', () => {
     );
   });
 
+  it('names a commodity whose label is unknown by its id, never as all commodities', () => {
+    const text = words(topicReportDoc(data({ query: { origin: 'PK', commodity: 99999 }, commodityName: null })));
+    expect(text).toContain(PDF_COPY.commodityNumber(99999));
+    expect(text).not.toContain(PDF_COPY.allCommodities);
+    // With no commodity in the query, the report says all commodities.
+    expect(words(topicReportDoc(data()))).toContain(PDF_COPY.allCommodities);
+  });
+
   it('falls back to a plain label for a hazard the names do not know', () => {
     const d = data({ hazardNames: {} });
     expect(words(topicReportDoc(d))).toContain(PDF_COPY.hazardNumber(1));
   });
 
-  it('prints the 10 newest notices of the 20 the dashboard returns, with their dates and firms', () => {
+  it('prints the 8 newest notices of the 20 the dashboard returns, with their dates and firms', () => {
     const d = data();
     const text = words(topicReportDoc(d));
-    for (const n of d.dashboard.latest.slice(0, 10)) {
+    for (const n of d.dashboard.latest.slice(0, 8)) {
       expect(text).toContain(n.noticeOn);
       expect(text).toContain(n.productText ?? '');
       expect(text).toContain(n.firmName ?? '');
     }
-    for (const n of d.dashboard.latest.slice(10)) expect(text).not.toContain(n.productText ?? '');
+    for (const n of d.dashboard.latest.slice(8)) expect(text).not.toContain(n.productText ?? '');
   });
 
   it('says so when there are no notices or hazards', () => {
@@ -222,32 +230,61 @@ describe('topicReportDoc', () => {
     expect(pageCount(pdf)).toBe(1);
   });
 
-  it('stays on one page in the worst case: 36 months, every destination, 10 hazards, 10 notices, all text as long as it can be', async () => {
-    const long = (n: number, w = 'WIDEWORDS') => `${w} `.repeat(n).trim();
-    const longNames: Record<number, string> = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, long(40, 'HAZARD')]));
-    const worst = data({
-      orgName: long(80, 'Account'),
-      originName: long(30, 'COUNTRY'),
-      commodityName: long(40, 'COMMODITY'),
-      query: {
-        origin: 'PK',
-        commodity: 101,
-        destination: [...DESTINATIONS] as Destination[],
-      },
-      hazardNames: longNames,
-      dashboard: dashboard({
-        latest: Array.from({ length: 20 }, (_, i) =>
-          noticeItem(i + 1, {
-            productText: long(100),
-            firmName: long(60, 'EXPORTER'),
-            title: long(60),
-            hazardIds: [1, 2, 3, 4, 5, 6],
-          }),
-        ),
-      }),
+  describe('the worst case', () => {
+    // The widest letters in a mix of cases, in one unbroken run (no space to wrap at) and in words.
+    const run = (n: number) => 'WMwmWMmwWM'.repeat(Math.ceil(n / 10)).slice(0, n);
+    const words60 = (n: number) =>
+      `${'WmWMwM'.repeat(2)} `
+        .repeat(Math.ceil(n / 13))
+        .slice(0, n)
+        .trim();
+    const SIX_DIGITS = 999_999;
+    const allUnsynced: DashboardResponse['freshness'] = [];
+
+    function worstData(text: (n: number) => string, query: TopicReportData['query']): TopicReportData {
+      const wide = { US: SIX_DIGITS, EU: SIX_DIGITS, UK: SIX_DIGITS, AU: SIX_DIGITS };
+      return data({
+        orgName: text(60),
+        originName: text(36),
+        commodityName: text(60),
+        query,
+        hazardNames: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, text(120)])),
+        dashboard: dashboard({
+          months: Array.from({ length: 36 }, (_, i) => ({ month: monthBack(35 - i), ...wide })),
+          totals12m: wide,
+          findings: Array.from({ length: 10 }, (_, i) => ({ hazardId: i + 1, count: SIX_DIGITS * 4, byDestination: wide })),
+          latest: Array.from({ length: 20 }, (_, i) =>
+            noticeItem(i + 1, { productText: text(200), firmName: text(100), title: text(100), hazardIds: [1, 2, 3, 4, 5, 6] }),
+          ),
+          historyFrom: '2023-11-01',
+          // Every source unsynced: the longest data-dates wording.
+          freshness: allUnsynced,
+        }),
+      });
+    }
+
+    const everyDestination = { origin: 'PK', commodity: 101, destination: [...DESTINATIONS] as Destination[] };
+
+    it.each([
+      ['unbroken wide letters', run],
+      ['words of wide letters', words60],
+    ])('stays on one page with %s in every name, 6-digit counts and no source synced', async (_name, text) => {
+      const doc = topicReportDoc(worstData(text, everyDestination));
+      expect(words(doc)).toContain(PDF_COPY.notSynced);
+      expect(pageCount(await render(doc))).toBe(1);
     });
-    const pdf = await render(topicReportDoc(worst));
-    expect(pageCount(pdf)).toBe(1);
+
+    it('stays on one page with a single destination too', async () => {
+      const doc = topicReportDoc(worstData(run, { origin: 'PK', commodity: 101, destination: ['US'] }));
+      expect(pageCount(await render(doc))).toBe(1);
+    });
+
+    it('breaks an unbroken name inside its cell rather than letting it run on', () => {
+      const doc = topicReportDoc(worstData(run, everyDestination));
+      const broken = JSON.stringify(doc.content).match(/"wordBreak":"break-all"/g) ?? [];
+      // The account, the commodity, the hazards (10) and the notices (8 products, 8 firms, 8 hazard lists) are all set to break.
+      expect(broken.length).toBeGreaterThanOrEqual(2 + 10 + 24);
+    });
   });
 
   it('renders Vietnamese letters in an account or origin name', async () => {

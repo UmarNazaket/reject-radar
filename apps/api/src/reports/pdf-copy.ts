@@ -102,6 +102,7 @@ export const PDF_COPY = {
   topicReport: 'Topic report',
   commodityLabel: 'Commodity',
   allCommodities: 'All commodities',
+  commodityNumber: (id: number) => `Commodity ${id}`,
   destinationsLabel: 'Destinations',
   allDestinations: 'All destinations',
   monthlyCounts: 'Notices by month',

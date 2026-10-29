@@ -11,6 +11,18 @@ export const HEADER_FILL = '#F4F5F7';
 /** A string cut to `max` characters, with an ellipsis when it was longer. Long agency text must not push a report to a second page. */
 export const clip = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`);
 /** Agency wording, in quotation marks. */
+/**
+ * Style for text that comes from data (names, products): pdfmake wraps only at spaces, so a name with no space in it and wider
+ * than its cell would run on past the cell into the next one. Text with a long unbroken run is set to wrap at any character.
+ */
+export const breakable = (text: string): { wordBreak?: 'break-all' } => (/\S{14,}/.test(text) ? { wordBreak: 'break-all' } : {});
+
+/** A table cell of data text: clipped to `max` characters, and wrapping inside its cell. */
+export const dataCell = (text: string, max: number): { text: string; wordBreak?: 'break-all' } => {
+  const clipped = clip(text, max);
+  return { text: clipped, ...breakable(clipped) };
+};
+
 export const quote = (text: string): string => `“${text}”`;
 
 /** `items` cut to the first `shown`, plus the visible "+n more" marker when some were left out. */
@@ -96,7 +108,7 @@ export function reportHeader(title: string, orgName: string, generatedAt: string
         color: MUTED,
         stack: [
           {
-            text: [`${PDF_COPY.preparedFor} `, { text: clip(orgName, 60), bold: true, color: INK }],
+            text: [`${PDF_COPY.preparedFor} `, { text: clip(orgName, 60), bold: true, color: INK, ...breakable(orgName) }],
           },
           {
             text: `${PDF_COPY.generatedOn} ${generatedAt} ${PDF_COPY.utc}`,
