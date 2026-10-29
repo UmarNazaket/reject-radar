@@ -370,7 +370,7 @@ Locally, `npx nx serve api` sends account emails to Mailpit, whose inbox is at h
 | `npx nx build web --configuration=staging` | `https://rejectradar-staging-api.umarnazaket.com`                                  |
 | `npx nx build web`                         | The same origin; production gets its API address with P11                          |
 
-Cloudflare Pages builds staging with `npx nx build web --configuration=staging` on Node 24 and publishes `dist/apps/web/browser`. Unknown paths serve `index.html`, so deep links work. The API's `APP_ORIGIN` must be the web app's origin exactly, for CORS and the links in emails.
+Cloudflare Pages deploys `main` as the staging site and every other branch as a preview. It builds with `npx -y npm@11.12.1 ci && npx nx build web --configuration=staging` on the Node version in `.nvmrc` and publishes `dist/apps/web/browser`. The project sets `SKIP_DEPENDENCY_INSTALL`, so the build command installs the dependencies itself, with npm 11, because the build image's npm 10 rejects this lockfile; keep that npm version in step with the one that writes `package-lock.json`. Unknown paths serve `index.html`, so deep links work. The API's `APP_ORIGIN` must be the web app's origin exactly, for CORS and the links in emails.
 
 ### Common commands
 
