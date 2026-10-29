@@ -276,6 +276,18 @@ describe('database schema (spec §7)', () => {
       expect(rows[2].indexdef).toContain('UNIQUE');
       expect(rows[2].indexdef).toContain('(job_id, row_nr)');
     });
+
+    it('a bulk row starts with no failed attempts, and attempts is never null', async () => {
+      const job = '0192c7a0-0000-7000-8000-0000000000c2';
+      await client.query("insert into bulk_job (id, org_id, file_name, total) values ($1, $2, 'b.csv', 1)", [job, ORG_A]);
+      const { rows } = await client.query<{ attempts: number }>("insert into bulk_job_row (job_id, row_nr, input_name) values ($1, 1, 'Acme') returning attempts", [job]);
+      expect(rows).toEqual([{ attempts: 0 }]);
+      const { rows: columns } = await client.query<{ data_type: string; is_nullable: string; column_default: string }>(
+        "select data_type, is_nullable, column_default from information_schema.columns where table_name = 'bulk_job_row' and column_name = 'attempts'",
+      );
+      expect(columns).toEqual([{ data_type: 'smallint', is_nullable: 'NO', column_default: '0' }]);
+      await expect(client.query('update bulk_job_row set attempts = null where job_id = $1', [job])).rejects.toMatchObject({ code: '23502' });
+    });
   });
 
   it('stores a dispute kind, defaulting to other', async () => {

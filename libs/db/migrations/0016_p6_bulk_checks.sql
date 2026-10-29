@@ -1,4 +1,5 @@
 DROP INDEX "bulk_job_row_job_row_idx";--> statement-breakpoint
+ALTER TABLE "bulk_job_row" ADD COLUMN "attempts" smallint DEFAULT 0 NOT NULL;--> statement-breakpoint
 CREATE INDEX "bulk_job_active_idx" ON "bulk_job" USING btree ("status") WHERE status in ('queued', 'running');--> statement-breakpoint
 CREATE INDEX "bulk_job_finished_idx" ON "bulk_job" USING btree ("finished_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "bulk_job_row_job_row_idx" ON "bulk_job_row" USING btree ("job_id","row_nr");--> statement-breakpoint

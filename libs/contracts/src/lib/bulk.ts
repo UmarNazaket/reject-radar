@@ -21,6 +21,11 @@ export const BULK_LIMITS = {
   pageSize: 100,
   /** Problems listed in an `INVALID_ROWS` answer. */
   maxProblems: 20,
+  /** Longest `name` and `city` cells accepted, in characters after trimming; longer is `too_long`. */
+  maxNameLength: 300,
+  maxCityLength: 120,
+  /** Failed attempts after which a row that cannot be matched is written `no_record`, so its job still finishes. */
+  maxRowAttempts: 3,
 } as const;
 
 /** One possible firm for a row, as stored in `bulk_job_row.candidates`. */

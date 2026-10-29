@@ -15,7 +15,7 @@ export interface BulkInputRow {
   fei: string | null;
 }
 
-export type BulkRowProblem = 'required' | 'too_short' | 'unknown_country' | 'not_digits';
+export type BulkRowProblem = 'required' | 'too_short' | 'too_long' | 'unknown_country' | 'not_digits';
 
 const REQUIRED_COLUMNS = ['name', 'country'] as const;
 
@@ -137,6 +137,8 @@ export async function parseBulkCsv(body: AsyncIterable<Buffer>, limits: typeof B
       const fei = cell(columns.fei);
       if (!name) problem(dataRows, 'name', 'required');
       else if (name.length < 2) problem(dataRows, 'name', 'too_short');
+      else if (name.length > limits.maxNameLength) problem(dataRows, 'name', 'too_long');
+      if (city.length > limits.maxCityLength) problem(dataRows, 'city', 'too_long');
       const countryCode = country ? normalizeCountry(country) : null;
       if (!country) problem(dataRows, 'country', 'required');
       else if (!countryCode) problem(dataRows, 'country', 'unknown_country');

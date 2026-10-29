@@ -106,6 +106,22 @@ describe('parseBulkCsv', () => {
     });
   });
 
+  it('a name over 300 characters or a city over 120 is too_long; at the limit both are accepted', async () => {
+    const atLimit = `${'N'.repeat(300)},PK,${'c'.repeat(120)}`;
+    const rows = await parseText(`name,country,city\n${atLimit}\n`);
+    expect(rows).toEqual([{ rowNr: 1, name: 'N'.repeat(300), countryCode: 'PK', city: 'c'.repeat(120), fei: null }]);
+
+    const error = await rejection(parseText(`name,country,city\n${'N'.repeat(301)},PK,Lahore\nAcme Foods,PK,${'c'.repeat(121)}\n${atLimit}\n`));
+    expect(error.code).toBe('INVALID_ROWS');
+    expect(error.details).toEqual({
+      count: 2,
+      problems: [
+        { row: 1, column: 'name', problem: 'too_long' },
+        { row: 2, column: 'city', problem: 'too_long' },
+      ],
+    });
+  });
+
   it('counts every problem but lists at most 20', async () => {
     const rows = Array.from({ length: 25 }, () => 'X,PK').join('\n');
     const error = await rejection(parseText(`name,country\n${rows}\n`));
@@ -143,8 +159,9 @@ describe('parseBulkCsv', () => {
     });
 
     it('accepts exactly 2 MB and rejects one byte more', async () => {
-      const head = 'name,country\n';
-      const pad = (extra: number) => `${head}${'a'.repeat(BULK_LIMITS.maxBytes - head.length - 3 + extra)},PK`;
+      // The padding sits in a column the parser ignores, so no cell is over its length limit.
+      const head = 'name,country,note\nAcme Foods,PK,';
+      const pad = (extra: number) => `${head}${'a'.repeat(BULK_LIMITS.maxBytes - head.length + extra)}`;
       expect(Buffer.byteLength(pad(0))).toBe(BULK_LIMITS.maxBytes);
       await expect(parseText(pad(0), 65536)).resolves.toHaveLength(1);
       const error = await rejection(parseText(pad(1), 65536));

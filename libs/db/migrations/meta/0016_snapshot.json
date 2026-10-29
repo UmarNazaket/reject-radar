@@ -1,5 +1,5 @@
 {
-  "id": "f25a6438-339f-4e59-af0d-3380e9e89b74",
+  "id": "e647795c-f004-4fb0-bcda-facd3c216333",
   "prevId": "6cfa4eab-7678-45ca-b99f-1767acfda81e",
   "version": "7",
   "dialect": "postgresql",
@@ -3889,6 +3889,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'[]'::jsonb"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {

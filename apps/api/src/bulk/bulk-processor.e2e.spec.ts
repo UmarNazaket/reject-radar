@@ -27,6 +27,7 @@ interface LogLine {
   level: number;
   msg?: string;
   jobId?: string;
+  rowId?: number;
   err?: { message?: string };
 }
 
@@ -293,12 +294,12 @@ describe('bulk processor (P6-D5, P6-D6)', () => {
     expect(await jobOf(id)).toMatchObject({ status: 'finished', processed: 60 });
   });
 
-  it('a batch error logs the job id and the error, ends the worker, and the job resumes once stale', async () => {
+  it('a connection error ends the worker without counting against the row, and the job resumes once stale', async () => {
     const secretName = 'Confidential Supplier Name Pvt Ltd';
     const id = await seedJob({ status: 'queued', heartbeatAgo: null, rows: Array.from({ length: 60 }, () => ({ name: secretName, country: 'PK' })) });
     let calls = 0;
     search.mockImplementation(async function (this: FirmSearchService, query: FirmSearchQuery) {
-      if (++calls === 3) throw new Error('search went away');
+      if (++calls === 3) throw Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
       return realSearch.call(this, query);
     });
     chunks.length = 0;
@@ -307,11 +308,13 @@ describe('bulk processor (P6-D5, P6-D6)', () => {
 
     const failed = logLines().filter((line) => line.msg === 'bulk_job_batch_failed');
     expect(failed).toHaveLength(1);
-    expect(failed[0]).toMatchObject({ level: 50, jobId: id, err: { message: 'search went away' } });
+    expect(failed[0]).toMatchObject({ level: 50, jobId: id, err: { message: 'read ECONNRESET' } });
+    expect(logLines().filter((line) => line.msg === 'bulk_row_failed')).toEqual([]);
     expect(chunks.join('')).not.toContain(secretName);
     const job = await jobOf(id);
     expect(job.status).toBe('running');
     expect(await pendingOf(id)).toBeGreaterThan(0);
+    expect((await rowsOf(id)).every((row) => row.attempts === 0)).toBe(true);
 
     // The worker is gone and its heartbeat ages; the next GET resumes the job.
     search.mockImplementation(callThrough);
@@ -320,6 +323,57 @@ describe('bulk processor (P6-D5, P6-D6)', () => {
     await processor.idle();
     expect(await jobOf(id)).toMatchObject({ status: 'finished', processed: 60 });
     expect(await pendingOf(id)).toBe(0);
+  });
+
+  it('a row whose match always fails is no_record after 3 attempts, and the job finishes', async () => {
+    const poison = 'Poison Pill Exporters Ltd';
+    // Two failing rows, one in each of the job's two batches; the others are ordinary strong matches.
+    const inputs = Array.from({ length: 60 }, (_, i) => (i === 4 || i === 57 ? { name: poison, country: 'PK' } : STRONG));
+    const id = await seedJob({ status: 'queued', heartbeatAgo: null, rows: inputs });
+    search.mockImplementation(async function (this: FirmSearchService, query: FirmSearchQuery) {
+      if (query.name === poison) throw new Error('this row cannot be matched');
+      return realSearch.call(this, query);
+    });
+    chunks.length = 0;
+    processor.start(id);
+    await processor.idle();
+
+    expect(await jobOf(id)).toMatchObject({ status: 'finished', total: 60, processed: 60 });
+    const rows = await rowsOf(id);
+    const failedRows = [rows[4], rows[57]];
+    for (const row of failedRows) expect(row).toMatchObject({ status: 'no_record', firmId: null, score: null, candidates: [], attempts: 3 });
+    const others = rows.filter((row) => !failedRows.includes(row));
+    expect(others.every((row) => row.status === 'matched' && row.score === '0.9600' && row.attempts === 0)).toBe(true);
+    expect(search.mock.calls.filter(([query]) => query.name === poison)).toHaveLength(6);
+
+    const lines = logLines().filter((line) => line.msg === 'bulk_row_failed');
+    expect(lines).toHaveLength(6);
+    for (const line of lines) expect(line).toMatchObject({ jobId: id, rowId: expect.any(Number) });
+    expect(new Set(lines.map((line) => line.rowId))).toEqual(new Set(failedRows.map((row) => row.id)));
+    expect(logLines().filter((line) => line.msg === 'bulk_job_batch_failed')).toEqual([]);
+    expect(chunks.join('')).not.toContain(poison);
+  });
+
+  it('a row that fails once and then succeeds is classified normally, with 1 attempt', async () => {
+    const flaky = 'Al Rahman Rice Mills';
+    const id = await seedJob({ status: 'queued', heartbeatAgo: null, rows: [STRONG, { name: flaky, country: 'PK' }, NO_RECORD] });
+    let failedOnce = false;
+    search.mockImplementation(async function (this: FirmSearchService, query: FirmSearchQuery) {
+      if (query.name === flaky && !failedOnce) {
+        failedOnce = true;
+        throw new Error('a passing hiccup');
+      }
+      return realSearch.call(this, query);
+    });
+    processor.start(id);
+    await processor.idle();
+
+    expect(await jobOf(id)).toMatchObject({ status: 'finished', processed: 3 });
+    const [strong, retried, none] = await rowsOf(id);
+    expect(strong).toMatchObject({ status: 'matched', attempts: 0 });
+    expect(retried).toMatchObject({ status: 'review', score: '0.8500', attempts: 1 });
+    expect((retried.candidates as BulkCandidate[]).map((c) => c.firmId)).toEqual([firms.alRahmanLahore, firms.alRahmanKarachi]);
+    expect(none).toMatchObject({ status: 'no_record', attempts: 0 });
   });
 
   it('shutdown: close() mid-job stops between batches without an error, and the next boot finishes the job', async () => {

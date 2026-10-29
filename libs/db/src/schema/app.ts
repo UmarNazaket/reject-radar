@@ -329,6 +329,8 @@ export const bulkJobRow = pgTable(
     firmId: bigint('firm_id', { mode: 'number' }).references(() => firm.id),
     score: numeric('score', { precision: 5, scale: 4 }),
     candidates: jsonb('candidates').notNull().default(sql`'[]'::jsonb`),
+    /** Failed attempts to match this row; at `BULK_LIMITS.maxRowAttempts` the row is written `no_record` (P6-D5). */
+    attempts: smallint('attempts').notNull().default(0),
   },
   (t) => [
     uniqueIndex('bulk_job_row_job_row_idx').on(t.jobId, t.rowNr),

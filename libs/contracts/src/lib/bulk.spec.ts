@@ -15,6 +15,9 @@ describe('bulk contracts', () => {
       staleAfterSec: 60,
       pageSize: 100,
       maxProblems: 20,
+      maxNameLength: 300,
+      maxCityLength: 120,
+      maxRowAttempts: 3,
     });
   });
 

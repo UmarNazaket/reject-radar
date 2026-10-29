@@ -1,6 +1,7 @@
 import { labelQueryScore } from '@rejectradar/matching';
 import type { FirmSearchHit } from '../firms/firm-search.service';
-import { classifyRow } from './bulk-processor';
+import { DrizzleQueryError } from 'drizzle-orm';
+import { classifyRow, isConnectionError } from './bulk-processor';
 
 /** A search hit for firm `id` with `score`; the label is the one the search would give that score. */
 const hit = (id: number, score: number): FirmSearchHit => {
@@ -82,5 +83,28 @@ describe('classifyRow (P6-D6)', () => {
       firmId: 9,
       score: 1,
     });
+  });
+});
+
+describe('isConnectionError', () => {
+  const withCode = (code: string) => Object.assign(new Error(`failed: ${code}`), { code });
+
+  it('recognises socket errors and Postgres connection codes, also inside a Drizzle error', () => {
+    for (const code of ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', '08006', '08P01', '57P01']) {
+      expect({ code, connection: isConnectionError(withCode(code)) }).toEqual({ code, connection: true });
+    }
+    expect(isConnectionError(new DrizzleQueryError('select 1', [], withCode('ECONNRESET')))).toBe(true);
+    expect(isConnectionError(new Error('Connection terminated unexpectedly'))).toBe(true);
+    expect(isConnectionError(new Error('Cannot use a pool after calling end on the pool'))).toBe(true);
+  });
+
+  it('leaves errors about the row itself to count against the row', () => {
+    for (const code of ['22003', '23503', '22P02', '42601']) {
+      expect({ code, connection: isConnectionError(withCode(code)) }).toEqual({ code, connection: false });
+    }
+    expect(isConnectionError(new DrizzleQueryError('update bulk_job_row', [], withCode('22003')))).toBe(false);
+    expect(isConnectionError(new Error('this row cannot be matched'))).toBe(false);
+    expect(isConnectionError(undefined)).toBe(false);
+    expect(isConnectionError('ECONNRESET')).toBe(false);
   });
 });

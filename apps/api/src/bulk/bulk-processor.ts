@@ -39,6 +39,26 @@ export function claimableJob(): SQL<boolean> {
   return sql<boolean>`(${bulkJob.status} = 'queued' or (${bulkJob.status} = 'running' and (${bulkJob.heartbeatAt} is null or ${bulkJob.heartbeatAt} < now() - ${BULK_LIMITS.staleAfterSec}::int * interval '1 second')))`;
 }
 
+/** Postgres's connection-exception class (08) and its shutdown codes, and node's socket errors. */
+const CONNECTION_CODE = /^(08[0-9A-Z]{3}|57P0[1-3]|ECONNREFUSED|ECONNRESET|EPIPE|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|EAI_AGAIN)$/;
+/** What node-postgres and its pool throw, without a code, when a connection is lost or cannot be had. */
+const CONNECTION_MESSAGE = /^(Connection terminated|Cannot use a pool after calling end on the pool|timeout exceeded when trying to connect)/;
+
+/**
+ * Whether an error, or one in its cause chain (Drizzle wraps the driver's error), is about the database connection rather
+ * than the row being matched. Such an error ends the worker instead of counting against the row.
+ */
+export function isConnectionError(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && typeof current === 'object' && current !== null; depth++) {
+    const { code, message, cause } = current as { code?: unknown; message?: unknown; cause?: unknown };
+    if (typeof code === 'string' && CONNECTION_CODE.test(code)) return true;
+    if (typeof message === 'string' && CONNECTION_MESSAGE.test(message)) return true;
+    current = cause;
+  }
+  return false;
+}
+
 type PendingRow = Pick<typeof bulkJobRow.$inferSelect, 'id' | 'inputName' | 'inputCountry' | 'inputCity' | 'inputFei'>;
 
 /** A process-wide limit on rows matched at once, so several jobs together still leave the pool's other connections free. */
@@ -70,6 +90,10 @@ class Slots {
  * rows, never incremented. So even two workers overlapping after a takeover each write a row at most once, and a job
  * resumed after a crash or a restart only reads the rows still pending. The claim keeps a second process out while the
  * heartbeat is fresh; a set of the jobs running here keeps a second start in this process out.
+ *
+ * A row whose match fails is retried in the next batch, and after `maxRowAttempts` failures is written `no_record`, so
+ * every job finishes. Failures that are not about one row (the claim, reading a batch, the heartbeat, the connection)
+ * end the worker instead; the heartbeat then goes stale and the job resumes.
  */
 @Injectable()
 export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
@@ -156,7 +180,7 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
           await this.finish(jobId);
           return;
         }
-        await this.matchBatch(rows);
+        await this.matchBatch(jobId, rows);
         await this.beat(jobId);
       }
     } catch (err) {
@@ -185,17 +209,18 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   /**
-   * Matches the batch `concurrency` rows at a time. After a failure no further row is started, and the rows already in
-   * flight are waited for, so nothing writes after the worker has ended; the first error is then thrown.
+   * Matches the batch `concurrency` rows at a time. A row's own failure is counted against it and the batch goes on
+   * (`processRow`). After a failure that ends the worker no further row is started, and the rows already in flight are
+   * waited for, so nothing writes after the worker has ended; the first such error is then thrown.
    */
-  private async matchBatch(rows: PendingRow[]): Promise<void> {
+  private async matchBatch(jobId: string, rows: PendingRow[]): Promise<void> {
     let next = 0;
     const failures: unknown[] = [];
     const lane = async () => {
       while (failures.length === 0 && next < rows.length) {
         const row = rows[next++];
         try {
-          await this.slots.run(() => this.matchRow(row));
+          await this.slots.run(() => this.processRow(jobId, row));
         } catch (error) {
           failures.push(error);
         }
@@ -203,6 +228,39 @@ export class BulkProcessor implements OnApplicationBootstrap, OnModuleDestroy {
     };
     await Promise.all(Array.from({ length: BULK_LIMITS.concurrency }, lane));
     if (failures.length > 0) throw failures[0];
+  }
+
+  /**
+   * Matches and writes one row. An error raised while doing so counts against the row, unless it is about the database
+   * connection: that one, like a failure of the counting update itself, ends the worker and the job resumes later.
+   */
+  private async processRow(jobId: string, row: PendingRow): Promise<void> {
+    try {
+      await this.matchRow(row);
+    } catch (error) {
+      if (isConnectionError(error)) throw error;
+      await this.countFailure(jobId, row);
+    }
+  }
+
+  /**
+   * Counts a failed attempt against the row. The `maxRowAttempts`-th one also writes it `no_record`, without a firm, score
+   * or candidates, so a row that can never be matched does not hold its job back for good. Like every row write, it
+   * applies only while the row is `pending`. Ids only in the log: never the row's input.
+   */
+  private async countFailure(jobId: string, row: PendingRow): Promise<void> {
+    const lastAttempt = sql`${bulkJobRow.attempts} + 1 >= ${BULK_LIMITS.maxRowAttempts}::int`;
+    await this.db
+      .update(bulkJobRow)
+      .set({
+        attempts: sql`${bulkJobRow.attempts} + 1`,
+        status: sql`case when ${lastAttempt} then 'no_record' else ${bulkJobRow.status} end`,
+        firmId: sql`case when ${lastAttempt} then null else ${bulkJobRow.firmId} end`,
+        score: sql`case when ${lastAttempt} then null else ${bulkJobRow.score} end`,
+        candidates: sql`case when ${lastAttempt} then '[]'::jsonb else ${bulkJobRow.candidates} end`,
+      })
+      .where(and(eq(bulkJobRow.id, row.id), eq(bulkJobRow.status, 'pending')));
+    this.logger.warn({ jobId, rowId: row.id }, 'bulk_row_failed');
   }
 
   private async matchRow(row: PendingRow): Promise<void> {
