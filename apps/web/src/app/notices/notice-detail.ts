@@ -38,7 +38,13 @@ import { Alert } from '../layout/alert';
         </div>
         <div>
           <dt class="text-sm text-slate-600">{{ i18n.t('web.topics.firm') }}</dt>
-          <dd>{{ n.firmName ?? '—' }}</dd>
+          <dd>
+            @if (n.firmId) {
+              <a [routerLink]="['/firms', n.firmId]" class="text-sky-700 underline">{{ n.firmName ?? '—' }}</a>
+            } @else {
+              {{ n.firmName ?? '—' }}
+            }
+          </dd>
         </div>
         <div>
           <dt class="text-sm text-slate-600">{{ i18n.t('web.topics.commodity') }}</dt>

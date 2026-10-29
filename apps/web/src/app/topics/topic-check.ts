@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { Router } from '@angular/router';
-import type { CreateWatchlistItemRequest, DashboardResponse, Destination } from '@rejectradar/contracts';
+import type { CreateWatchlistItemRequest, DashboardResponse, Destination, TopicEstimateResponse } from '@rejectradar/contracts';
 import { firstValueFrom } from 'rxjs';
 import { apiUrl } from '../core/api';
 import { downloadFile } from '../core/download';
@@ -61,6 +61,8 @@ import { TopicDashboard } from './topic-dashboard';
         <button matButton="outlined" type="button" [disabled]="busy()" (click)="downloadPdf()">{{ i18n.t('web.topics.pdf') }}</button>
         @if (chosenDestinations().length > 1) {
           <span class="text-sm text-slate-600">{{ i18n.t('web.topics.watchOneDestination') }}</span>
+        } @else if (estimate.hasValue()) {
+          <span class="text-sm text-slate-600">{{ i18n.t('web.topics.estimate', { perMonth: estimate.value().perMonth }) }}</span>
         }
       </div>
       @if (result(); as r) {
@@ -105,6 +107,16 @@ export class TopicCheck {
   protected readonly dashboard = httpResource<DashboardResponse>(() => {
     const query = this.query();
     return query ? { url: apiUrl('/v1/dashboards/topic'), params: query } : undefined;
+  });
+
+  /** How many notices a month the topic would have alerted on, shown next to "Watch this topic". */
+  protected readonly estimate = httpResource<TopicEstimateResponse>(() => {
+    const origin = this.origin();
+    if (!origin || this.chosenDestinations().length > 1) return undefined;
+    const params: Record<string, string> = { originCountry: origin };
+    if (this.commodity()) params['commodityId'] = this.commodity() as string;
+    if (this.chosenDestinations()[0]) params['destination'] = this.chosenDestinations()[0];
+    return { url: apiUrl('/v1/watchlist/topic-estimate'), params };
   });
 
   protected readonly busy = signal(false);
