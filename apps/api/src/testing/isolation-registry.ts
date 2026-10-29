@@ -155,6 +155,11 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   { method: 'GET', path: '/v1/import-alerts/:number', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl', reason: 'Reference data.' },
+  ...['notices', 'notices/:id', 'dashboards/topic', 'firms/search', 'firms/:id', 'import-alerts/:number', 'taxonomy', 'usage'].map((route) => ({
+    method: 'GET',
+    path: `/v1/public/${route}`,
+    reason: "Public API: an API key, not a session, names the account, and only the key's own account is read or charged (public-api.e2e.spec.ts).",
+  })),
   { method: 'POST', path: '/v1/invites/preview', reason: 'The invite token in the body decides the account; the caller needs no session.' },
   { method: 'POST', path: '/v1/invites/accept', reason: 'The invite token in the body decides the account; the caller needs no session.' },
 ];

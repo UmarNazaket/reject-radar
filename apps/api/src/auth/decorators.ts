@@ -1,12 +1,13 @@
-import { createParamDecorator, type ExecutionContext, HttpStatus, SetMetadata } from '@nestjs/common';
+import { applyDecorators, createParamDecorator, type ExecutionContext, HttpStatus, SetMetadata } from '@nestjs/common';
 import type { Role } from '@rejectradar/contracts';
 import { AppError } from '../common/errors';
-import type { ContextRequest, RequestContext } from './context';
+import type { ApiKeyContext, ApiKeyRequest, ContextRequest, RequestContext } from './context';
 
 export const IS_PUBLIC = 'auth:public';
 export const SKIP_CSRF = 'auth:skipCsrf';
 export const ROLES_METADATA = 'auth:roles';
 export const REQUIRE_VERIFIED_EMAIL = 'auth:requireVerifiedEmail';
+export const API_KEY_AUTH = 'auth:apiKey';
 
 /** No sign-in needed: the auth, roles and verified-email guards let the route through. CSRF still applies to unsafe methods. */
 export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUBLIC, true);
@@ -25,4 +26,14 @@ export const CurrentContext = createParamDecorator((_data: unknown, host: Execut
   const context = host.switchToHttp().getRequest<ContextRequest>().context;
   if (context === undefined) throw new AppError(HttpStatus.UNAUTHORIZED, 'UNAUTHORIZED', 'Sign in to continue.');
   return context;
+});
+
+/** A public API route: an API key signs the caller in instead of the session cookie, and there is no CSRF check. */
+export const ApiKeyAuth = (): MethodDecorator & ClassDecorator => applyDecorators(SetMetadata(API_KEY_AUTH, true), Public(), SkipCsrf());
+
+/** The key and account of the caller of an `@ApiKeyAuth()` route. */
+export const CurrentApiKey = createParamDecorator((_data: unknown, host: ExecutionContext): ApiKeyContext => {
+  const apiKey = host.switchToHttp().getRequest<ApiKeyRequest>().apiKey;
+  if (apiKey === undefined) throw new AppError(HttpStatus.UNAUTHORIZED, 'API_KEY_MISSING', 'Send an API key.');
+  return apiKey;
 });
