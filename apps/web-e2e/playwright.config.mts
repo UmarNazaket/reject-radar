@@ -34,7 +34,9 @@ export default defineConfig({
     command: 'npx nx run web:serve',
     url: 'http://localhost:4200',
     reuseExistingServer: true,
-    cwd: workspaceRoot
+    cwd: workspaceRoot,
+    // The first dev build on a CI runner can take longer than the default minute.
+    timeout: 180_000,
   },
   projects: [
     {
