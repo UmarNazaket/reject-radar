@@ -1,0 +1,36 @@
+name: Maintenance
+
+on:
+  schedule:
+    # Daily at 02:30 UTC, ahead of the 03:00 digest (spec §6.3, §7.2; P6-D11).
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Its own group: it only deletes expired rows and clears old payloads, and touches nothing the ingest or alert runs
+# write, so it never waits behind (or holds up) them.
+concurrency:
+  group: maintenance
+  cancel-in-progress: false
+
+# Secrets are given only to the step that runs the CLI, never to npm ci or the build.
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npx nx build ingest
+      - name: maintenance:purge
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+          NODE_ENV: production
+        run: node dist/apps/ingest/main.js maintenance:purge
