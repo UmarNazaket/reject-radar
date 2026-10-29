@@ -50,7 +50,7 @@ export interface DraftResult {
   drafted: string[];
   /** Alerts whose answers failed the schema twice; drafted again on the next run. */
   invalid: string[];
-  /** Alerts whose Gemini call failed; drafted again on the next run. */
+  /** The alert whose Gemini call failed, which ends the run; drafted again on the next run. */
   failed: string[];
 }
 
@@ -99,8 +99,9 @@ export async function draftSummaries(
       );
     } catch (error) {
       console.error(`summaries:draft: ${alert.number}: ${(error as Error).message}`);
+      // Gemini is down or refuses the key: the rest wait for the next run rather than fail one by one.
       result.failed.push(alert.number);
-      continue;
+      break;
     }
     if (content === null) {
       result.invalid.push(alert.number);

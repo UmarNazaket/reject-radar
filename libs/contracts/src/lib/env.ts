@@ -194,8 +194,8 @@ export const summaryEnvSchema = z.object({
     .trim()
     .min(1, 'GEMINI_API_KEY is required; create one in Google AI Studio')
     .refine((value) => !PLACEHOLDER.test(value), { message: 'GEMINI_API_KEY looks like a placeholder; use the key from Google AI Studio' }),
-  /** The model, such as `gemini-2.5-flash`: a variable, so a newer model needs no code change. It goes into the request path. */
-  GEMINI_MODEL: z.string().trim().regex(/^[a-z0-9][a-z0-9.-]*$/, 'must be a Gemini model name such as gemini-2.5-flash'),
+  /** The model, such as `gemini-3.5-flash`: a variable, so a newer model needs no code change. It goes into the request path. */
+  GEMINI_MODEL: z.string().trim().regex(/^[a-z0-9][a-z0-9.-]*$/, 'must be a Gemini model name such as gemini-3.5-flash'),
 });
 
 export type SummaryEnv = z.output<typeof summaryEnvSchema>;

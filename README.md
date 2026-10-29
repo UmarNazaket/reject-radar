@@ -263,7 +263,7 @@ Business and Enterprise accounts can read RejectRadar from their own systems. A 
 
 The ingestion CLI drafts a plain-language English summary of each food Import Alert with Google Gemini. A person then approves or rejects it, and approved English is machine-translated into Urdu, Hindi and Bengali. `GET /v1/import-alerts/:number` shows an English summary only once it is approved, and a translation only beside approved English, labelled as a machine translation.
 
-1. `summaries:draft` drafts every listed food alert that has no English summary of its current text. It sends only the alert's own text and asks for JSON in the summary's shape; an answer that fails the contract schema (120 words at most) is asked for once more, then left for the next run.
+1. `summaries:draft` drafts every listed food alert that has no English summary of its current text. It sends only the alert's own text and asks for JSON in the summary's shape; an answer that fails the contract schema (120 words at most) is asked for once more, then left for the next run. A call Gemini is too busy for (429 or 5xx) or that times out is tried three times; a call that still fails ends the run, and the rest wait for the next one.
 2. A platform admin reviews the drafts: `GET /v1/admin/import-alert-summaries?status=draft` lists them beside the alert text, and `PATCH /v1/admin/import-alert-summaries/:number` with `{ "action": "approve" }` (optionally with corrected `content`) or `{ "action": "reject" }` decides. The admin screens come in P10.
 3. `summaries:translate` translates approved English that has no translation of the current text yet.
 
@@ -274,7 +274,7 @@ When FDA changes an alert's text, its old summaries stop being shown at once, an
 | Variable         | What it is                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------- |
 | `GEMINI_API_KEY` | A Gemini API key from Google AI Studio. In GitHub Actions it is a secret.             |
-| `GEMINI_MODEL`   | The model, such as `gemini-2.5-flash`. In GitHub Actions it is a repository variable. |
+| `GEMINI_MODEL`   | The model, such as `gemini-3.5-flash`. In GitHub Actions it is a repository variable. |
 
 ### Owner steps for P8
 

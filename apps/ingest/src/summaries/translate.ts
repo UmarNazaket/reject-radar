@@ -48,8 +48,9 @@ export async function translateSummaries(deps: { db: Database; model: string; ge
       );
     } catch (error) {
       console.error(`summaries:translate: ${label}: ${(error as Error).message}`);
+      // Gemini is down or refuses the key: the rest wait for the next run rather than fail one by one.
       result.failed.push(label);
-      continue;
+      break;
     }
     if (content === null) {
       result.invalid.push(label);

@@ -86,6 +86,7 @@ jobs:
       # Skipped until the owner sets the GEMINI_MODEL variable (and the GEMINI_API_KEY secret).
       - name: summaries:draft
         if: ${{ !cancelled() && steps.size.outcome == 'success' && vars.GEMINI_MODEL != '' }}
+        timeout-minutes: 20
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
@@ -94,6 +95,7 @@ jobs:
         run: node dist/apps/ingest/main.js summaries:draft
       - name: summaries:translate
         if: ${{ !cancelled() && steps.size.outcome == 'success' && vars.GEMINI_MODEL != '' }}
+        timeout-minutes: 20
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}

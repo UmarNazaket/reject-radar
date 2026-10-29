@@ -99,14 +99,16 @@ describe('Import Alert summaries', () => {
       expect((await rows()).map((r) => r.alertNumber)).toEqual(['10-01']);
     });
 
-    it('a failed call is counted and the run goes on', async () => {
+    it('a failed call ends the run; the rest wait for the next one', async () => {
       await alert('10-01');
       await alert('10-02');
       generateJson.mockRejectedValueOnce(new Error('Gemini answered HTTP 503'));
       const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-      expect(await draftSummaries(deps(), { limit: 20 })).toEqual({ drafted: ['10-02'], invalid: [], failed: ['10-01'] });
+      expect(await draftSummaries(deps(), { limit: 20 })).toEqual({ drafted: [], invalid: [], failed: ['10-01'] });
       expect(errors).toHaveBeenCalledWith('summaries:draft: 10-01: Gemini answered HTTP 503');
+      expect(generateJson).toHaveBeenCalledTimes(1);
       errors.mockRestore();
+      expect((await draftSummaries(deps(), { limit: 20 })).drafted).toEqual(['10-01', '10-02']);
     });
 
     it('keeps to the limit and to --only', async () => {

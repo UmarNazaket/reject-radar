@@ -2,7 +2,7 @@ import { EnvValidationError } from '@rejectradar/contracts';
 import { createGemini, GeminiError } from './gemini';
 import { loadSummaryEnv } from './summary-env';
 
-const ENV = { GEMINI_API_KEY: 'AIzaSyTestKey123', GEMINI_MODEL: 'gemini-2.5-flash' };
+const ENV = { GEMINI_API_KEY: 'AIzaSyTestKey123', GEMINI_MODEL: 'gemini-3.5-flash' };
 
 const answer = (body: unknown, status = 200) =>
   jest.fn<Promise<Response>, Parameters<typeof fetch>>().mockResolvedValue(new Response(JSON.stringify(body), { status }));
@@ -13,11 +13,11 @@ describe('createGemini', () => {
   it('posts the prompt with the key in a header and returns the parsed JSON', async () => {
     const fetchImpl = answer(candidate('{"summary":"ok"}'));
     const gemini = createGemini(ENV, fetchImpl);
-    expect(gemini.model).toBe('gemini-2.5-flash');
+    expect(gemini.model).toBe('gemini-3.5-flash');
     expect(await gemini.generateJson(request)).toEqual({ summary: 'ok' });
 
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
+    expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent');
     expect(String(url)).not.toContain(ENV.GEMINI_API_KEY);
     expect(init?.headers).toMatchObject({ 'x-goog-api-key': ENV.GEMINI_API_KEY });
     expect(JSON.parse(String(init?.body))).toEqual({
@@ -32,6 +32,29 @@ describe('createGemini', () => {
     const error = await gemini.generateJson(request).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(GeminiError);
     expect(error).toMatchObject({ status: 403, message: 'Gemini answered HTTP 403' });
+  });
+
+  it('tries a busy or timed-out call three times in all, waiting longer each time', async () => {
+    const busy = () => new Response('{}', { status: 503 });
+    const timeout = Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
+    const fetchImpl = jest
+      .fn<Promise<Response>, Parameters<typeof fetch>>()
+      .mockResolvedValueOnce(busy())
+      .mockRejectedValueOnce(timeout)
+      .mockResolvedValueOnce(new Response(JSON.stringify(candidate('{"summary":"ok"}'))));
+    const wait = jest.fn<Promise<void>, [number]>().mockResolvedValue(undefined);
+    expect(await createGemini(ENV, fetchImpl, wait).generateJson(request)).toEqual({ summary: 'ok' });
+    expect(wait.mock.calls).toEqual([[5_000], [20_000]]);
+
+    const alwaysBusy = jest.fn<Promise<Response>, Parameters<typeof fetch>>().mockImplementation(async () => busy());
+    await expect(createGemini(ENV, alwaysBusy, wait).generateJson(request)).rejects.toMatchObject({ status: 503 });
+    expect(alwaysBusy).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not retry a refused request', async () => {
+    const fetchImpl = answer({}, 400);
+    await expect(createGemini(ENV, fetchImpl, async () => undefined).generateJson(request)).rejects.toMatchObject({ status: 400 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('refuses a cut-off, empty or non-JSON answer', async () => {
