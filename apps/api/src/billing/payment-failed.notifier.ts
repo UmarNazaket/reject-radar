@@ -38,7 +38,7 @@ export class PaymentFailedNotifier {
   private async notifyOrg(orgId: string): Promise<void> {
     const [account] = await this.db.select({ name: org.name }).from(org).where(eq(org.id, orgId));
     if (!account) return;
-    const link = `${this.env.APP_ORIGIN}/app/settings/billing`;
+    const link = `${this.env.APP_ORIGIN}/settings/billing`;
     for (const owner of await this.members.verifiedOwners(orgId)) {
       try {
         await this.mailer.send({

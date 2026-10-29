@@ -47,7 +47,9 @@ import { LanguageSelect } from './language-select';
         </nav>
         <div class="ms-auto flex items-center gap-3">
           <app-language-select />
-          <span class="hidden text-sm text-slate-600 sm:inline">{{ session.user()?.name }}</span>
+          <a routerLink="/settings" class="text-sm text-slate-600 underline-offset-2 hover:underline" [attr.title]="i18n.t('web.settings.title')">
+            {{ session.user()?.name }}
+          </a>
           <button matButton type="button" (click)="signOut()">{{ i18n.t('web.nav.signOut') }}</button>
         </div>
       </div>

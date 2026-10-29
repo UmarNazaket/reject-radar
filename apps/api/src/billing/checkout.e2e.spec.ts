@@ -38,7 +38,7 @@ describe('billing: checkout', () => {
       customerEmail: `owner${n}@billing-checkout.test`,
       clientToken: env.PADDLE_CLIENT_TOKEN,
       environment: 'sandbox',
-      successUrl: 'http://localhost:4200/app/settings/billing?checkout=success',
+      successUrl: 'http://localhost:4200/settings/billing?checkout=success',
     });
   });
 

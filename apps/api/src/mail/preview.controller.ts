@@ -31,7 +31,7 @@ const LINK_PATHS: Readonly<Record<TemplateName, string>> = {
   reset: '/reset?token=preview',
   invite: '/invite/preview',
   account_exists: '/login',
-  payment_failed: '/app/settings/billing',
+  payment_failed: '/settings/billing',
 };
 
 const HTML = 'text/html; charset=utf-8';
