@@ -8,7 +8,7 @@ import { AppError } from '../common/errors';
 import { DB } from '../database/database.module';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { type BulkInputRow, parseBulkCsv } from './bulk-csv';
-import { BulkProcessor } from './bulk-processor';
+import { BulkProcessor, claimableJob } from './bulk-processor';
 
 /** The template a user starts from: the header line and one example row, each ending in CRLF (P6-D10). */
 export const TEMPLATE_CSV = [toCsvRow(['name', 'country', 'city', 'fei']), toCsvRow(['Example Foods Pvt Ltd', 'PK', 'Karachi', null])]
@@ -87,19 +87,26 @@ export class BulkJobsService {
     return { jobs: jobs.map(toResponse) };
   }
 
-  /** One job of the account; another account's job is `404`, like one that is not there. */
+  /**
+   * One job of the account; another account's job is `404`, like one that is not there. A job whose worker is gone (its
+   * heartbeat is stale, or it was never started) is started again (P6-D5); the answer is the job as it was read.
+   */
   async get(ctx: RequestContext, id: string): Promise<BulkJobResponse> {
-    const [job] = await this.db.select().from(bulkJob).where(byOrg(bulkJob, ctx, eq(bulkJob.id, id)));
-    if (!job) throw new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found.');
-    return toResponse(job);
+    const [found] = await this.db
+      .select({ job: bulkJob, stale: claimableJob() })
+      .from(bulkJob)
+      .where(byOrg(bulkJob, ctx, eq(bulkJob.id, id)));
+    if (!found) throw new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found.');
+    if (found.stale) this.start(id);
+    return toResponse(found.job);
   }
 
   /** The job is committed, so a failure to start it must not undo the answer: the next read or restart resumes it (P6-D5). */
   private start(jobId: string): void {
     try {
       this.processor.start(jobId);
-    } catch {
-      this.logger.error({ jobId }, 'bulk_job_start_failed');
+    } catch (err) {
+      this.logger.error({ jobId, err }, 'bulk_job_start_failed');
     }
   }
 }

@@ -1,6 +1,7 @@
 import { alert, notificationPref, subscription, uuidv7 } from '@rejectradar/db';
 import { insertEvent, insertFirm } from '@rejectradar/entities';
 import { eq, sql } from 'drizzle-orm';
+import { BulkProcessor } from '../bulk/bulk-processor';
 import { type AccountFixture, ACCOUNT_ROUTES, type IsolationCase, NOT_ACCOUNT_OWNED } from './isolation-registry';
 import { joinByInvite, setPlan, signUpVerified, startTestApp, type TestApp, type TestSession } from './test-app';
 
@@ -82,6 +83,8 @@ describe('account isolation', () => {
       .set('Content-Type', 'text/csv')
       .send(`name,country\r\n${tag} Private Supplier Ltd,PK\r\n`)
       .expect(202);
+    // The job runs in the background; the snapshots compare B's rows before and after a call, so it must be done first.
+    await t.app.get(BulkProcessor).idle();
     return {
       session: owner.session,
       fixture: {

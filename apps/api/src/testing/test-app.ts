@@ -6,6 +6,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import request from 'supertest';
 import type { AppOverrides } from '../app/app-overrides';
 import { createApp } from '../bootstrap';
+import { BulkProcessor } from '../bulk/bulk-processor';
 import { FixedWindowLimiter } from '../common/rate-limit';
 import { DB } from '../database/database.module';
 import { FakePaddleGateway } from './paddle-fixtures';
@@ -160,17 +161,30 @@ export interface TestApp {
  * `env` overrides or adds variables, as `testEnv`'s `extra` does (a spec that reads the logs sets `LOG_LEVEL`).
  */
 export async function startTestApp(suffix: string, overrides: AppOverrides = {}, env: Record<string, string> = {}): Promise<TestApp> {
-  const url = await prepareTestDatabase(suffix);
+  return openTestApp(await prepareTestDatabase(suffix), overrides, env);
+}
+
+/**
+ * Boots the whole API as `startTestApp` does, on a database that is already prepared and keeps its rows. A second boot on
+ * `startTestApp`'s database (`testDatabaseUrl(suffix)`) is how a spec restarts the API: the bulk processor resumes its jobs at boot.
+ */
+export async function openTestApp(url: string, overrides: AppOverrides = {}, env: Record<string, string> = {}): Promise<TestApp> {
   const mail = new FakeTransport();
   const app = await createApp(testEnv(url, env), { mailTransport: mail, paddleGateway: new FakePaddleGateway(), ...overrides });
   await app.init();
+  const processor = app.get(BulkProcessor);
   return {
     app,
     db: app.get<Database>(DB),
     mail,
     session: () => new TestSession(app),
     resetRateLimits: () => app.get(FixedWindowLimiter).reset(),
-    close: () => app.close(),
+    // The processor's shutdown hook stops its workers between batches and waits for them before the pool closes;
+    // `idle()` after it makes sure no spec leaves a bulk worker running.
+    close: async () => {
+      await app.close();
+      await processor.idle();
+    },
   };
 }
 

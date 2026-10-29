@@ -3,6 +3,7 @@ import { bulkJob, bulkJobRow, usageCounter } from '@rejectradar/db';
 import { eq, sql } from 'drizzle-orm';
 import request from 'supertest';
 import { setPlan, signUpVerified, startTestApp, type TestApp, type TestSession } from '../testing/test-app';
+import { BulkProcessor } from './bulk-processor';
 
 describe('bulk upload and job reads', () => {
   let t: TestApp;
@@ -37,6 +38,7 @@ describe('bulk upload and job reads', () => {
     return req.send(body);
   };
 
+  const processor = () => t.app.get(BulkProcessor);
   const code = (res: { body: unknown }) => (res.body as { code: string }).code;
   const jobs = (orgId: string) => t.db.select().from(bulkJob).where(eq(bulkJob.orgId, orgId));
   const bulkRows = async (orgId: string) => (await t.db.select({ used: usageCounter.bulkRows }).from(usageCounter).where(eq(usageCounter.orgId, orgId)))[0]?.used ?? 0;
@@ -45,9 +47,17 @@ describe('bulk upload and job reads', () => {
 
   it('a Business account uploads', async () => {
     const { session, orgId } = await account();
-    const res = await upload(session, csv(3)).expect(202);
-    expect(res.body).toMatchObject({ status: 'queued', total: 3, processed: 0, fileName: 'suppliers.csv', finishedAt: null });
-    const { id } = res.body as BulkJobResponse;
+    // The job is held back from the worker, so what the upload stored can be read before anything processes it.
+    const start = jest.spyOn(processor(), 'start').mockImplementation(() => undefined);
+    let id: string;
+    try {
+      const res = await upload(session, csv(3)).expect(202);
+      expect(res.body).toMatchObject({ status: 'queued', total: 3, processed: 0, fileName: 'suppliers.csv', finishedAt: null });
+      id = (res.body as BulkJobResponse).id;
+      expect(start).toHaveBeenCalledWith(id);
+    } finally {
+      start.mockRestore();
+    }
 
     const rows = await t.db.select().from(bulkJobRow).where(eq(bulkJobRow.jobId, id)).orderBy(bulkJobRow.rowNr);
     expect(rows.map((row) => [row.rowNr, row.status, row.inputName, row.inputCountry, row.inputCity, row.inputFei])).toEqual([
@@ -58,6 +68,14 @@ describe('bulk upload and job reads', () => {
     expect(await bulkRows(orgId)).toBe(3);
     const [job] = await jobs(orgId);
     expect(job).toMatchObject({ id, status: 'queued', total: 3, processed: 0 });
+
+    // Once started, the job runs to the end; no firm is seeded here, so every row is no_record. Processing charges nothing more.
+    processor().start(id);
+    await processor().idle();
+    expect((await jobs(orgId))[0]).toMatchObject({ id, status: 'finished', total: 3, processed: 3 });
+    const processed = await t.db.select({ status: bulkJobRow.status }).from(bulkJobRow).where(eq(bulkJobRow.jobId, id)).orderBy(bulkJobRow.rowNr);
+    expect(processed.map((row) => row.status)).toEqual(['no_record', 'no_record', 'no_record']);
+    expect(await bulkRows(orgId)).toBe(3);
   });
 
   it('a Pro account is asked to upgrade, and nothing is written', async () => {
@@ -195,11 +213,13 @@ describe('bulk upload and job reads', () => {
       const first = (await upload(session, csv(1), 'first.csv').expect(202)).body as BulkJobResponse;
       const second = (await upload(session, csv(2), 'second.csv').expect(202)).body as BulkJobResponse;
       await upload(other.session, csv(1), 'someone-elses.csv').expect(202);
+      // The jobs run in the background; once they are done, what the list shows no longer changes.
+      await processor().idle();
 
       const res = await session.get('/v1/bulk-jobs').expect(200);
       const { jobs: listed } = res.body as BulkJobListResponse;
       expect(listed.map((job) => job.id)).toEqual([second.id, first.id]);
-      expect(listed[0]).toMatchObject({ fileName: 'second.csv', status: 'queued', total: 2, processed: 0 });
+      expect(listed[0]).toMatchObject({ fileName: 'second.csv', status: 'finished', total: 2, processed: 2, finishedAt: expect.any(String) });
       expect(JSON.stringify(res.body)).not.toContain('someone-elses');
     });
 
@@ -218,9 +238,10 @@ describe('bulk upload and job reads', () => {
       const theirs = await account();
       const { id } = (await upload(mine.session, csv(2)).expect(202)).body as BulkJobResponse;
       const theirId = ((await upload(theirs.session, csv(1)).expect(202)).body as BulkJobResponse).id;
+      await processor().idle();
 
       const res = await mine.session.get(`/v1/bulk-jobs/${id}`).expect(200);
-      expect(res.body).toMatchObject({ id, status: 'queued', total: 2, processed: 0 });
+      expect(res.body).toMatchObject({ id, status: 'finished', total: 2, processed: 2 });
 
       const foreign = await mine.session.get(`/v1/bulk-jobs/${theirId}`).expect(404);
       expect(code(foreign)).toBe('NOT_FOUND');
