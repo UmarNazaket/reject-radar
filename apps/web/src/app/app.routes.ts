@@ -13,6 +13,8 @@ export const appRoutes: Route[] = [
       { path: 'topics', loadComponent: () => import('./topics/topic-check').then((m) => m.TopicCheck) },
       { path: 'notices', loadComponent: () => import('./notices/notice-search').then((m) => m.NoticeSearch) },
       { path: 'notices/:id', loadComponent: () => import('./notices/notice-detail').then((m) => m.NoticeDetail) },
+      { path: 'firms', loadComponent: () => import('./firms/firm-search').then((m) => m.FirmSearch) },
+      { path: 'firms/:id', loadComponent: () => import('./firms/firm-profile').then((m) => m.FirmProfile) },
       { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },
     ],
   },

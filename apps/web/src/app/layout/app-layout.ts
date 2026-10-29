@@ -25,6 +25,9 @@ import { LanguageSelect } from './language-select';
           <a routerLink="/notices" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.notices') }}
           </a>
+          <a routerLink="/firms" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+            {{ i18n.t('web.nav.firms') }}
+          </a>
         </nav>
         <div class="ms-auto flex items-center gap-3">
           <app-language-select />

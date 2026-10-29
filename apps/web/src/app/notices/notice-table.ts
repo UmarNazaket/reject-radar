@@ -35,7 +35,13 @@ import { Taxonomy } from '../core/taxonomy';
               <td class="py-2 pe-4">
                 <a [routerLink]="['/notices', n.id]" class="text-sky-700 underline">{{ n.productText ?? n.title ?? '—' }}</a>
               </td>
-              <td class="py-2 pe-4">{{ n.firmName ?? '—' }}</td>
+              <td class="py-2 pe-4">
+                @if (n.firmId) {
+                  <a [routerLink]="['/firms', n.firmId]" class="text-sky-700 underline">{{ n.firmName ?? '—' }}</a>
+                } @else {
+                  {{ n.firmName ?? '—' }}
+                }
+              </td>
               <td class="py-2 pe-4">{{ hazardLabels(n.hazardIds) }}</td>
               <td class="py-2">
                 @if (n.url) {
