@@ -11,6 +11,9 @@ export const appRoutes: Route[] = [
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'topics' },
       { path: 'topics', loadComponent: () => import('./topics/topic-check').then((m) => m.TopicCheck) },
+      { path: 'notices', loadComponent: () => import('./notices/notice-search').then((m) => m.NoticeSearch) },
+      { path: 'notices/:id', loadComponent: () => import('./notices/notice-detail').then((m) => m.NoticeDetail) },
+      { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },
     ],
   },
   {

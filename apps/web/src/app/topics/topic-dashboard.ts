@@ -3,12 +3,13 @@ import { Component, computed, inject, input } from '@angular/core';
 import type { DashboardResponse, Destination } from '@rejectradar/contracts';
 import { I18n } from '../core/i18n';
 import { Taxonomy } from '../core/taxonomy';
+import { NoticeTable } from '../notices/notice-table';
 import { DESTINATION_COLORS, MonthChart } from './month-chart';
 
 /** The topic dashboard's blocks: totals, notices per month, main hazards, commodities, latest notices and data dates. */
 @Component({
   selector: 'app-topic-dashboard',
-  imports: [MonthChart, NgTemplateOutlet],
+  imports: [MonthChart, NgTemplateOutlet, NoticeTable],
   template: `
     @let data = dashboard();
     @if (data.historyFrom) {
@@ -75,36 +76,7 @@ import { DESTINATION_COLORS, MonthChart } from './month-chart';
 
       <section class="mt-6 rounded-lg border border-slate-200 bg-white p-4">
         <h2 class="mb-3 font-medium">{{ i18n.t('web.topics.latest') }}</h2>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="text-slate-600">
-              <tr class="border-b border-slate-200">
-                <th scope="col" class="py-2 pe-4 text-start font-medium">{{ i18n.t('web.topics.date') }}</th>
-                <th scope="col" class="py-2 pe-4 text-start font-medium">{{ i18n.t('web.topics.destination') }}</th>
-                <th scope="col" class="py-2 pe-4 text-start font-medium">{{ i18n.t('web.topics.product') }}</th>
-                <th scope="col" class="py-2 pe-4 text-start font-medium">{{ i18n.t('web.topics.firm') }}</th>
-                <th scope="col" class="py-2 pe-4 text-start font-medium">{{ i18n.t('web.topics.hazards') }}</th>
-                <th scope="col" class="py-2 text-start font-medium"><span class="sr-only">{{ i18n.t('web.topics.source') }}</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (n of data.latest; track n.id) {
-                <tr class="border-b border-slate-100 align-top">
-                  <td class="py-2 pe-4 whitespace-nowrap">{{ i18n.date(n.noticeOn) }}</td>
-                  <td class="py-2 pe-4">{{ taxonomy.label('destination', n.destination) }}</td>
-                  <td class="py-2 pe-4">{{ n.productText ?? n.title ?? '—' }}</td>
-                  <td class="py-2 pe-4">{{ n.firmName ?? '—' }}</td>
-                  <td class="py-2 pe-4">{{ hazardLabels(n.hazardIds) }}</td>
-                  <td class="py-2">
-                    @if (n.url) {
-                      <a [href]="n.url" target="_blank" rel="noopener" class="text-sky-700 underline">{{ i18n.t('web.topics.source') }}</a>
-                    }
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+        <app-notice-table [notices]="data.latest" [showOrigin]="false" />
       </section>
     }
 
@@ -153,10 +125,6 @@ export class TopicDashboard {
   });
   protected readonly categoryBars = computed(() => this.bars(this.dashboard().hazardCategories.map((c) => ({ label: this.taxonomy.label('hazardCategory', c.category), count: c.count }))));
   protected readonly commodityBars = computed(() => this.bars(this.dashboard().commodities.map((c) => ({ label: this.taxonomy.label('commodity', c.commodityId), count: c.count }))));
-
-  protected hazardLabels(ids: number[]): string {
-    return ids.map((id) => this.taxonomy.label('hazard', id)).join(', ') || '—';
-  }
 
   /** Rows for a bar list, each bar as wide as its share of the largest count. */
   private bars(rows: { label: string; count: number }[]): { label: string; count: number; width: number }[] {

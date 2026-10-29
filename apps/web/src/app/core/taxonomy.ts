@@ -13,6 +13,7 @@ export class Taxonomy {
 
   readonly countries = computed(() => this.value()?.countries ?? []);
   readonly destinations = computed(() => this.value()?.destinations ?? []);
+  readonly hazardCategories = computed(() => this.value()?.hazardCategories ?? []);
   /** Commodities in tree order, each with its depth, so a list can indent the children under their parent. */
   readonly commodityTree = computed(() => {
     const commodities = this.value()?.commodities ?? [];

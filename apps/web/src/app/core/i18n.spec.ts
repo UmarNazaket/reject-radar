@@ -30,9 +30,16 @@ describe('I18n', () => {
     expect(document.documentElement.lang).toBe('ur');
     expect(document.documentElement.dir).toBe('rtl');
     expect(localStorage.getItem('rr_locale')).toBe('ur');
-    expect(i18n.t('web.hello', { name: 'عائشہ' })).toBe('سلام، عائشہ');
+    expect(i18n.t('web.hello', { name: 'عائشہ' })).toBe('سلام، \u2068عائشہ\u2069');
     await i18n.use('en');
     expect(document.documentElement.dir).toBe('ltr');
+  });
+
+  it('isolates text parameters in right-to-left languages only', async () => {
+    await i18n.use('ur');
+    expect(i18n.t('web.hello', { name: '99-08' })).toBe('سلام، \u206899-08\u2069');
+    await i18n.use('en');
+    expect(i18n.t('web.hello', { name: '99-08' })).toBe('Hello, 99-08');
   });
 
   it('keeps Latin digits in every language', async () => {
