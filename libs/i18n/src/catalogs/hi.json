@@ -26,6 +26,11 @@
   "email.accountExists.loginButton": "लॉग इन करें",
   "email.accountExists.resetButton": "पासवर्ड रीसेट करें",
 
+  "email.paymentFailed.subject": "आपका RejectRadar भुगतान विफल हो गया",
+  "email.paymentFailed.heading": "हम आपका भुगतान नहीं ले सके",
+  "email.paymentFailed.body": "RejectRadar पर {orgName} का नवीनतम भुगतान पूरा नहीं हो सका। अपना प्लान चालू रखने के लिए अपना भुगतान तरीका अपडेट करें।",
+  "email.paymentFailed.button": "बिलिंग खोलें",
+
   "role.owner": "स्वामी",
   "role.admin": "एडमिन",
   "role.member": "सदस्य",
@@ -88,6 +93,9 @@
   "errors.PLAN_UPGRADE_REQUIRED": "यह सुविधा आपके प्लान में शामिल नहीं है। इसे इस्तेमाल करने के लिए अपना प्लान अपग्रेड करें।",
   "errors.INVALID_RECORD": "यह रिकॉर्ड इस फर्म का नहीं है। रिकॉर्ड जाँचकर फिर से कोशिश करें।",
   "errors.ALREADY_WATCHED": "यह पहले से आपकी वॉचलिस्ट में है।",
+  "errors.ALREADY_SUBSCRIBED": "आपके खाते की सदस्यता पहले से सक्रिय है। उसे बदलने या रद्द करने के लिए बिलिंग पोर्टल का उपयोग करें।",
+  "errors.INVALID_SIGNATURE": "अनुरोध का हस्ताक्षर मान्य नहीं है।",
+  "errors.NO_BILLING_ACCOUNT": "आपके खाते का अभी कोई बिलिंग खाता नहीं है। पहले कोई प्लान चुनें।",
 
   "taxonomy.commodity.cereals": "अनाज",
   "taxonomy.commodity.rice": "चावल",

@@ -10,6 +10,14 @@ const valid: Record<string, string | undefined> = {
   JWT_SECRET: SECRET,
   APP_ORIGIN: 'http://localhost:4200',
   MAIL_FROM: 'RejectRadar <test@rejectradar.test>',
+  PADDLE_ENV: 'sandbox',
+  PADDLE_API_KEY: `pdl_sdbx_apikey_${'t'.repeat(40)}`,
+  PADDLE_CLIENT_TOKEN: `test_${'t'.repeat(27)}`,
+  PADDLE_WEBHOOK_SECRET: SECRET,
+  PADDLE_PRICE_PRO_MONTHLY: 'pri_01m61npvnr18pc5g8fjpjfnhne',
+  PADDLE_PRICE_PRO_YEARLY: 'pri_01m61npw5hf8zddhzww39dmshg',
+  PADDLE_PRICE_BUSINESS_MONTHLY: 'pri_01m61npx58trnyzg6z77vywvjk',
+  PADDLE_PRICE_BUSINESS_YEARLY: 'pri_01m61npxms42vc5e3pr7r3na4q',
 };
 
 function errorFor(overrides: Record<string, string | undefined>): EnvValidationError {
@@ -135,6 +143,89 @@ describe('apiEnvSchema', () => {
 
   it('ignores ingest-only variables such as FDA_API_KEY', () => {
     expect(() => parseEnv(apiEnvSchema, { ...valid, FDA_API_KEY: '' })).not.toThrow();
+  });
+});
+
+describe('apiEnvSchema Paddle variables (P7-D10)', () => {
+  const paddleNames = [
+    'PADDLE_ENV',
+    'PADDLE_API_KEY',
+    'PADDLE_CLIENT_TOKEN',
+    'PADDLE_WEBHOOK_SECRET',
+    'PADDLE_PRICE_PRO_MONTHLY',
+    'PADDLE_PRICE_PRO_YEARLY',
+    'PADDLE_PRICE_BUSINESS_MONTHLY',
+    'PADDLE_PRICE_BUSINESS_YEARLY',
+  ];
+
+  it.each(paddleNames)('requires every Paddle variable: %s', (name) => {
+    expect(errorFor({ [name]: undefined }).issues.some((issue) => issue.startsWith(`${name}:`))).toBe(true);
+  });
+
+  it('sandbox key must match PADDLE_ENV', () => {
+    const production = { PADDLE_ENV: 'production', PADDLE_CLIENT_TOKEN: `live_${'t'.repeat(27)}` };
+    const error = errorFor(production);
+    expect(error.issues.some((issue) => issue.startsWith('PADDLE_API_KEY:'))).toBe(true);
+    const env = parseEnv(apiEnvSchema, { ...valid, ...production, PADDLE_API_KEY: `pdl_live_apikey_${'t'.repeat(40)}` });
+    expect(env.PADDLE_ENV).toBe('production');
+    expect(errorFor({ PADDLE_API_KEY: `pdl_live_apikey_${'t'.repeat(40)}` }).issues.some((issue) => issue.startsWith('PADDLE_API_KEY:'))).toBe(true);
+  });
+
+  it('client token prefix follows PADDLE_ENV', () => {
+    expect(parseEnv(apiEnvSchema, valid).PADDLE_CLIENT_TOKEN).toMatch(/^test_/);
+    expect(errorFor({ PADDLE_CLIENT_TOKEN: `live_${'t'.repeat(27)}` }).issues.some((issue) => issue.startsWith('PADDLE_CLIENT_TOKEN:'))).toBe(true);
+    const production = { PADDLE_ENV: 'production', PADDLE_API_KEY: `pdl_live_apikey_${'t'.repeat(40)}` };
+    expect(errorFor({ ...production, PADDLE_CLIENT_TOKEN: `test_${'t'.repeat(27)}` }).issues.some((issue) => issue.startsWith('PADDLE_CLIENT_TOKEN:'))).toBe(true);
+  });
+
+  it('rejects a placeholder client token', () => {
+    expect(errorFor({ PADDLE_CLIENT_TOKEN: 'test_replace_me' }).message).toContain('PADDLE_CLIENT_TOKEN');
+  });
+
+  it.each(['replace-me', 'pdl_ntfset_replace_me', 'changeme', ''])('rejects a placeholder webhook secret (%j)', (PADDLE_WEBHOOK_SECRET) => {
+    expect(errorFor({ PADDLE_WEBHOOK_SECRET }).issues.some((issue) => issue.startsWith('PADDLE_WEBHOOK_SECRET:'))).toBe(true);
+  });
+
+  it.each([
+    ['PADDLE_WEBHOOK_SECRET', 'pdl_ntfset_'],
+    ['PADDLE_WEBHOOK_SECRET', `pdl_ntfset_${'a'.repeat(20)}`],
+    ['PADDLE_WEBHOOK_SECRET', 'a1B2'.repeat(7)],
+    ['PADDLE_CLIENT_TOKEN', 'test_'],
+    ['PADDLE_API_KEY', 'pdl_sdbx_apikey_'],
+  ])('rejects %s with nothing real after the prefix or too short (%j)', (name, value) => {
+    expect(errorFor({ [name]: value }).issues.some((issue) => issue.startsWith(`${name}:`))).toBe(true);
+  });
+
+  it('accepts a 32-character local webhook secret, and the test env passes', () => {
+    const PADDLE_WEBHOOK_SECRET = 'a1B2'.repeat(8);
+    expect(parseEnv(apiEnvSchema, { ...valid, PADDLE_WEBHOOK_SECRET }).PADDLE_WEBHOOK_SECRET).toBe(PADDLE_WEBHOOK_SECRET);
+    expect(() => parseEnv(apiEnvSchema, valid)).not.toThrow();
+  });
+
+  it('accepts a real-looking webhook secret', () => {
+    const PADDLE_WEBHOOK_SECRET = `pdl_ntfset_01hkq3x0c4bz9m2v7n8d5e6f7g_${'a1B2'.repeat(8)}`;
+    expect(parseEnv(apiEnvSchema, { ...valid, PADDLE_WEBHOOK_SECRET }).PADDLE_WEBHOOK_SECRET).toBe(PADDLE_WEBHOOK_SECRET);
+  });
+
+  it('price ids are checked', () => {
+    expect(errorFor({ PADDLE_PRICE_PRO_MONTHLY: 'pri_123' }).issues.some((issue) => issue.startsWith('PADDLE_PRICE_PRO_MONTHLY:'))).toBe(true);
+    expect(parseEnv(apiEnvSchema, valid).PADDLE_PRICE_PRO_MONTHLY).toBe('pri_01m61npvnr18pc5g8fjpjfnhne');
+  });
+
+  it('rejects an unknown PADDLE_ENV', () => {
+    expect(errorFor({ PADDLE_ENV: 'staging' }).issues.some((issue) => issue.startsWith('PADDLE_ENV:'))).toBe(true);
+  });
+
+  it('staging may run NODE_ENV=production with PADDLE_ENV=sandbox', () => {
+    const env = parseEnv(apiEnvSchema, {
+      ...valid,
+      NODE_ENV: 'production',
+      MAIL_TRANSPORT: 'resend',
+      RESEND_API_KEY: 're_realLookingKey123',
+      PADDLE_ENV: 'sandbox',
+    });
+    expect(env.NODE_ENV).toBe('production');
+    expect(env.PADDLE_ENV).toBe('sandbox');
   });
 });
 

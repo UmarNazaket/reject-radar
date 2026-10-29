@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PADDLE_ENVS } from './billing';
 
 const PLACEHOLDER = /^(change[-_ ]?me.*|replace[-_ ].*|your[-_ ].*|secret|password|placeholder|default|x+)$/i;
 
@@ -80,6 +81,65 @@ function refineMailEnv(env: { NODE_ENV: string; MAIL_TRANSPORT: string; RESEND_A
   }
 }
 
+/**
+ * A Paddle credential that may carry one of `prefixes` (which one each `PADDLE_ENV` needs is checked by
+ * `refinePaddleEnv`). After the prefix something real must follow: not nothing and not a placeholder such as
+ * `replace_me`. `minLength` counts the whole value, prefix included.
+ */
+function paddleCredential(name: string, prefixes: readonly string[], minLength = 1) {
+  const restOf = (value: string) => {
+    const prefix = prefixes.find((candidate) => value.startsWith(candidate));
+    return prefix ? value.slice(prefix.length) : value;
+  };
+  return z
+    .string()
+    .trim()
+    .min(1, 'is required')
+    .refine((value) => restOf(value).length > 0, { message: `${name} is only a prefix; copy the whole value from the Paddle dashboard` })
+    .refine((value) => value.length >= minLength, { message: `must be at least ${minLength} characters` })
+    .refine((value) => !(PLACEHOLDER.test(value) || PLACEHOLDER.test(restOf(value))), {
+      message: `${name} looks like a placeholder; copy the real value from the Paddle dashboard`,
+    });
+}
+
+const paddlePriceId = z
+  .string()
+  .trim()
+  .regex(/^pri_[a-z0-9]{26}$/, 'must be a Paddle price id such as pri_01m61npvnr18pc5g8fjpjfnhne');
+
+/** The Paddle key and token prefixes each `PADDLE_ENV` allows (P7-D10). */
+const PADDLE_PREFIXES = {
+  sandbox: { apiKey: 'pdl_sdbx_apikey_', clientToken: 'test_' },
+  production: { apiKey: 'pdl_live_apikey_', clientToken: 'live_' },
+} as const;
+
+const paddleEnvFields = {
+  PADDLE_ENV: z.enum(PADDLE_ENVS),
+  PADDLE_API_KEY: paddleCredential('PADDLE_API_KEY', ['pdl_sdbx_apikey_', 'pdl_live_apikey_']),
+  /** The client-side token Paddle.js initialises with; safe to send to the browser. */
+  PADDLE_CLIENT_TOKEN: paddleCredential('PADDLE_CLIENT_TOKEN', ['test_', 'live_']),
+  /** The notification destination's endpoint secret; verifies `Paddle-Signature`. */
+  PADDLE_WEBHOOK_SECRET: paddleCredential('PADDLE_WEBHOOK_SECRET', ['pdl_ntfset_'], 32),
+  PADDLE_PRICE_PRO_MONTHLY: paddlePriceId,
+  PADDLE_PRICE_PRO_YEARLY: paddlePriceId,
+  PADDLE_PRICE_BUSINESS_MONTHLY: paddlePriceId,
+  PADDLE_PRICE_BUSINESS_YEARLY: paddlePriceId,
+};
+
+/** The API key and client token must belong to the environment `PADDLE_ENV` names, so a mixed-up deploy fails at start. */
+function refinePaddleEnv(
+  env: { PADDLE_ENV: (typeof PADDLE_ENVS)[number]; PADDLE_API_KEY: string; PADDLE_CLIENT_TOKEN: string },
+  ctx: z.RefinementCtx,
+): void {
+  const expected = PADDLE_PREFIXES[env.PADDLE_ENV];
+  if (!env.PADDLE_API_KEY.startsWith(expected.apiKey)) {
+    ctx.addIssue({ code: 'custom', path: ['PADDLE_API_KEY'], message: `must start with ${expected.apiKey} when PADDLE_ENV=${env.PADDLE_ENV}` });
+  }
+  if (!env.PADDLE_CLIENT_TOKEN.startsWith(expected.clientToken)) {
+    ctx.addIssue({ code: 'custom', path: ['PADDLE_CLIENT_TOKEN'], message: `must start with ${expected.clientToken} when PADDLE_ENV=${env.PADDLE_ENV}` });
+  }
+}
+
 /** The variables the mailer reads: the API always, the ingest CLI only for `alerts:run` and `digest:send`. */
 const mailEnvFields = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -108,8 +168,10 @@ export const apiEnvSchema = z
     JWT_SECRET: strongSecret('JWT_SECRET'),
     /** Proxies between the client and the API whose X-Forwarded-For we trust, so `req.ip` is the client (P4-D14). */
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+    ...paddleEnvFields,
   })
-  .superRefine(refineMailEnv);
+  .superRefine(refineMailEnv)
+  .superRefine(refinePaddleEnv);
 
 export type ApiEnv = z.output<typeof apiEnvSchema>;
 

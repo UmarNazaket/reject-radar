@@ -26,6 +26,11 @@
   "email.accountExists.loginButton": "لاگ ان کریں",
   "email.accountExists.resetButton": "پاس ورڈ ری سیٹ کریں",
 
+  "email.paymentFailed.subject": "آپ کی RejectRadar ادائیگی ناکام ہو گئی",
+  "email.paymentFailed.heading": "ہم آپ کی ادائیگی وصول نہیں کر سکے",
+  "email.paymentFailed.body": "RejectRadar پر {orgName} کی تازہ ترین ادائیگی نہیں ہو سکی۔ اپنا پلان فعال رکھنے کے لیے اپنا ادائیگی کا طریقہ اپ ڈیٹ کریں۔",
+  "email.paymentFailed.button": "بلنگ کھولیں",
+
   "role.owner": "مالک",
   "role.admin": "ایڈمن",
   "role.member": "رکن",
@@ -88,6 +93,9 @@
   "errors.PLAN_UPGRADE_REQUIRED": "یہ خصوصیت آپ کے پلان میں شامل نہیں ہے۔ اسے استعمال کرنے کے لیے اپنا پلان اپ گریڈ کریں۔",
   "errors.INVALID_RECORD": "یہ ریکارڈ اس فرم کا نہیں ہے۔ ریکارڈ دیکھ کر دوبارہ کوشش کریں۔",
   "errors.ALREADY_WATCHED": "یہ پہلے ہی آپ کی واچ لسٹ میں ہے۔",
+  "errors.ALREADY_SUBSCRIBED": "آپ کے اکاؤنٹ کی سبسکرپشن پہلے سے موجود ہے۔ اسے تبدیل یا منسوخ کرنے کے لیے بلنگ پورٹل استعمال کریں۔",
+  "errors.INVALID_SIGNATURE": "درخواست کے دستخط درست نہیں ہیں۔",
+  "errors.NO_BILLING_ACCOUNT": "آپ کے اکاؤنٹ کا ابھی کوئی بلنگ اکاؤنٹ نہیں ہے۔ پہلے کوئی پلان منتخب کریں۔",
 
   "taxonomy.commodity.cereals": "اناج",
   "taxonomy.commodity.rice": "چاول",

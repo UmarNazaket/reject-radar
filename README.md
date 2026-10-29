@@ -108,9 +108,66 @@ The app API under `/v1` has these product areas. Apart from `GET /taxonomy`, the
 | Import Alerts | `GET /import-alerts/:number`: the alert text and a summary only if a person has approved it.                                                                      |
 | Watchlist     | Firm and topic items, a CSV export and a notice estimate for a topic being added. Adding needs a verified email.                                                  |
 | Alerts        | The alerts list, mark as read, unread counts, and each user's instant-email and digest settings.                                                                  |
+| Billing       | Plans, the account's subscription and usage, Paddle checkout and customer portal for owners, and the Paddle webhook. See "Billing with Paddle".                   |
 | Plan limits   | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. P9 will show both as an upgrade prompt.           |
 
 Alerts are made by `alerts:run` and the digests by `digest:send` (see the ingestion commands below), not by the API.
+
+## Billing with Paddle
+
+Plans are sold through Paddle Billing: Pro at $39 a month or $390 a year, Business at $149 a month or $1,490 a year. Free has no Paddle price, and Enterprise is granted by an admin and never sold through checkout. The limits come from the plan table in `libs/contracts` and nowhere else. An admin override wins, then a paid subscription, otherwise Free. A subscription in `active`, `trialing` or `past_due` counts as paid; `past_due` keeps the plan while Paddle retries a failed payment.
+
+| Route                          | Who                         | What it does                                                                                                                                                                                          |
+| ------------------------------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/billing/plans`        | Anyone                      | The plans, their prices and limits, for the pricing page.                                                                                                                                             |
+| `GET /v1/billing/subscription` | Any member                  | The plan in force and where it comes from (`override`, `subscription` or `free`), the Paddle status, interval, period end and cancel date, this month's usage and the limits.                         |
+| `POST /v1/billing/checkout`    | Owner with a verified email | Returns what Paddle.js needs: `priceId`, `customData` (`{ orgId }`), `customerEmail`, the client-side token, the environment and `successUrl`. `409 ALREADY_SUBSCRIBED` while a subscription is live. |
+| `POST /v1/billing/portal`      | Owner                       | Returns a Paddle customer-portal URL for plan changes, payment methods and cancellation. `409 NO_BILLING_ACCOUNT` before the first purchase.                                                          |
+| `POST /v1/webhooks/paddle`     | Paddle                      | Checks the `Paddle-Signature` over the raw body, records the event once, and updates the account's subscription. No session and no CSRF header; the signature is the credential.                      |
+
+The webhook answers 200 for a replayed event and for one that matches no account, and 5xx on a processing error so that Paddle retries. An event older than the last one applied is recorded and not applied. When a payment fails, the account's verified owners get an email in their own language.
+
+On a downgrade nothing is deleted. New lookups, watchlist additions, bulk uploads, API calls and members are blocked until usage is back under the new limits.
+
+### Paddle environment variables
+
+The API refuses to start unless every one of these is set and well-formed, in every environment. Staging runs `NODE_ENV=production` with `PADDLE_ENV=sandbox`.
+
+| Variable                | What it is                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `PADDLE_ENV`            | `sandbox` or `production`.                                                                                              |
+| `PADDLE_API_KEY`        | Server-side key: `pdl_sdbx_apikey_…` for the sandbox, `pdl_live_apikey_…` for production. Never logged.                 |
+| `PADDLE_CLIENT_TOKEN`   | Client-side token for Paddle.js: `test_…` for the sandbox, `live_…` for production. Safe in a browser.                  |
+| `PADDLE_WEBHOOK_SECRET` | The notification destination's endpoint secret (`pdl_ntfset_…`). Never logged.                                          |
+| `PADDLE_PRICE_*`        | Four recurring price IDs (`pri_…`): `PADDLE_PRICE_PRO_MONTHLY`, `_PRO_YEARLY`, `_BUSINESS_MONTHLY`, `_BUSINESS_YEARLY`. |
+
+### Paddle sandbox tools
+
+- `node tools/paddle/create-webhook.mjs --url https://<api host>/v1/webhooks/paddle` creates the notification destination for the five events the API handles. It reads `PADDLE_API_KEY` from `.env`, accepts only a sandbox key unless `--production` is given, and prints the secret only with `--show-secret`.
+- `tools/paddle/checkout.html` is a static page that stands in for the billing page until P9. Paste the response of `POST /v1/billing/checkout` into it and it opens the Paddle sandbox overlay.
+- `PADDLE_SANDBOX_E2E=1 npx nx test api --testFile=sandbox.manual` runs the one spec that calls the Paddle sandbox (a throwaway customer and its portal session). It is skipped otherwise, and CI never reaches Paddle.
+
+See `tools/paddle/README.md`.
+
+### Owner steps before merging `p7/billing-paddle`
+
+The API refuses to start without the Paddle variables, so these come before the merge and before any staging redeploy:
+
+1. **Send Paddle the V9 questions:** payouts, the 7 countries, a data-subscription product and domain approval. The answers gate live selling, not the sandbox.
+2. **Client-side token:** in the Paddle sandbox dashboard, go to Developer tools, Authentication, and create a client-side token (`test_…`). Put it in the local `.env` and the Render staging environment as `PADDLE_CLIENT_TOKEN`.
+3. **Webhook destination for staging:** run `node tools/paddle/create-webhook.mjs --url https://<staging api>/v1/webhooks/paddle`. Copy the endpoint secret it points to into Render staging as `PADDLE_WEBHOOK_SECRET`.
+4. **Render staging variables:** `PADDLE_ENV=sandbox`, `PADDLE_API_KEY` (the sandbox key), `PADDLE_CLIENT_TOKEN`, `PADDLE_WEBHOOK_SECRET`, and the four `PADDLE_PRICE_*` IDs.
+5. **Migrate staging:** apply `0015` with the direct, not pooled, connection string.
+6. **Payment recovery:** in the Paddle dashboard's payment-recovery (dunning) settings, check that a subscription whose retries all fail is canceled, not paused. The API reads `past_due` as still paid and `canceled` as the end (P7-D6); a paused subscription does not block checkout, so its owner could buy a second one beside it.
+7. **After the deploy, run a manual sandbox purchase:**
+   - wake staging first with `GET /v1/health`: Render's free instances sleep, and the first webhook must not land on a cold start;
+   - get the checkout details with `POST /v1/billing/checkout`;
+   - open them in `tools/paddle/checkout.html` and pay with Paddle's sandbox test card;
+   - check that `GET /v1/billing/subscription` turns Pro within a minute;
+   - open the portal;
+   - cancel, and check that the plan reads Free at the period end.
+
+Not in this phase: the billing page in the web app (P9), live Paddle (P11, after the V9 answers), and clearing `paddle_event.payload` after 90 days (P6's `maintenance:purge`).
 
 ## Technology
 
@@ -146,6 +203,7 @@ libs/
   mail/       the mailer, its transports and the email templates, shared by the API and the ingest CLI
 tools/
   perf/       load.mjs, the p95 check for notice search, dashboards and firm search
+  paddle/     create-webhook.mjs and checkout.html, the owner's Paddle sandbox tools
 .github/workflows/
   ci.yml       lint, test and build on every push and pull request
   sync-*.yml   scheduled syncs
@@ -240,19 +298,19 @@ Alerts depend on that. `alerts:run` reads change events in order and moves its c
 
 About 70 development days in 11 phases.
 
-| Phase | What                                                                                 | Status                                                                                                                                                                                                                  |
-| ----- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P1    | Foundation: workspace, database, CI, accounts, checks of every source                | ✅ Done (October 2026)                                                                                                                                                                                                  |
-| P2    | Ingestion and taxonomy: six sources, full history, scheduled syncs                   | Built and merged. Staging holds FDA refusals since 2016, RASFF since 2020, UK, Australia and EU MRLs (195 MB). Still to do: the first full Import Alert crawl, a week of green scheduled runs and the final size check. |
-| P3    | Entity resolution: linking, firm facts, merge and split                              | Built and merged; 20,833 firms from 90,614 records on a full local load. Waiting for the labelled-pair precision gate and the first link on staging.                                                                    |
-| P4    | Auth, accounts, email and the i18n core                                              | Built and merged (PRs #35 and #36). Sign-up, login, sessions, password reset, members and invites, the email cap and localised emails. Still to do: the staging migrations and settings.                                |
-| P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Built on branch `p5/core-product-api`, not merged. See "The product API". Still to do: review; before merging, the staging migration, mail settings and link check; then the p95 and hand checks.                       |
-| P6    | Bulk supplier screening and PDF reports                                              | Not started                                                                                                                                                                                                             |
-| P7    | Billing with Paddle                                                                  | Not started                                                                                                                                                                                                             |
-| P8    | Public API and Import Alert summaries                                                | Not started                                                                                                                                                                                                             |
-| P9    | Web app in four languages                                                            | Not started                                                                                                                                                                                                             |
-| P10   | Admin panel: health, taxonomy, match review, summaries                               | Not started                                                                                                                                                                                                             |
-| P11   | Deployment and launch                                                                | Not started                                                                                                                                                                                                             |
+| Phase | What                                                                                 | Status                                                                                                                                                                                                                                                        |
+| ----- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1    | Foundation: workspace, database, CI, accounts, checks of every source                | ✅ Done (October 2026)                                                                                                                                                                                                                                        |
+| P2    | Ingestion and taxonomy: six sources, full history, scheduled syncs                   | Built and merged. Staging holds FDA refusals since 2016, RASFF since 2020, UK, Australia and EU MRLs (195 MB). Still to do: the first full Import Alert crawl, a week of green scheduled runs and the final size check.                                       |
+| P3    | Entity resolution: linking, firm facts, merge and split                              | Built and merged; 20,833 firms from 90,614 records on a full local load. Waiting for the labelled-pair precision gate and the first link on staging.                                                                                                          |
+| P4    | Auth, accounts, email and the i18n core                                              | Built and merged (PRs #35 and #36). Sign-up, login, sessions, password reset, members and invites, the email cap and localised emails. Still to do: the staging migrations and settings.                                                                      |
+| P5    | Core product API: search, dashboards, firm profiles, MRL checker, watchlists, alerts | Built and merged (PR #37). See "The product API". Still to do: the staging migration, mail settings and link check; then the p95 and hand checks.                                                                                                             |
+| P6    | Bulk supplier screening and PDF reports                                              | Not started                                                                                                                                                                                                                                                   |
+| P7    | Billing with Paddle                                                                  | Built on branch `p7/billing-paddle`, not merged. See "Billing with Paddle". Still to do: review; before merging, the owner steps there (Paddle token, webhook destination, Render variables, the `0015` staging migration); then the manual sandbox purchase. |
+| P8    | Public API and Import Alert summaries                                                | Not started                                                                                                                                                                                                                                                   |
+| P9    | Web app in four languages                                                            | Not started                                                                                                                                                                                                                                                   |
+| P10   | Admin panel: health, taxonomy, match review, summaries                               | Not started                                                                                                                                                                                                                                                   |
+| P11   | Deployment and launch                                                                | Not started                                                                                                                                                                                                                                                   |
 
 ## Data and privacy principles
 

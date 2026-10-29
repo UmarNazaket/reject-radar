@@ -3,7 +3,7 @@ import { translate } from '@rejectradar/i18n';
 import { escapeHtml } from './escape';
 import { LAYOUT_COLORS, renderLayout } from './layout';
 
-export type TemplateName = 'verify' | 'reset' | 'invite' | 'account_exists';
+export type TemplateName = 'verify' | 'reset' | 'invite' | 'account_exists' | 'payment_failed';
 
 export interface RenderedEmail {
   subject: string;
@@ -19,6 +19,8 @@ interface TemplateSpec {
   /** Catalog key of the button label, and the expiry line when the link expires. */
   button: string;
   expiry?: string;
+  /** The closing "ignore this email" line suits a request the reader made, not a notice about their account. */
+  omitIgnore?: true;
 }
 
 const TEMPLATES: Readonly<Record<TemplateName, TemplateSpec>> = {
@@ -32,6 +34,8 @@ const TEMPLATES: Readonly<Record<TemplateName, TemplateSpec>> = {
   },
   // The login link is the button; a second link (`resetLink`) to reset the password follows it when given.
   account_exists: { prefix: 'accountExists', required: ['link'], button: 'email.accountExists.loginButton' },
+  // Sent to an account's owners when its payment fails, so it is not something to ignore.
+  payment_failed: { prefix: 'paymentFailed', required: ['orgName', 'link'], button: 'email.paymentFailed.button', omitIgnore: true },
 };
 
 const ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'member']);
@@ -58,7 +62,7 @@ export const singleLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, ' '
 export const stripAngles = (value: string) => value.replace(/[<>]/g, '');
 
 /**
- * Renders one of the four account emails in `locale`. Every parameter is HTML-escaped in the HTML version; the
+ * Renders one of the account emails in `locale`. Every parameter is HTML-escaped in the HTML version; the
  * text version carries them without markup characters. `params.link` is the button's URL.
  */
 export function renderEmail(template: TemplateName, locale: Locale, params: Record<string, string>): RenderedEmail {
@@ -77,7 +81,7 @@ export function renderEmail(template: TemplateName, locale: Locale, params: Reco
   const body = t(`email.${spec.prefix}.body`);
   const button = t(spec.button);
   const expiry = spec.expiry ? t(spec.expiry) : null;
-  const ignore = t('email.layout.ignore');
+  const ignore = spec.omitIgnore ? null : t('email.layout.ignore');
   const resetLabel = template === 'account_exists' && params['resetLink'] ? t('email.accountExists.resetButton') : null;
 
   const html = renderLayout({
@@ -89,7 +93,7 @@ export function renderEmail(template: TemplateName, locale: Locale, params: Reco
       buttonHtml(params['link'], button),
       resetLabel ? `<p style="margin: 0 0 24px; font-size: 14px; font-weight: 600;"><a href="${escapeHtml(params['resetLink'])}" style="color: #1F4FCC;">${escapeHtml(resetLabel)}</a></p>` : '',
       expiry ? `<p style="margin: 0 0 12px; padding: 12px 14px; background-color: ${LAYOUT_COLORS.page}; border-radius: 6px; font-size: 13.5px; color: #3F4A5C;">${escapeHtml(expiry)}</p>` : '',
-      `<p style="margin: 0; font-size: 13.5px; color: ${LAYOUT_COLORS.muted};">${escapeHtml(ignore)}</p>`,
+      ignore ? `<p style="margin: 0; font-size: 13.5px; color: ${LAYOUT_COLORS.muted};">${escapeHtml(ignore)}</p>` : '',
     ]
       .filter(Boolean)
       .join('\n'),
@@ -101,7 +105,7 @@ export function renderEmail(template: TemplateName, locale: Locale, params: Reco
     `${button}: ${stripAngles(params['link'])}`,
     ...(resetLabel ? [`${resetLabel}: ${stripAngles(params['resetLink'])}`] : []),
     ...(expiry ? [expiry] : []),
-    ignore,
+    ...(ignore ? [ignore] : []),
   ];
 
   return { subject: singleLine(t(`email.${spec.prefix}.subject`)), html, text: `${textLines.join('\n\n')}\n` };

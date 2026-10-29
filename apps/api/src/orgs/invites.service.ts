@@ -25,6 +25,7 @@ import type { Tx } from '../database/tx';
 import { EntitlementsService } from '../entitlements/entitlements.service';
 import { MailerService } from '../mail/mailer.service';
 import { loadMe } from './me.queries';
+import { MembersService } from './members.service';
 
 /** How long an invite link works (P4-D8), counted on the database clock. */
 const INVITE_DAYS = 7;
@@ -47,7 +48,20 @@ export class InvitesService {
     private readonly mailer: MailerService,
     private readonly sessions: SessionsService,
     private readonly entitlements: EntitlementsService,
+    private readonly members: MembersService,
   ) {}
+
+  /**
+   * The seats an invite is checked against (P5-D3): the members plus the open invites. `replacing` leaves out the
+   * pending invite for that address, which a new invite to it replaces. Takes the caller's transaction when there is one.
+   */
+  async seats(orgId: string, executor: Database | Tx = this.db, replacing?: string): Promise<number> {
+    const others = replacing === undefined ? undefined : sql`lower(${invite.email}) <> ${replacing}`;
+    // One after the other: on a transaction both run on the same connection.
+    const members = await this.members.count(orgId, executor);
+    const [{ open }] = await executor.select({ open: count() }).from(invite).where(byOrg(invite, { orgId }, isOpen, others));
+    return members + open;
+  }
 
   /**
    * Invites an email address into the caller's account. The invite for the same address that is still pending is
@@ -75,12 +89,7 @@ export class InvitesService {
       // locks the invite first too, and the two must not wait on each other), and it is left out of the count.
       await tx.select({ id: invite.id }).from(invite).where(byOrg(invite, ctx, sql`lower(${invite.email}) = ${body.email}`, isNull(invite.acceptedAt))).for('update');
       await this.lockSeats(tx, ctx.orgId);
-      const [{ members }] = await tx.select({ members: count() }).from(membership).where(byOrg(membership, ctx));
-      const [{ others }] = await tx
-        .select({ others: count() })
-        .from(invite)
-        .where(byOrg(invite, ctx, isOpen, sql`lower(${invite.email}) <> ${body.email}`));
-      await this.entitlements.assertCount(ctx.orgId, 'members', members + others, tx);
+      await this.entitlements.assertCount(ctx.orgId, 'members', await this.seats(ctx.orgId, tx, body.email), tx);
 
       await tx.delete(invite).where(byOrg(invite, ctx, sql`lower(${invite.email}) = ${body.email}`, isNull(invite.acceptedAt)));
       const [row] = await tx
@@ -232,8 +241,7 @@ export class InvitesService {
     if (!alreadyJoined) {
       // Accepting counts members only (P5-D3): the open invites, this one included, are not seats yet.
       await this.lockSeats(tx, pending.orgId);
-      const [{ members }] = await tx.select({ members: count() }).from(membership).where(byOrg(membership, { orgId: pending.orgId }));
-      await this.entitlements.assertCount(pending.orgId, 'members', members, tx);
+      await this.entitlements.assertCount(pending.orgId, 'members', await this.members.count(pending.orgId, tx), tx);
       await tx.insert(membership).values({ orgId: pending.orgId, userId, role: pending.role });
     }
     await tx.update(invite).set({ acceptedAt: sql`now()` }).where(eq(invite.id, pending.id));

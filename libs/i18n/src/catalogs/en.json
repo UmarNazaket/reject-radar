@@ -26,6 +26,11 @@
   "email.accountExists.loginButton": "Log in",
   "email.accountExists.resetButton": "Reset password",
 
+  "email.paymentFailed.subject": "Your RejectRadar payment failed",
+  "email.paymentFailed.heading": "We couldn't take your payment",
+  "email.paymentFailed.body": "The latest payment for {orgName} on RejectRadar did not go through. Update your payment method to keep your plan active.",
+  "email.paymentFailed.button": "Open billing",
+
   "role.owner": "Owner",
   "role.admin": "Admin",
   "role.member": "Member",
@@ -88,6 +93,9 @@
   "errors.PLAN_UPGRADE_REQUIRED": "This feature is not included in your plan. Upgrade your plan to use it.",
   "errors.INVALID_RECORD": "That record is not one of this firm's. Check the record and try again.",
   "errors.ALREADY_WATCHED": "This is already on your watchlist.",
+  "errors.ALREADY_SUBSCRIBED": "Your account already has a subscription. Use the billing portal to change or cancel it.",
+  "errors.INVALID_SIGNATURE": "The request signature is not valid.",
+  "errors.NO_BILLING_ACCOUNT": "Your account has no billing history yet. Subscribe to a plan first.",
 
   "taxonomy.commodity.cereals": "Cereals",
   "taxonomy.commodity.rice": "Rice",

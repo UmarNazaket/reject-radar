@@ -106,6 +106,9 @@ describe('catalogs', () => {
       'LAST_OWNER',
       'ALREADY_MEMBER',
       'ALREADY_IN_ACCOUNT',
+      'ALREADY_SUBSCRIBED',
+      'NO_BILLING_ACCOUNT',
+      'INVALID_SIGNATURE',
     ];
     for (const code of codes)
       expect(CATALOGS.en[`errors.${code}`]).toEqual(expect.any(String));
