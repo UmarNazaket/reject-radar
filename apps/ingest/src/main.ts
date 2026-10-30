@@ -18,7 +18,7 @@ import { syncChargeCodes } from './sync/fda/charge-codes';
 import { syncAuIfis } from './sync/au-ifis/sync';
 import { syncEuMrl } from './sync/eu-mrl/sync';
 import { syncFdaRefusals } from './sync/fda/refusals';
-import { syncImportAlerts } from './sync/import-alerts/sync';
+import { crawlNotDue, syncImportAlerts } from './sync/import-alerts/sync';
 import { DEFAULT_DETAILS_LIMIT, syncRasff } from './sync/rasff/sync';
 import { remapIfRequested, remapTaxonomy } from './sync/remap';
 import { draftSummaries } from './summaries/draft';
@@ -132,9 +132,13 @@ program
   .option('--no-events', 'write the rows but emit no change events (backfills; a first load suppresses them by itself)')
   .option('--only <numbers>', 'comma-separated alert numbers to crawl, e.g. 99-19,16-131 (manual checks; allowed outside the visiting hours)', list)
   .option('--force-hours', 'start a full crawl outside the FDA robots.txt visiting hours (03:00-09:00 UTC)')
-  .action(async (options: { events: boolean; only?: string[]; forceHours?: boolean }) => {
+  .option('--if-due', 'for scheduled runs: skip, without failing, outside the visiting hours or when a full crawl already succeeded today (UTC)')
+  .action(async (options: { events: boolean; only?: string[]; forceHours?: boolean; ifDue?: boolean }) => {
     const env = loadIngestEnv();
-    const result = await withDeps(env, (deps) => syncImportAlerts({ ...deps, failureDir: env.INGEST_FAILURE_DIR }, options));
+    const result = await withDeps(env, async (deps) => {
+      const notDue = options.ifDue ? await crawlNotDue(deps.db, new Date()) : null;
+      return notDue ? { skipped: notDue } : syncImportAlerts({ ...deps, failureDir: env.INGEST_FAILURE_DIR }, options);
+    });
     console.log(JSON.stringify(result, null, 2));
   });
 

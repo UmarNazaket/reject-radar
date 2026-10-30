@@ -10,7 +10,7 @@ import { loadRuleSet } from '@rejectradar/taxonomy';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
 import { seedSucceededRun } from '../../core/test-sync-run';
 import { parseAlertPage, type ParsedListing } from './parse-page';
-import { classifyListing, IMPORT_ALERT_INDEX_URL, listingKey, syncImportAlerts } from './sync';
+import { classifyListing, crawlNotDue, IMPORT_ALERT_INDEX_URL, listingKey, syncImportAlerts } from './sync';
 
 const fixture = (name: string) => readFileSync(path.join(__dirname, '__fixtures__', name), 'utf8');
 const TODAY = '2026-10-18';
@@ -257,6 +257,24 @@ describe('Import Alert sync', () => {
     it('runs outside them with --force-hours or --only', async () => {
       expect(await runAt('2026-10-18T15:30:00Z', { forceHours: true })).toMatchObject({ status: 'succeeded' });
       expect(await runAt('2026-10-18T15:30:00Z', { only: ['99-19'] })).toMatchObject({ status: 'succeeded' });
+    });
+
+    it('tells a scheduled run to skip outside them, or once a full crawl succeeded that UTC day', async () => {
+      const run = (startedAt: string, status: string, partial = false) =>
+        handle.db.insert(sourceSyncRun).values({ source: 'import_alerts', status, partial, startedAt: new Date(startedAt) });
+      const at = (iso: string) => crawlNotDue(handle.db, new Date(iso));
+      await handle.db.delete(sourceSyncRun);
+      expect(await at('2026-10-18T02:59:00Z')).toBe('outside the visiting hours, 03:00-09:00 UTC');
+      expect(await at('2026-10-18T09:54:00Z')).toBe('outside the visiting hours, 03:00-09:00 UTC');
+
+      await run('2026-10-17T05:00:00Z', 'succeeded');
+      await run('2026-10-18T04:00:00Z', 'succeeded', true);
+      await run('2026-10-18T04:10:00Z', 'failed');
+      expect(await at('2026-10-18T05:37:00Z')).toBeNull();
+
+      await run('2026-10-18T03:30:00Z', 'succeeded');
+      expect(await at('2026-10-18T05:37:00Z')).toBe('a full crawl already succeeded today');
+      expect(await at('2026-10-19T05:37:00Z')).toBeNull();
     });
   });
 

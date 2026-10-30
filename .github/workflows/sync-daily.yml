@@ -3,9 +3,12 @@ name: Sync daily
 on:
   schedule:
     # Import Alerts, then RASFF. A full Import Alert crawl must start inside FDA's robots.txt visiting hours, 03:00-09:00
-    # UTC. GitHub can start a scheduled run hours late (the first one, due at 04:00, started at 09:05), most often on the
-    # hour, so the run is due early in the window and off the hour.
+    # UTC, and GitHub can start a scheduled run hours late (the 03:07 one has started between 08:53 and 09:54). So Import
+    # Alerts alone is also due at 23:37: with a delay of 0 to 5.8 hours the 03:07 run starts inside the hours, with 3.4 to
+    # 9.3 hours the 23:37 one does. A scheduled crawl outside them, or after one succeeded that UTC day, skips (--if-due).
+    # One extra run only: the sync workflows share a concurrency group, which keeps one pending run.
     - cron: '7 3 * * *'
+    - cron: '37 23 * * *'
   workflow_dispatch:
     inputs:
       job:
@@ -32,7 +35,7 @@ jobs:
   import-alerts:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: ${{ github.event.schedule == '7 3 * * *' || inputs.job == 'all' || inputs.job == 'import-alerts' }}
+    if: ${{ github.event_name == 'schedule' || inputs.job == 'all' || inputs.job == 'import-alerts' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -51,7 +54,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
           INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
-        run: node dist/apps/ingest/main.js sync:import-alerts
+        run: node dist/apps/ingest/main.js sync:import-alerts ${{ github.event_name == 'schedule' && '--if-due' || '' }}
       # A page-structure failure saves the page under INGEST_FAILURE_DIR (default tmp/ingest-failures).
       - name: Upload the page that failed to parse
         if: failure()
