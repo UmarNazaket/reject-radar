@@ -4,9 +4,9 @@ import { expect, type Page, test } from '@playwright/test';
 // one test changes its language, so the tests run one after another.
 test.describe.configure({ mode: 'serial' });
 
-async function signIn(page: Page): Promise<void> {
+async function signIn(page: Page, email = 'e2e@example.com'): Promise<void> {
   await page.goto('/login');
-  await page.fill('input[name=email]', 'e2e@example.com');
+  await page.fill('input[name=email]', email);
   await page.fill('input[name=password]', 'e2e-check-2026');
   await page.click('button[type=submit]');
   await expect(page).toHaveURL(/\/topics/);
@@ -61,4 +61,22 @@ test('Urdu turns the page right to left', async ({ page }) => {
   // Back to English, so the account's language is as the other tests expect.
   await page.selectOption('app-language-select select', 'en');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+});
+
+test('staff keep two firms apart in the match review, which customers cannot open', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/admin/matches');
+  await expect(page.locator('h1')).toContainText('Page not found');
+
+  await page.context().clearCookies();
+  await signIn(page, 'e2e-staff@example.com');
+  await page.getByRole('link', { name: 'Admin' }).click();
+  await page.getByRole('link', { name: 'Match review' }).click();
+  const review = page.locator('main li').filter({ hasText: 'FDA refusal e2e-r1' });
+  await expect(review).toContainText('E2E Spice Mill (#');
+  page.once('dialog', (dialog) => void dialog.accept());
+  await review.getByRole('button', { name: 'Different firms' }).click();
+  await expect(page.locator('main')).toContainText('No reviews here.');
+  await page.getByRole('link', { name: 'Different firms' }).click();
+  await expect(page.locator('main li').filter({ hasText: 'FDA refusal e2e-r1' })).toBeVisible();
 });
