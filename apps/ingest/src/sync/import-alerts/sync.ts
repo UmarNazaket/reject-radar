@@ -1,8 +1,8 @@
 import type { AlertList, EventKind } from '@rejectradar/contracts';
-import { changeEvent, importAlert, importAlertListing, importAlertListingProduct, matchReview, notice } from '@rejectradar/db';
+import { changeEvent, type Database, importAlert, importAlertListing, importAlertListingProduct, matchReview, notice, sourceSyncRun } from '@rejectradar/db';
 import { normalizeName } from '@rejectradar/matching';
 import { classifyCommodity, classifyHazards, UNCLASSIFIED_ID, type RuleSet } from '@rejectradar/taxonomy';
-import { and, eq, inArray, notInArray, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, notInArray, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -23,14 +23,30 @@ export const VISITING_HOURS_UTC = { from: 3, to: 9 } as const;
  * backfill runs pass neither flag, so they are guarded too.
  */
 export function assertVisitingHours(now: Date, options: { only?: string[]; forceHours?: boolean }): void {
-  if (options.only !== undefined || options.forceHours) return;
-  const hour = now.getUTCHours();
-  if (hour >= VISITING_HOURS_UTC.from && hour < VISITING_HOURS_UTC.to) return;
+  if (options.only !== undefined || options.forceHours || inVisitingHours(now)) return;
   const time = now.toISOString().slice(11, 16);
   throw new Error(
     `sync:import-alerts crawls www.accessdata.fda.gov only inside its robots.txt visiting hours, 03:00-09:00 UTC; it is ${time} UTC now. ` +
       'Pass --force-hours to run anyway, or --only <numbers> for a manual check of a few alerts.',
   );
+}
+
+const inVisitingHours = (now: Date): boolean => now.getUTCHours() >= VISITING_HOURS_UTC.from && now.getUTCHours() < VISITING_HOURS_UTC.to;
+
+/**
+ * Why a scheduled crawl should not start now, or null when it should. GitHub can start a scheduled run hours late, so
+ * the daily workflow is scheduled several times: a run outside the visiting hours, or after a full crawl already
+ * succeeded that UTC day, skips the crawl instead of failing.
+ */
+export async function crawlNotDue(db: Database, now: Date): Promise<string | null> {
+  if (!inVisitingHours(now)) return 'outside the visiting hours, 03:00-09:00 UTC';
+  const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const [run] = await db
+    .select({ id: sourceSyncRun.id })
+    .from(sourceSyncRun)
+    .where(and(eq(sourceSyncRun.source, 'import_alerts'), eq(sourceSyncRun.status, 'succeeded'), eq(sourceSyncRun.partial, false), gte(sourceSyncRun.startedAt, dayStart)))
+    .limit(1);
+  return run ? 'a full crawl already succeeded today' : null;
 }
 
 /** A listing that is missing from this many consecutive successful runs is delisted (spec §6.5). */
