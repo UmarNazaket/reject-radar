@@ -3,8 +3,16 @@ import { translate } from '@rejectradar/i18n';
 import { escapeHtml } from './escape';
 import { renderEmail, type TemplateName } from './render';
 
-const TEMPLATES: readonly TemplateName[] = ['verify', 'reset', 'invite', 'account_exists', 'payment_failed'];
-const PARAMS = { name: 'Sara', link: 'https://app.test/verify?token=t&x=1', inviterName: 'Ayesha', orgName: 'Indus Agro', role: 'admin' };
+const TEMPLATES: readonly TemplateName[] = ['verify', 'reset', 'invite', 'account_exists', 'payment_failed', 'dispute_resolved', 'dispute_rejected'];
+const PARAMS = {
+  name: 'Sara',
+  link: 'https://app.test/verify?token=t&x=1',
+  inviterName: 'Ayesha',
+  orgName: 'Indus Agro',
+  role: 'admin',
+  firmName: 'Zarfeen Rice Mills',
+  note: 'We moved the refusal to the right firm.',
+};
 
 describe('renderEmail', () => {
   it('renders Urdu right to left with the link', () => {
@@ -124,5 +132,31 @@ describe('renderEmail: payment_failed', () => {
       expect(html).not.toContain(translate(locale, 'email.layout.ignore'));
       expect(text).not.toContain(translate(locale, 'email.layout.ignore'));
     }
+  });
+});
+
+describe('renderEmail: dispute answers', () => {
+  const params = { firmName: 'Zarfeen Rice Mills', note: 'Line one\n<b>two</b>', link: 'https://app.test/firms/7' };
+
+  it('quotes the staff note, escaped, under the body', () => {
+    const { subject, html, text } = renderEmail('dispute_resolved', 'en', params);
+    expect(subject).toBe(translate('en', 'email.disputeResolved.subject'));
+    expect(html).toContain('Zarfeen Rice Mills');
+    expect(html).toContain('Line one\n&lt;b&gt;two&lt;/b&gt;');
+    expect(html).toContain(translate('en', 'email.dispute.noteLabel'));
+    expect(text).toContain(`${translate('en', 'email.dispute.noteLabel')}\nLine one\nbtwo/b`);
+    expect(text).toContain(params.link);
+  });
+
+  it('says the data stays when the report was rejected, in the reader\'s language', () => {
+    for (const locale of LOCALES) {
+      const { subject, html } = renderEmail('dispute_rejected', locale, params);
+      expect(subject).toBe(translate(locale, 'email.disputeRejected.subject'));
+      expect(html).not.toContain(translate(locale, 'email.layout.ignore'));
+    }
+  });
+
+  it('adds no note to the other emails', () => {
+    expect(renderEmail('verify', 'en', PARAMS).html).not.toContain(PARAMS.note);
   });
 });

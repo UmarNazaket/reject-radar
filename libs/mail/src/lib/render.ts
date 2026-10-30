@@ -3,7 +3,7 @@ import { translate } from '@rejectradar/i18n';
 import { escapeHtml } from './escape';
 import { LAYOUT_COLORS, renderLayout } from './layout';
 
-export type TemplateName = 'verify' | 'reset' | 'invite' | 'account_exists' | 'payment_failed';
+export type TemplateName = 'verify' | 'reset' | 'invite' | 'account_exists' | 'payment_failed' | 'dispute_resolved' | 'dispute_rejected';
 
 export interface RenderedEmail {
   subject: string;
@@ -36,6 +36,9 @@ const TEMPLATES: Readonly<Record<TemplateName, TemplateSpec>> = {
   account_exists: { prefix: 'accountExists', required: ['link'], button: 'email.accountExists.loginButton' },
   // Sent to an account's owners when its payment fails, so it is not something to ignore.
   payment_failed: { prefix: 'paymentFailed', required: ['orgName', 'link'], button: 'email.paymentFailed.button', omitIgnore: true },
+  // The answer to a problem the reader reported; `note` is the staff member's note, quoted under the body.
+  dispute_resolved: { prefix: 'disputeResolved', required: ['firmName', 'note', 'link'], button: 'email.dispute.button', omitIgnore: true },
+  dispute_rejected: { prefix: 'disputeRejected', required: ['firmName', 'note', 'link'], button: 'email.dispute.button', omitIgnore: true },
 };
 
 const ROLES: ReadonlySet<string> = new Set(['owner', 'admin', 'member']);
@@ -83,6 +86,7 @@ export function renderEmail(template: TemplateName, locale: Locale, params: Reco
   const expiry = spec.expiry ? t(spec.expiry) : null;
   const ignore = spec.omitIgnore ? null : t('email.layout.ignore');
   const resetLabel = template === 'account_exists' && params['resetLink'] ? t('email.accountExists.resetButton') : null;
+  const noteLabel = spec.required.includes('note') ? t('email.dispute.noteLabel') : null;
 
   const html = renderLayout({
     locale,
@@ -90,6 +94,9 @@ export function renderEmail(template: TemplateName, locale: Locale, params: Reco
     bodyHtml: [
       `<h1 style="margin: 0 0 12px; font-size: 24px; line-height: 1.25; font-weight: 700; color: ${LAYOUT_COLORS.ink};">${escapeHtml(heading)}</h1>`,
       `<p style="margin: 0 0 24px; color: #3F4A5C;">${escapeHtml(body)}</p>`,
+      noteLabel
+        ? `<p style="margin: 0 0 4px; font-size: 14px; font-weight: 600;">${escapeHtml(noteLabel)}</p><p dir="auto" style="margin: 0 0 24px; padding: 12px 14px; background-color: ${LAYOUT_COLORS.page}; border-radius: 6px; white-space: pre-line; color: #3F4A5C;">${escapeHtml(params['note'])}</p>`
+        : '',
       buttonHtml(params['link'], button),
       resetLabel ? `<p style="margin: 0 0 24px; font-size: 14px; font-weight: 600;"><a href="${escapeHtml(params['resetLink'])}" style="color: #1F4FCC;">${escapeHtml(resetLabel)}</a></p>` : '',
       expiry ? `<p style="margin: 0 0 12px; padding: 12px 14px; background-color: ${LAYOUT_COLORS.page}; border-radius: 6px; font-size: 13.5px; color: #3F4A5C;">${escapeHtml(expiry)}</p>` : '',
@@ -102,6 +109,7 @@ export function renderEmail(template: TemplateName, locale: Locale, params: Reco
   const textLines = [
     t(`email.${spec.prefix}.heading`, true),
     t(`email.${spec.prefix}.body`, true),
+    ...(noteLabel ? [`${noteLabel}\n${stripAngles(params['note'])}`] : []),
     `${button}: ${stripAngles(params['link'])}`,
     ...(resetLabel ? [`${resetLabel}: ${stripAngles(params['resetLink'])}`] : []),
     ...(expiry ? [expiry] : []),

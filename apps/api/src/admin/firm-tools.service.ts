@@ -46,7 +46,7 @@ export class FirmToolsService {
       .where(eq(matchReview.status, query.status))
       .orderBy(desc(matchReview.createdAt), desc(matchReview.id))
       .limit(LIST_LIMIT);
-    const firms = await this.firms(rows.flatMap((r) => [r.firmId, r.candidateFirmId]));
+    const firms = await this.summaries(rows.flatMap((r) => [r.firmId, r.candidateFirmId]));
     return { items: rows.map((row) => this.toItem(row, firms)) };
   }
 
@@ -75,11 +75,11 @@ export class FirmToolsService {
       });
     }
     const [row] = await this.db.select().from(matchReview).where(eq(matchReview.id, id));
-    return this.toItem(row, await this.firms([row.firmId, row.candidateFirmId]));
+    return this.toItem(row, await this.summaries([row.firmId, row.candidateFirmId]));
   }
 
   async firm(id: number): Promise<AdminFirmResponse> {
-    const firms = await this.firms([id]);
+    const firms = await this.summaries([id]);
     const summary = firms.get(id);
     if (!summary) throw new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found.');
     const loaded = await loadFirmRecords(this.db, { firmId: id });
@@ -107,7 +107,7 @@ export class FirmToolsService {
   }
 
   /** The firms by id, with their FEIs, how many records they hold and where they were merged, if they were. */
-  private async firms(ids: number[]): Promise<Map<number, AdminFirmSummary>> {
+  async summaries(ids: number[]): Promise<Map<number, AdminFirmSummary>> {
     const unique = [...new Set(ids)];
     if (unique.length === 0) return new Map();
     const { rows } = await this.db.execute<FirmRow>(sql`

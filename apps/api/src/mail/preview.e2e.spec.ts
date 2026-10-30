@@ -24,12 +24,12 @@ describe('dev email preview', () => {
     const links = [
       ...res.text.matchAll(/href="(\/v1\/dev\/emails\/[a-z_]+\/[a-z]+)"/g),
     ].map((m) => m[1]);
-    expect(links).toHaveLength(28);
-    expect(new Set(links).size).toBe(28);
+    expect(links).toHaveLength(36);
+    expect(new Set(links).size).toBe(36);
   });
 
   it('renders every template in every locale', async () => {
-    for (const template of ['verify', 'reset', 'invite', 'account_exists', 'payment_failed', 'instant_alert', 'digest']) {
+    for (const template of ['verify', 'reset', 'invite', 'account_exists', 'payment_failed', 'dispute_resolved', 'dispute_rejected', 'instant_alert', 'digest']) {
       for (const locale of LOCALES) {
         const res = await request(t.app.getHttpServer())
           .get(`/v1/dev/emails/${template}/${locale}`)

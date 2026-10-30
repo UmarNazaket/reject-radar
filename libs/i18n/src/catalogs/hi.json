@@ -31,6 +31,15 @@
   "email.paymentFailed.body": "RejectRadar पर {orgName} का नवीनतम भुगतान पूरा नहीं हो सका। अपना प्लान चालू रखने के लिए अपना भुगतान तरीका अपडेट करें।",
   "email.paymentFailed.button": "बिलिंग खोलें",
 
+  "email.disputeResolved.subject": "आपकी RejectRadar रिपोर्ट की समस्या ठीक कर दी गई",
+  "email.disputeResolved.heading": "आपकी बताई समस्या हमने ठीक कर दी",
+  "email.disputeResolved.body": "RejectRadar पर {firmName} के बारे में समस्या बताने के लिए धन्यवाद। हमने इसकी जाँच की और डेटा ठीक कर दिया।",
+  "email.disputeRejected.subject": "हमने आपकी RejectRadar रिपोर्ट की समीक्षा की",
+  "email.disputeRejected.heading": "हमने आपकी बताई समस्या की समीक्षा की",
+  "email.disputeRejected.body": "RejectRadar पर {firmName} के बारे में समस्या बताने के लिए धन्यवाद। हमने इसकी जाँच की और डेटा जैसा है वैसा ही रहेगा।",
+  "email.dispute.noteLabel": "हमारा नोट",
+  "email.dispute.button": "फ़र्म खोलें",
+
   "role.owner": "स्वामी",
   "role.admin": "एडमिन",
   "role.member": "सदस्य",

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FIRM_RECORD_SOURCES, type FirmRecordSource, MATCH_REVIEW_STATUSES, type MatchReviewReason, type MatchReviewStatus } from './firms';
+import { DISPUTE_STATUSES, type DisputeKind, type DisputeStatus } from './product';
 import type { SyncSource, SyncStatus } from './ingestion';
 import type { SourceFreshness } from './notices';
 
@@ -113,4 +114,43 @@ export interface AdminFirmRecord {
 export interface AdminFirmResponse {
   firm: AdminFirmSummary;
   records: AdminFirmRecord[];
+}
+
+/** `GET /v1/admin/disputes?status=`: the problems customers reported with "Report a problem". */
+export const disputeReviewQuery = z.object({ status: z.enum(DISPUTE_STATUSES).default('open') });
+export type DisputeReviewQuery = z.output<typeof disputeReviewQuery>;
+
+export interface AdminDisputeItem {
+  id: string;
+  kind: DisputeKind;
+  message: string;
+  status: DisputeStatus;
+  /** The staff note sent to the customer, once decided. */
+  resolution: string | null;
+  firm: AdminFirmSummary;
+  /** The record the report is about, when it names one. */
+  record: { source: FirmRecordSource; key: string } | null;
+  org: { id: string; name: string };
+  /** Null once the person who reported it has left. */
+  reporter: { name: string; email: string } | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface DisputeReviewResponse {
+  /** The newest 100 with the status asked for. */
+  items: AdminDisputeItem[];
+}
+
+/** `PATCH /v1/admin/disputes/:id`: decide an open dispute once, with the note the customer is emailed. */
+export const decideDisputeRequest = z.object({
+  status: z.enum(['resolved', 'rejected']),
+  resolution: z.string().trim().min(1).max(2000),
+});
+export type DecideDisputeRequest = z.output<typeof decideDisputeRequest>;
+
+export interface DecideDisputeResponse {
+  item: AdminDisputeItem;
+  /** Whether the email to the reporter went out: not when they have left, today's email cap is used up or the send failed. */
+  emailed: boolean;
 }

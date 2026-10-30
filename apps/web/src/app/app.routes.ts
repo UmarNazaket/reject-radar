@@ -48,6 +48,7 @@ export const appRoutes: Route[] = [
           { path: 'matches', loadComponent: () => import('./admin/match-reviews').then((m) => m.AdminMatchReviews) },
           { path: 'firms', loadComponent: () => import('./admin/admin-firm').then((m) => m.AdminFirm) },
           { path: 'firms/:id', loadComponent: () => import('./admin/admin-firm').then((m) => m.AdminFirm) },
+          { path: 'disputes', loadComponent: () => import('./admin/disputes').then((m) => m.AdminDisputes) },
         ],
       },
       { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },

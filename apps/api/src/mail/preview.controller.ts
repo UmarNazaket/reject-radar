@@ -21,6 +21,8 @@ const TEMPLATE_NAMES: readonly PreviewName[] = [
   'invite',
   'account_exists',
   'payment_failed',
+  'dispute_resolved',
+  'dispute_rejected',
   'instant_alert',
   'digest',
 ];
@@ -32,6 +34,8 @@ const LINK_PATHS: Readonly<Record<TemplateName, string>> = {
   invite: '/invite/preview',
   account_exists: '/login',
   payment_failed: '/settings/billing',
+  dispute_resolved: '/firms/1',
+  dispute_rejected: '/firms/1',
 };
 
 const HTML = 'text/html; charset=utf-8';
@@ -129,6 +133,8 @@ export class EmailPreviewController {
               role: 'member',
               link: `${origin}${LINK_PATHS[name]}`,
               resetLink: `${origin}/forgot`,
+              firmName: 'Zarfeen Rice Mills',
+              note: 'The refusal of 12 March belonged to another firm with a similar name. We moved it there.',
             });
     res.setHeader('Content-Type', HTML);
     return html;

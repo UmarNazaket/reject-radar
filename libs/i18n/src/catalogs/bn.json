@@ -31,6 +31,15 @@
   "email.paymentFailed.body": "RejectRadar-এ {orgName}-এর সর্বশেষ পেমেন্টটি সম্পন্ন হয়নি। আপনার প্ল্যান সক্রিয় রাখতে পেমেন্ট পদ্ধতি আপডেট করুন।",
   "email.paymentFailed.button": "বিলিং খুলুন",
 
+  "email.disputeResolved.subject": "আপনার RejectRadar রিপোর্টের সমস্যা ঠিক করা হয়েছে",
+  "email.disputeResolved.heading": "আপনার জানানো সমস্যাটি আমরা ঠিক করেছি",
+  "email.disputeResolved.body": "RejectRadar-এ {firmName} সম্পর্কে সমস্যা জানানোর জন্য ধন্যবাদ। আমরা বিষয়টি দেখেছি এবং ডেটা সংশোধন করেছি।",
+  "email.disputeRejected.subject": "আমরা আপনার RejectRadar রিপোর্ট পর্যালোচনা করেছি",
+  "email.disputeRejected.heading": "আপনার জানানো সমস্যাটি আমরা পর্যালোচনা করেছি",
+  "email.disputeRejected.body": "RejectRadar-এ {firmName} সম্পর্কে সমস্যা জানানোর জন্য ধন্যবাদ। আমরা বিষয়টি দেখেছি এবং ডেটা যেমন আছে তেমনই থাকবে।",
+  "email.dispute.noteLabel": "আমাদের নোট",
+  "email.dispute.button": "ফার্ম খুলুন",
+
   "role.owner": "মালিক",
   "role.admin": "অ্যাডমিন",
   "role.member": "সদস্য",
