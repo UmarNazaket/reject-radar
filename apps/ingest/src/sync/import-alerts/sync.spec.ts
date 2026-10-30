@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { SyncDeps } from '../../core/deps';
 import { openDb } from '../../core/db';
-import { loadRuleSet } from '../../core/rules';
+import { loadRuleSet } from '@rejectradar/taxonomy';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
 import { seedSucceededRun } from '../../core/test-sync-run';
 import { parseAlertPage, type ParsedListing } from './parse-page';

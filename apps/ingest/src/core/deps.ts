@@ -1,9 +1,8 @@
 import type { IngestEnv } from '@rejectradar/contracts';
 import type { Database } from '@rejectradar/db';
-import type { RuleSet } from '@rejectradar/taxonomy';
+import { loadRuleSet, type RuleSet } from '@rejectradar/taxonomy';
 import { openDb } from './db';
 import { createFetcher, type Fetcher } from './http';
-import { loadRuleSet } from './rules';
 
 /** Everything a data sync needs from its surroundings; tests pass fakes. */
 export interface SyncDeps {

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SyncDeps } from '../../core/deps';
 import { openDb } from '../../core/db';
-import { loadRuleSet } from '../../core/rules';
+import { loadRuleSet } from '@rejectradar/taxonomy';
 import { listMonthlyCsvResources } from '../../core/source-files';
 import { fakeFetcher, fetchResult } from '../../core/test-fetcher';
 import { seedSucceededRun } from '../../core/test-sync-run';

@@ -83,7 +83,7 @@ GitHub Actions (scheduled)                        Browser
 
 - **Ingestion** runs as a CLI in scheduled GitHub Actions jobs, not as an always-on worker. Each sync parses everything in memory first, checks its structure and writes in one transaction. A malformed file or page therefore fails loudly and changes nothing. Files are skipped when their SHA-256 is unchanged.
 - **Change events:** every new record becomes a `notice` and, after the first load, a `change_event` that alerts are built from. First loads and backfills (`--no-events`) emit no events.
-- **Taxonomy:** keyword, exact and code-prefix rules map every source's fields to one commodity and any number of hazards. Unmatched values fall to "other food" or "unclassified" for review. `taxonomy:remap` re-applies changed rules to stored records.
+- **Taxonomy:** keyword, exact and code-prefix rules map every source's fields to one commodity and any number of hazards. Unmatched values fall to "other food" or "unclassified" for review. `taxonomy:remap` re-applies changed rules to stored records; staff change the rules and ask for a remap at `/admin/taxonomy`, and the daily sync job runs `taxonomy:remap --if-requested` after its syncs.
 - **Entity resolution:** records are linked to firms by FDA FEI number where one exists. Otherwise they're scored on name and address similarity within the same country. A score of at least 0.90 links automatically; 0.75–0.90 goes to a person for review. Firms can be merged and split, with an audit trail. The precision target for automatic links is at least 0.98, measured on 300 hand-labelled pairs.
 - **$0 setup:**
   - Neon free tier (1 GB, Postgres 18) with a small pool, so the database can sleep
@@ -116,6 +116,7 @@ The app API under `/v1` has these product areas. Apart from `GET /taxonomy`, the
 | Source health  | `GET /admin/sources`: RejectRadar staff see each source's freshness and its last 10 sync runs, with their counts and errors. The web app shows it at `/admin`.                                                                                                                                             |
 | Match review   | `GET /admin/match-reviews`, `POST /admin/match-reviews/:id/decision`, `GET /admin/firms/:id`, `POST /admin/firms/merge` and `POST /admin/firms/:id/split`: staff decide the records the matcher was unsure about, and merge or split firms. The web app shows them at `/admin/matches` and `/admin/firms`. |
 | Dispute review | `GET /admin/disputes` and `PATCH /admin/disputes/:id`: staff resolve or reject what customers reported with "Report a problem", once, with a note the reporter is emailed in their language. The web app shows them at `/admin/disputes`.                                                                  |
+| Taxonomy rules | `GET`, `POST`, `PATCH` and `DELETE /admin/taxonomy-rules` (`/:kind/:id` to change or delete), `POST /admin/taxonomy-rules/preview` to try a rule on a sample, and `GET`/`POST /admin/taxonomy/remap` to ask for a remap, which the daily sync job runs. The web app shows them at `/admin/taxonomy`.       |
 | Plan limits    | A used-up limit answers `403 PLAN_LIMIT_REACHED`; a feature the plan lacks answers `403 PLAN_UPGRADE_REQUIRED`. P9 will show both as an upgrade prompt.                                                                                                                                                    |
 
 Alerts are made by `alerts:run` and the digests by `digest:send` (see the ingestion commands below), not by the API.
@@ -392,23 +393,23 @@ node tools/perf/p6.mjs --base http://localhost:3000 --email <email> --password <
 
 ### Ingestion CLI
 
-| Command                                     | What it does                                                                    |
-| ------------------------------------------- | ------------------------------------------------------------------------------- |
-| `sync:fda-charge-codes`                     | FDA charge codes and their hazards                                              |
-| `sync:fda-refusals [--from YYYY-MM-DD]`     | FDA refusals (default: the last 120 days)                                       |
-| `sync:import-alerts [--only 99-19,…]`       | FDA Import Alert red and green lists; a full crawl only in FDA's visiting hours |
-| `sync:rasff [--from …] [--details-limit n]` | EU RASFF notifications and their hazards                                        |
-| `sync:uk-bn` / `sync:au-ifis`               | UK and Australian monthly files, loading new or changed files only              |
-| `sync:eu-mrl`                               | EU pesticide MRLs, replaced in full                                             |
-| `taxonomy:remap`                            | Re-applies the taxonomy rules to every stored record                            |
-| `entities:link`                             | Links records to firms and refreshes firm facts                                 |
-| `alerts:run [--no-email]`                   | Turns new change events into alerts and sends the instant emails                |
-| `digest:send`                               | Sends the daily digests, and the weekly ones on Mondays                         |
-| `summaries:draft [--limit n] [--only …]`    | Drafts English Import Alert summaries with Claude, for a person to approve      |
-| `summaries:translate [--limit n]`           | Translates approved English summaries into Urdu, Hindi and Bengali              |
-| `db:size-check`                             | Exits 1 at or above 900 MB                                                      |
-| `maintenance:purge`                         | Applies the retention rules and prints each count (see "Retention")             |
-| `verify-source`, `probe-page`               | Checks a source: fields, rows, fill rates, duplicate keys, page patterns        |
+| Command                                     | What it does                                                                                                                   |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `sync:fda-charge-codes`                     | FDA charge codes and their hazards                                                                                             |
+| `sync:fda-refusals [--from YYYY-MM-DD]`     | FDA refusals (default: the last 120 days)                                                                                      |
+| `sync:import-alerts [--only 99-19,…]`       | FDA Import Alert red and green lists; a full crawl only in FDA's visiting hours                                                |
+| `sync:rasff [--from …] [--details-limit n]` | EU RASFF notifications and their hazards                                                                                       |
+| `sync:uk-bn` / `sync:au-ifis`               | UK and Australian monthly files, loading new or changed files only                                                             |
+| `sync:eu-mrl`                               | EU pesticide MRLs, replaced in full                                                                                            |
+| `taxonomy:remap`                            | Re-applies the taxonomy rules to every stored record; with `--if-requested`, only when staff asked for it since the last remap |
+| `entities:link`                             | Links records to firms and refreshes firm facts                                                                                |
+| `alerts:run [--no-email]`                   | Turns new change events into alerts and sends the instant emails                                                               |
+| `digest:send`                               | Sends the daily digests, and the weekly ones on Mondays                                                                        |
+| `summaries:draft [--limit n] [--only …]`    | Drafts English Import Alert summaries with Claude, for a person to approve                                                     |
+| `summaries:translate [--limit n]`           | Translates approved English summaries into Urdu, Hindi and Bengali                                                             |
+| `db:size-check`                             | Exits 1 at or above 900 MB                                                                                                     |
+| `maintenance:purge`                         | Applies the retention rules and prints each count (see "Retention")                                                            |
+| `verify-source`, `probe-page`               | Checks a source: fields, rows, fill rates, duplicate keys, page patterns                                                       |
 
 `alerts:run` and `digest:send` send email through the same daily cap as the API, so they read the mail variables above. `alerts:run --no-email` creates the alerts and needs none of them. `alerts:run` exits 3 when a firm-level record has stayed unlinked for 48 hours, because alerts stop at the first such record; GitHub Actions then emails the owner. `digest:send` exits 1 when a digest could not be sent.
 
@@ -449,7 +450,7 @@ About 70 development days in 11 phases.
 | P7    | Billing with Paddle                                                                  | Built and merged (PR #38). See "Billing with Paddle". Still to do: the owner steps there (Paddle token, webhook destination, Render variables, the `0015` staging migration); then the manual sandbox purchase.                                                  |
 | P8    | Public API and Import Alert summaries                                                | Built and merged (PR #40). See "Public API and Import Alert summaries". Still to do: the owner steps there (the `0017` staging migration, the first summaries).                                                                                                  |
 | P9    | Web app in four languages                                                            | Done: every screen in the four languages (#42, #44, #46, #47), with the right-to-left and accessibility (axe, WCAG 2.1 AA) passes and a first download of about 100 kB. Playwright tests run nightly. Open: a native-speaker review of the ur, hi and bn strings |
-| P10   | Admin panel: health, taxonomy, match review, summaries                               | In progress. Done: the admin area (staff only) with source health, the summary review, match review, the firm merge and split tools, and dispute review. Next: taxonomy rules. Still to do: the `0018` staging migration                                         |
+| P10   | Admin panel: health, taxonomy, match review, summaries                               | In progress. Done: the admin area (staff only) with source health, the summary review, match review, the firm merge and split tools, dispute review and taxonomy rules. Next: accounts and the audit log. Still to do: the `0018` staging migration              |
 | P11   | Deployment and launch                                                                | Not started                                                                                                                                                                                                                                                      |
 
 ## Data and privacy principles

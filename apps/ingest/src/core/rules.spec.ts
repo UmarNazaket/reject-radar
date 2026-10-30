@@ -1,8 +1,7 @@
 import { commodityRule, prepareTestDatabase } from '@rejectradar/db';
-import { classifyCommodity } from '@rejectradar/taxonomy';
+import { classifyCommodity, loadRuleSet } from '@rejectradar/taxonomy';
 import { sql } from 'drizzle-orm';
 import { openDb } from './db';
-import { loadRuleSet } from './rules';
 
 describe('loadRuleSet', () => {
   let handle: ReturnType<typeof openDb>;
