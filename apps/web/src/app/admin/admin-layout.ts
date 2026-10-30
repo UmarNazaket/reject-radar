@@ -1,10 +1,14 @@
+import { Dir } from '@angular/cdk/bidi';
 import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
-/** The staff admin area (P10). It is in English and left to right, whatever language the staff member reads the app in. */
+/**
+ * The staff admin area (P10). It is in English and left to right, whatever language the staff member reads the app in;
+ * the `Dir` directive tells Material's fields and menus inside it so.
+ */
 @Component({
   selector: 'app-admin-layout',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [Dir, RouterLink, RouterLinkActive, RouterOutlet],
   template: `
     <div lang="en" dir="ltr" class="text-start">
       <h1 class="text-2xl font-semibold">Admin</h1>
@@ -32,5 +36,6 @@ export class AdminLayout {
     { path: '/admin/matches', label: 'Match review' },
     { path: '/admin/firms', label: 'Firms' },
     { path: '/admin/disputes', label: 'Disputes' },
+    { path: '/admin/taxonomy', label: 'Taxonomy rules' },
   ];
 }

@@ -138,3 +138,10 @@ jobs:
           MAIL_FROM: ${{ vars.MAIL_FROM }}
           NODE_ENV: production
         run: node dist/apps/ingest/main.js alerts:run
+      # Last, after every sync: re-applies the taxonomy rules when staff asked for it on the admin screen (P10).
+      - name: taxonomy:remap --if-requested
+        if: ${{ !cancelled() }}
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+        run: node dist/apps/ingest/main.js taxonomy:remap --if-requested

@@ -1,5 +1,6 @@
-import type { AlertList, NoticeSource } from '@rejectradar/contracts';
+import { type AlertList, type NoticeSource, TAXONOMY_REMAP_RAN, TAXONOMY_REMAP_REQUESTED } from '@rejectradar/contracts';
 import {
+  auditLog,
   auFailingFood,
   fdaChargeCode,
   fdaRefusal,
@@ -11,8 +12,8 @@ import {
   ukBorderNotification,
   type Database,
 } from '@rejectradar/db';
-import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm';
-import { loadRuleSet } from '../core/rules';
+import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { loadRuleSet } from '@rejectradar/taxonomy';
 import type { Tx } from '../core/sync-run';
 import { classifyAu, type AuRecord } from './au-ifis/parse';
 import { chargeCodeHazard } from './fda/charge-codes';
@@ -335,4 +336,20 @@ export async function remapTaxonomy(db: Database, options: { batchSize?: number 
   );
 
   return { updated };
+}
+
+/**
+ * P10: runs the remap when staff asked for one on the admin screen after the last run began. Both are audit rows; the
+ * run's row carries its start time, so a request made while it runs waits for the next one. Null when none is waiting.
+ */
+export async function remapIfRequested(db: Database): Promise<{ updated: RemapCounts } | null> {
+  const { rows } = await db.execute<{ waiting: boolean }>(sql`
+    select coalesce(max(created_at) filter (where action = ${TAXONOMY_REMAP_REQUESTED})
+      > coalesce(max(created_at) filter (where action = ${TAXONOMY_REMAP_RAN}), '-infinity'), false) as waiting
+    from audit_log`);
+  if (!rows[0]?.waiting) return null;
+  const startedAt = new Date();
+  const result = await remapTaxonomy(db);
+  await db.insert(auditLog).values({ action: TAXONOMY_REMAP_RAN, targetType: 'taxonomy', targetId: 'rules', details: result, createdAt: startedAt });
+  return result;
 }

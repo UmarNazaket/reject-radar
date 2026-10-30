@@ -3,8 +3,6 @@ import { Component, computed, inject, input, linkedSignal } from '@angular/core'
 import { FormsModule, type NgForm } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { Router, RouterLink } from '@angular/router';
 import type { AdminFirmRecord, AdminFirmResponse, FirmChangeResponse } from '@rejectradar/contracts';
 import { firstValueFrom } from 'rxjs';
@@ -20,13 +18,10 @@ const recordId = (r: Pick<AdminFirmRecord, 'source' | 'key'>): string => `${r.so
 /** A firm's records, to split some of them to a new firm, and a merge with another firm. Without an id, just the lookup. */
 @Component({
   selector: 'app-admin-firm',
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCheckboxModule, MatFormFieldModule, MatInputModule, Alert, AdminFirmCard],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCheckboxModule, Alert, AdminFirmCard],
   template: `
-    <form class="flex flex-wrap items-baseline gap-2" (ngSubmit)="open()">
-      <mat-form-field subscriptSizing="dynamic">
-        <mat-label>Firm id</mat-label>
-        <input matInput name="openId" type="number" min="1" required [(ngModel)]="openId" />
-      </mat-form-field>
+    <form class="flex flex-wrap items-end gap-2 text-sm" (ngSubmit)="open()">
+      <label>Firm id<input name="openId" type="number" min="1" required class="admin-control w-32" [(ngModel)]="openId" /></label>
       <button matButton="outlined" type="submit">Open firm</button>
     </form>
     @if (action.error(); as error) {
@@ -51,11 +46,8 @@ const recordId = (r: Pick<AdminFirmRecord, 'source' | 'key'>): string => `${r.so
           <form #mergeForm="ngForm" class="rounded border border-slate-200 p-3 text-sm" (ngSubmit)="merge(mergeForm)">
             <h3 class="text-slate-600">Merge with another firm</h3>
             <p class="mt-1 text-slate-600">The older firm, the smaller id, is kept and takes every record, watchlist item and alert of the other.</p>
-            <div class="mt-2 flex flex-wrap items-baseline gap-2">
-              <mat-form-field subscriptSizing="dynamic">
-                <mat-label>Other firm id</mat-label>
-                <input matInput name="mergeId" type="number" min="1" required [(ngModel)]="mergeId" />
-              </mat-form-field>
+            <div class="mt-2 flex flex-wrap items-end gap-2">
+              <label>Other firm id<input name="mergeId" type="number" min="1" required class="admin-control w-32" [(ngModel)]="mergeId" /></label>
               <button matButton="filled" type="submit" [disabled]="action.busy() || !mergeId">Merge</button>
             </div>
           </form>

@@ -49,6 +49,7 @@ export const appRoutes: Route[] = [
           { path: 'firms', loadComponent: () => import('./admin/admin-firm').then((m) => m.AdminFirm) },
           { path: 'firms/:id', loadComponent: () => import('./admin/admin-firm').then((m) => m.AdminFirm) },
           { path: 'disputes', loadComponent: () => import('./admin/disputes').then((m) => m.AdminDisputes) },
+          { path: 'taxonomy', loadComponent: () => import('./admin/taxonomy-rules').then((m) => m.AdminTaxonomyRules) },
         ],
       },
       { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },

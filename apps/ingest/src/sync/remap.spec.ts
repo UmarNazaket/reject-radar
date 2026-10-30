@@ -1,4 +1,5 @@
 import {
+  auditLog,
   auFailingFood,
   changeEvent,
   commodityRule,
@@ -21,7 +22,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { SyncDeps } from '../core/deps';
 import { openDb } from '../core/db';
-import { loadRuleSet } from '../core/rules';
+import { loadRuleSet } from '@rejectradar/taxonomy';
 import { fakeFetcher, fetchResult } from '../core/test-fetcher';
 import { seedSucceededRun } from '../core/test-sync-run';
 import { FDA_REFUSALS_URL } from '../verify/fda-api';
@@ -32,7 +33,7 @@ import { syncFdaRefusals } from './fda/refusals';
 import { IMPORT_ALERT_INDEX_URL, syncImportAlerts } from './import-alerts/sync';
 import { RASFF_SEARCH_URL } from './rasff/parse';
 import { syncRasff } from './rasff/sync';
-import { remapTaxonomy } from './remap';
+import { remapIfRequested, remapTaxonomy } from './remap';
 import { UK_HEADERS, UK_PACKAGE_URL } from './uk-bn/parse';
 import { syncUkBn } from './uk-bn/sync';
 
@@ -309,5 +310,21 @@ describe('taxonomy remap', () => {
     expect(Object.values(result.updated).reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
     expect((await remapTaxonomy(handle.db)).updated).toEqual(zero);
     expect((await remapTaxonomy(handle.db, { batchSize: 3 })).updated).toEqual(zero);
+  });
+
+  it('remaps when staff asked since the last run, and records the run', async () => {
+    await seedSucceededRun(handle.db, 'au_ifis');
+    await syncAuIfis(deps, { events: false });
+    await handle.db.insert(commodityRule).values({ source: 'au_ifis', field: 'product_desc', matchType: 'keyword', pattern: 'throat drops', commodityId: 1300, priority: 1 });
+    expect(await remapIfRequested(handle.db)).toBeNull();
+
+    await handle.db.insert(auditLog).values({ action: 'taxonomy.remap', targetType: 'taxonomy', targetId: 'rules' });
+    expect(await remapIfRequested(handle.db)).toEqual({ updated: { ...zero, au_ifis: 1 } });
+    const runs = await handle.db.select().from(auditLog).where(eq(auditLog.action, 'taxonomy.remap_run'));
+    expect(runs).toHaveLength(1);
+    expect(runs[0].details).toEqual({ updated: { ...zero, au_ifis: 1 } });
+    // The request was answered, so the next daily run skips.
+    expect(await remapIfRequested(handle.db)).toBeNull();
+    await handle.db.delete(auditLog);
   });
 });

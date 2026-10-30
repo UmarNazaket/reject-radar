@@ -48,6 +48,10 @@ body {
 [lang='en'] {
   font-family: var(--app-font);
 }
+/* Native fields for the admin area: Material's outlined fields cannot be left to right inside a right-to-left page. */
+.admin-control {
+  @apply mt-1 block rounded border border-slate-300 bg-white px-2 py-1.5 text-sm;
+}
 /* Nastaliq's line box is twice as tall, so a floated label would hang below the field's outline; this centres it on it. */
 :lang(ur) .mat-mdc-form-field .mdc-floating-label--float-above {
   margin-top: -8px;

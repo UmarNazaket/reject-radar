@@ -20,7 +20,7 @@ import { syncEuMrl } from './sync/eu-mrl/sync';
 import { syncFdaRefusals } from './sync/fda/refusals';
 import { syncImportAlerts } from './sync/import-alerts/sync';
 import { DEFAULT_DETAILS_LIMIT, syncRasff } from './sync/rasff/sync';
-import { remapTaxonomy } from './sync/remap';
+import { remapIfRequested, remapTaxonomy } from './sync/remap';
 import { draftSummaries } from './summaries/draft';
 import { createClaude } from './summaries/claude';
 import { loadSummaryEnv } from './summaries/summary-env';
@@ -183,11 +183,12 @@ program
 program
   .command('taxonomy:remap')
   .description('Re-apply the taxonomy rules to every stored record and its notice after a rule was added or changed (emits no events)')
-  .action(async () => {
+  .option('--if-requested', 'only when staff asked for a remap on the admin screen since the last one')
+  .action(async (options: { ifRequested?: boolean }) => {
     const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
     try {
-      const { updated } = await remapTaxonomy(db);
-      console.log(JSON.stringify({ updated }, null, 2));
+      const result = options.ifRequested ? await remapIfRequested(db) : await remapTaxonomy(db);
+      console.log(JSON.stringify(result ?? { skipped: 'no remap was requested' }, null, 2));
     } finally {
       await close();
     }

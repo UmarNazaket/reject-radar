@@ -1,5 +1,5 @@
 import { commodityRule, hazardRule, type Database } from '@rejectradar/db';
-import { buildRuleSet, type RuleSet, type TaxonomyRule } from '@rejectradar/taxonomy';
+import { buildRuleSet, type RuleSet, type TaxonomyRule } from './match';
 import type { RuleMatchType, RuleSource } from '@rejectradar/contracts';
 import { asc } from 'drizzle-orm';
 
