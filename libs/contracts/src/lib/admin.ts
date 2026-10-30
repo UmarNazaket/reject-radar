@@ -1,8 +1,11 @@
 import { z } from 'zod';
+import type { BillingInterval, Role, SubscriptionStatus } from './accounts';
+import type { BillingUsage, PlanSource } from './billing';
 import { FIRM_RECORD_SOURCES, type FirmRecordSource, MATCH_REVIEW_STATUSES, type MatchReviewReason, type MatchReviewStatus } from './firms';
 import { DISPUTE_STATUSES, type DisputeKind, type DisputeStatus } from './product';
 import { RULE_MATCH_TYPES, RULE_SOURCES, type RuleMatchType, type RuleSource, type SyncSource, type SyncStatus } from './ingestion';
 import type { SourceFreshness } from './notices';
+import { PLAN_IDS, type PlanId, type PlanLimits } from './plans';
 
 /** Runs of each source listed by `GET /v1/admin/sources`. */
 export const ADMIN_RECENT_RUNS = 10;
@@ -241,4 +244,64 @@ export interface TaxonomyRemapStatus {
   lastRun: { at: string; updated: Record<string, number> } | null;
   /** A request is newer than the last run; the next daily sync job runs it. */
   waiting: boolean;
+}
+
+/** `GET /v1/admin/orgs?q=`: the newest 50 accounts, or those whose name or a member's email contains `q`. */
+export const adminOrgQuery = z.object({ q: z.string().trim().min(1).max(200).optional() });
+export type AdminOrgQuery = z.output<typeof adminOrgQuery>;
+
+export interface AdminOrgItem {
+  id: string;
+  name: string;
+  plan: PlanId;
+  source: PlanSource;
+  members: number;
+  createdAt: string;
+}
+
+export interface AdminOrgsResponse {
+  items: AdminOrgItem[];
+}
+
+/** `GET /v1/admin/orgs/:id`: the account's plan and where it comes from, this month's usage, and its members. */
+export interface AdminOrgResponse {
+  org: { id: string; name: string; createdAt: string; planOverride: PlanId | null; deactivatedAt: string | null };
+  plan: PlanId;
+  source: PlanSource;
+  limits: PlanLimits;
+  usage: BillingUsage;
+  /** The Paddle subscription, when the account has had one. */
+  subscription: { status: SubscriptionStatus; interval: BillingInterval | null; currentPeriodEnd: string | null; cancelAt: string | null } | null;
+  members: { userId: string; name: string; email: string; role: Role; emailVerified: boolean; joinedAt: string }[];
+}
+
+/** `PATCH /v1/admin/orgs/:id`: grant a plan (Enterprise, mostly) whatever the account pays for, or clear the grant. */
+export const planOverrideRequest = z.object({ planOverride: z.enum(PLAN_IDS).nullable() });
+export type PlanOverrideRequest = z.output<typeof planOverrideRequest>;
+
+/** Audit entries per page. */
+export const AUDIT_PAGE_SIZE = 50;
+
+/** `GET /v1/admin/audit?action=&cursor=`: newest first; `action` matches the start, so `firm.` finds merges and splits. */
+export const auditQuery = z.object({
+  action: z.string().trim().min(1).max(100).optional(),
+  cursor: z.coerce.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+});
+export type AuditQuery = z.output<typeof auditQuery>;
+
+export interface AuditEntry {
+  id: number;
+  at: string;
+  /** Null for the sync jobs, or a person who has left. */
+  actor: { name: string; email: string } | null;
+  action: string;
+  targetType: string;
+  targetId: string;
+  details: Record<string, unknown>;
+}
+
+export interface AuditResponse {
+  items: AuditEntry[];
+  /** The cursor of the next, older page; null on the last one. */
+  next: number | null;
 }

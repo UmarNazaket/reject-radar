@@ -43,3 +43,16 @@ insert into notice (source, source_key, destination, notice_type, notice_on, ori
 select 'import_alert', 'e2e-ia-1', 'US', 'import_alert_listing', current_date - 3, 'IN', 201, array[100], 'Chilli powder',
   'E2E Spice Mills Pvt Ltd', id, 'E2E Spice Mills Pvt Ltd on Import Alert 99-08', 'https://example.com/importalert_99-08.html'
 from firm where name_norm = 'e2e spice mills';
+
+-- RejectRadar staff (P10), with the same password: e2e-staff@example.com. A second firm like the first, and the
+-- matcher's open review of the two.
+insert into org (id, name) values ('0192e2e0-0000-7000-8000-000000000003', 'RejectRadar');
+insert into app_user (id, email, password_hash, name, email_verified_at, is_platform_admin) values (
+  '0192e2e0-0000-7000-8000-000000000004', 'e2e-staff@example.com',
+  '$argon2id$v=19$m=19456,p=1,t=2$m6NiChiJ+BpMn6euQvcNCw$5GgJTfNeUeIJxOZSvkJN5ECskgekXeEkkIOhipreGXY',
+  'E2E Staff', now(), true);
+insert into membership (org_id, user_id, role) values ('0192e2e0-0000-7000-8000-000000000003', '0192e2e0-0000-7000-8000-000000000004', 'owner');
+insert into firm (display_name, name_norm, country_code, region, city) values ('E2E Spice Mill', 'e2e spice mill', 'IN', 'Kerala', 'Ernakulam');
+insert into match_review (source, source_key, firm_id, candidate_firm_id, score, evidence)
+select 'fda_refusal', 'e2e-r1', a.id, b.id, 0.8200, '{"name":0.95,"address":0.4}'
+from firm a, firm b where a.name_norm = 'e2e spice mills' and b.name_norm = 'e2e spice mill';

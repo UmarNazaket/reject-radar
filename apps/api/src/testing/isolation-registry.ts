@@ -170,6 +170,10 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   { method: 'DELETE', path: '/v1/admin/taxonomy-rules/:kind/:id', reason: 'Platform admins only; the taxonomy rules are reference data.' },
   { method: 'GET', path: '/v1/admin/taxonomy/remap', reason: 'Platform admins only; the taxonomy rules are reference data.' },
   { method: 'POST', path: '/v1/admin/taxonomy/remap', reason: 'Platform admins only; the taxonomy rules are reference data.' },
+  { method: 'GET', path: '/v1/admin/orgs', reason: 'Platform admins only; staff look across every account.' },
+  { method: 'GET', path: '/v1/admin/orgs/:id', reason: 'Platform admins only; staff look across every account.' },
+  { method: 'PATCH', path: '/v1/admin/orgs/:id', reason: 'Platform admins only; staff look across every account.' },
+  { method: 'GET', path: '/v1/admin/audit', reason: 'Platform admins only; staff look across every account.' },
   { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl', reason: 'Reference data.' },
   ...['notices', 'notices/:id', 'dashboards/topic', 'firms/search', 'firms/:id', 'import-alerts/:number', 'taxonomy', 'usage'].map((route) => ({
