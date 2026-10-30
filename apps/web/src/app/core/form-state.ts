@@ -7,7 +7,10 @@ export class FormState {
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
 
-  constructor(private readonly i18n: I18n) {}
+  constructor(
+    private readonly i18n: I18n,
+    private readonly message: (i18n: I18n, error: unknown) => string = errorMessage,
+  ) {}
 
   async run(action: () => Promise<void>): Promise<void> {
     if (this.busy()) return;
@@ -16,7 +19,7 @@ export class FormState {
     try {
       await action();
     } catch (error) {
-      this.error.set(errorMessage(this.i18n, error));
+      this.error.set(this.message(this.i18n, error));
     } finally {
       this.busy.set(false);
     }
