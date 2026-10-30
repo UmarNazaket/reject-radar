@@ -5,7 +5,9 @@
 @import '@angular/material/prebuilt-themes/azure-blue.css' layer(material);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
-html {
+/* `[lang='en']` too: English inside another language's page (FDA's text, the admin area) keeps the Latin font, Material's included. */
+html,
+[lang='en'] {
   --app-font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   /* Material names only Roboto; its components use the page's font instead, script fonts included. */
   --mat-sys-display-large-font: var(--app-font);
@@ -43,9 +45,8 @@ body {
 :lang(ur) body {
   line-height: 2;
 }
-/* English inside another language's page (FDA's text, the admin area) keeps the Latin font. */
 [lang='en'] {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--app-font);
 }
 /* Nastaliq's line box is twice as tall, so a floated label would hang below the field's outline; this centres it on it. */
 :lang(ur) .mat-mdc-form-field .mdc-floating-label--float-above {

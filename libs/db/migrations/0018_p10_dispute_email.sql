@@ -1,0 +1,2 @@
+ALTER TABLE "email_delivery" DROP CONSTRAINT "email_delivery_kind_ck";--> statement-breakpoint
+ALTER TABLE "email_delivery" ADD CONSTRAINT "email_delivery_kind_ck" CHECK (kind in ('verify', 'reset', 'invite', 'account_exists', 'instant_alert', 'digest', 'payment_failed', 'dispute_answered'));

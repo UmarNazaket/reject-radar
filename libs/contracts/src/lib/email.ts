@@ -1,5 +1,5 @@
 /** Every email the product sends (spec §11); the database restricts `email_delivery.kind` to these. */
-export const EMAIL_KINDS = ['verify', 'reset', 'invite', 'account_exists', 'instant_alert', 'digest', 'payment_failed'] as const;
+export const EMAIL_KINDS = ['verify', 'reset', 'invite', 'account_exists', 'instant_alert', 'digest', 'payment_failed', 'dispute_answered'] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 
 /** `email_delivery.status`: `sending` is written before the transport is called, `paused` when the daily cap stopped the send. */

@@ -31,5 +31,6 @@ export class AdminLayout {
     { path: '/admin/summaries', label: 'Summaries' },
     { path: '/admin/matches', label: 'Match review' },
     { path: '/admin/firms', label: 'Firms' },
+    { path: '/admin/disputes', label: 'Disputes' },
   ];
 }

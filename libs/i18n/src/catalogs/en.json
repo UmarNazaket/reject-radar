@@ -31,6 +31,15 @@
   "email.paymentFailed.body": "The latest payment for {orgName} on RejectRadar did not go through. Update your payment method to keep your plan active.",
   "email.paymentFailed.button": "Open billing",
 
+  "email.disputeResolved.subject": "Your RejectRadar report has been fixed",
+  "email.disputeResolved.heading": "We fixed the problem you reported",
+  "email.disputeResolved.body": "Thank you for reporting a problem with {firmName} on RejectRadar. We looked into it and corrected the data.",
+  "email.disputeRejected.subject": "We reviewed your RejectRadar report",
+  "email.disputeRejected.heading": "We reviewed the problem you reported",
+  "email.disputeRejected.body": "Thank you for reporting a problem with {firmName} on RejectRadar. We looked into it and the data stays as it is.",
+  "email.dispute.noteLabel": "Our note",
+  "email.dispute.button": "Open the firm",
+
   "role.owner": "Owner",
   "role.admin": "Admin",
   "role.member": "Member",
