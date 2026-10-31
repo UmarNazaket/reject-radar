@@ -49,14 +49,26 @@ export class AccountsService {
           .where(and(eq(membership.orgId, org.id), ilike(appUser.email, p))),
       );
     const rows = await this.db
-      .select({ id: org.id, name: org.name, createdAt: org.createdAt, members: sql<number>`(select count(*)::int from membership m where m.org_id = ${org.id})` })
+      .select({
+        id: org.id,
+        name: org.name,
+        createdAt: org.createdAt,
+        deactivatedAt: org.deactivatedAt,
+        members: sql<number>`(select count(*)::int from membership m where m.org_id = ${org.id})`,
+      })
       .from(org)
       .where(pattern === null ? undefined : or(ilike(org.name, pattern), memberEmail(pattern)))
       .orderBy(desc(org.createdAt), desc(org.id))
       .limit(LIST_LIMIT);
     const plans = await Promise.all(rows.map((row) => this.entitlements.resolvePlan(row.id)));
     return {
-      items: rows.map((row, i) => ({ ...row, plan: plans[i].plan, source: plans[i].source, createdAt: row.createdAt.toISOString() })),
+      items: rows.map((row, i) => ({
+        ...row,
+        plan: plans[i].plan,
+        source: plans[i].source,
+        createdAt: row.createdAt.toISOString(),
+        deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
+      })),
     };
   }
 
@@ -114,6 +126,25 @@ export class AccountsService {
         targetId: id,
         details: { before: account.planOverride, after: body.planOverride },
       });
+    });
+    return this.detail(id);
+  }
+
+  /**
+   * Deactivates or reactivates an account, audited as `org.deactivate` or `org.reactivate`. A deactivated account's
+   * sessions and API keys are refused and its members get no alert emails; its data stays for a reactivation.
+   */
+  async setActive(ctx: RequestContext, id: string, active: boolean): Promise<AdminOrgResponse> {
+    // Staff would lock themselves out of the admin area.
+    if (!active && id === ctx.orgId) throw new AppError(HttpStatus.CONFLICT, 'CONFLICT', 'You cannot deactivate your own account.');
+    await this.db.transaction(async (tx) => {
+      const [account] = await tx.select({ deactivatedAt: org.deactivatedAt }).from(org).where(eq(org.id, id)).for('update');
+      if (!account) throw notFound();
+      if ((account.deactivatedAt === null) === active) {
+        throw new AppError(HttpStatus.CONFLICT, 'CONFLICT', active ? 'This account is active already.' : 'This account is deactivated already.');
+      }
+      await tx.update(org).set({ deactivatedAt: active ? null : sql`now()` }).where(eq(org.id, id));
+      await tx.insert(auditLog).values({ actorUserId: ctx.userId, action: active ? 'org.reactivate' : 'org.deactivate', targetType: 'org', targetId: id });
     });
     return this.detail(id);
   }

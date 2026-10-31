@@ -31,6 +31,11 @@ const SOURCE_LABELS = { override: 'granted by staff', subscription: 'paid subscr
       @let a = account.value();
       <h2 class="mt-3 text-xl font-semibold"><bdi>{{ a.org.name }}</bdi></h2>
       <p class="mt-1 text-sm text-slate-600">Created {{ time(a.org.createdAt) }} · {{ a.org.id }}</p>
+      @if (a.org.deactivatedAt) {
+        <app-alert kind="warn" class="mt-3 block"
+          >Deactivated {{ time(a.org.deactivatedAt) }}: its members cannot sign in, its API keys are refused and no alert emails go out.</app-alert
+        >
+      }
 
       <div class="mt-4 grid gap-4 lg:grid-cols-2">
         <section class="rounded-lg border border-slate-200 bg-white p-4 text-sm">
@@ -68,6 +73,16 @@ const SOURCE_LABELS = { override: 'granted by staff', subscription: 'paid subscr
           </dl>
         </section>
       </div>
+
+      <section class="mt-4 rounded-lg border border-slate-200 bg-white p-4 text-sm">
+        <h3 class="font-medium">Account status</h3>
+        <p class="mt-1 text-slate-600">{{ a.org.deactivatedAt ? 'Deactivated.' : 'Active.' }} Deactivating keeps the account's data, so it can be reactivated.</p>
+        @if (a.org.deactivatedAt) {
+          <button matButton="outlined" type="button" class="mt-2" [disabled]="action.busy()" (click)="setActive(a, true)">Reactivate</button>
+        } @else {
+          <button matButton="outlined" type="button" class="mt-2" [disabled]="action.busy()" (click)="setActive(a, false)">Deactivate</button>
+        }
+      </section>
 
       <h3 class="mt-6 font-medium">Members ({{ a.members.length }})</h3>
       <div class="mt-2 overflow-x-auto">
@@ -127,6 +142,19 @@ export class AdminAccount {
 
   protected errorText(error: unknown): string {
     return adminError(this.i18n, error);
+  }
+
+  protected setActive(account: AdminOrgResponse, active: boolean): void {
+    const question = active
+      ? `Reactivate ${account.org.name}? Its members can sign in again.`
+      : `Deactivate ${account.org.name}? Its members are signed out, its API keys stop working and its alert emails stop. Its data is kept.`;
+    if (!confirm(question)) return;
+    this.done.set(null);
+    void this.action.run(async () => {
+      await firstValueFrom(this.http.post<AdminOrgResponse>(apiUrl(`/v1/admin/orgs/${account.org.id}/${active ? 'reactivate' : 'deactivate'}`), {}));
+      this.done.set(active ? 'Reactivated the account.' : 'Deactivated the account.');
+      this.account.reload();
+    });
   }
 
   protected saveOverride(account: AdminOrgResponse): void {

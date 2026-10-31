@@ -37,7 +37,12 @@ import { adminError, adminTime } from './admin-format';
                 <td class="py-2 pe-4">
                   <a [routerLink]="['/admin/accounts', o.id]" class="text-sky-700 underline"><bdi>{{ o.name }}</bdi></a>
                 </td>
-                <td class="py-2 pe-4"><span class="capitalize">{{ o.plan }}</span>{{ o.source === 'override' ? ' (granted)' : '' }}</td>
+                <td class="py-2 pe-4">
+                  <span class="capitalize">{{ o.plan }}</span>{{ o.source === 'override' ? ' (granted)' : '' }}
+                  @if (o.deactivatedAt) {
+                    <span class="ms-1 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">Deactivated</span>
+                  }
+                </td>
                 <td class="py-2 pe-4 text-end">{{ o.members }}</td>
                 <td class="py-2 whitespace-nowrap">{{ time(o.createdAt) }}</td>
               </tr>
