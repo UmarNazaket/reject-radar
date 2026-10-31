@@ -13,6 +13,7 @@ export const appRoutes: Route[] = [
   { path: 'refunds', data: { page: 'refunds' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
   { path: 'disclaimer', data: { page: 'disclaimer' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
   { path: 'sources', loadComponent: () => import('./legal/sources').then((m) => m.Sources) },
+  { path: 'developers', loadComponent: () => import('./legal/developers').then((m) => m.Developers) },
   // Checkout returns and payment-failed emails sent before P9 link here.
   {
     path: 'app/settings/billing',
@@ -60,6 +61,7 @@ export const appRoutes: Route[] = [
           { path: 'accounts', loadComponent: () => import('./admin/accounts').then((m) => m.AdminAccounts) },
           { path: 'accounts/:id', loadComponent: () => import('./admin/account').then((m) => m.AdminAccount) },
           { path: 'audit', loadComponent: () => import('./admin/audit-log').then((m) => m.AdminAuditLog) },
+          { path: 'emails', loadComponent: () => import('./admin/email-log').then((m) => m.AdminEmailLog) },
         ],
       },
       { path: 'import-alerts/:number', loadComponent: () => import('./import-alerts/import-alert').then((m) => m.ImportAlert) },

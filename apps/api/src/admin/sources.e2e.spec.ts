@@ -1,5 +1,5 @@
 import type { AdminSourcesResponse } from '@rejectradar/contracts';
-import { appUser, sourceSyncRun } from '@rejectradar/db';
+import { appUser, emailDelivery, sourceSyncRun, uuidv7 } from '@rejectradar/db';
 import { eq } from 'drizzle-orm';
 import { signUpVerified, startTestApp, type TestApp, type TestSession } from '../testing/test-app';
 
@@ -54,5 +54,19 @@ describe('admin source health', () => {
     const importAlerts = sources.find((s) => s.source === 'import_alerts');
     expect(importAlerts?.runs[0]).toMatchObject({ partial: true });
     expect(importAlerts?.freshness).toMatchObject({ lastSuccessAt: null, stale: true });
+  });
+
+  it('shows the database size and the emails counted against today\'s cap', async () => {
+    const before = ((await admin.get('/v1/admin/sources').expect(200)).body as AdminSourcesResponse).emails.sentToday;
+    // A sent and a failed email today, and a sent one yesterday: only the first counts.
+    await t.db.insert(emailDelivery).values([
+      { id: uuidv7(), toEmail: 'a@sources.test', kind: 'verify', status: 'sent' },
+      { id: uuidv7(), toEmail: 'b@sources.test', kind: 'verify', status: 'failed' },
+      { id: uuidv7(), toEmail: 'c@sources.test', kind: 'verify', status: 'sent', createdAt: new Date(Date.now() - 2 * 86_400_000) },
+    ]);
+    const { database, emails } = (await admin.get('/v1/admin/sources').expect(200)).body as AdminSourcesResponse;
+    expect(database.limitBytes).toBe(900 * 1024 * 1024);
+    expect(database.sizeBytes).toBeGreaterThan(0);
+    expect(emails).toEqual({ sentToday: before + 1, cap: 100 });
   });
 });

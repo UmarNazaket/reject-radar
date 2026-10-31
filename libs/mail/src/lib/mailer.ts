@@ -105,7 +105,7 @@ export class Mailer {
   }
 
   /** Rows that count against today's cap: sending or sent since midnight UTC. */
-  private async sentToday(executor: Executor): Promise<number> {
+  async sentToday(executor: Executor = this.deps.db): Promise<number> {
     const [row] = await executor
       .select({ n: count() })
       .from(emailDelivery)

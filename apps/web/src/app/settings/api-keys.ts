@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { RouterLink } from '@angular/router';
 import type { ApiKeysResponse, CreatedApiKeyResponse } from '@rejectradar/contracts';
 import { firstValueFrom } from 'rxjs';
 import { apiUrl } from '../core/api';
@@ -15,9 +16,11 @@ import { Alert } from '../layout/alert';
 /** Keys for the public API: created by owners and admins, shown in full once, revoked at any time. */
 @Component({
   selector: 'app-api-keys',
-  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, Alert],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule, Alert],
   template: `
-    <p class="max-w-2xl text-sm text-slate-600">{{ i18n.t('web.apiKeys.intro') }}</p>
+    <p class="max-w-2xl text-sm text-slate-600">
+      {{ i18n.t('web.apiKeys.intro') }} <a routerLink="/developers" class="text-sky-700 underline">{{ i18n.t('web.apiKeys.docs') }}</a>
+    </p>
     @if (action.error(); as error) {
       <app-alert class="mt-4 block" [upgrade]="action.upgrade()">{{ error }}</app-alert>
     }

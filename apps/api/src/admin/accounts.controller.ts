@@ -7,6 +7,9 @@ import {
   type AuditQuery,
   auditQuery,
   type AuditResponse,
+  type EmailLogQuery,
+  emailLogQuery,
+  type EmailLogResponse,
   type PlanOverrideRequest,
   planOverrideRequest,
 } from '@rejectradar/contracts';
@@ -57,5 +60,10 @@ export class AccountsController {
   @Get('audit')
   audit(@Query(new ZodValidationPipe(auditQuery)) query: AuditQuery): Promise<AuditResponse> {
     return this.accounts.audit(query);
+  }
+
+  @Get('emails')
+  emails(@Query(new ZodValidationPipe(emailLogQuery)) query: EmailLogQuery): Promise<EmailLogResponse> {
+    return this.accounts.emails(query);
   }
 }

@@ -1,6 +1,6 @@
 import { httpResource } from '@angular/common/http';
 import { Component, inject } from '@angular/core';
-import type { AdminSourcesResponse, SyncSource } from '@rejectradar/contracts';
+import { type AdminSourcesResponse, EMAIL_CAP_TIERS, type SyncSource } from '@rejectradar/contracts';
 import { apiUrl } from '../core/api';
 import { errorMessage } from '../core/errors';
 import { I18n } from '../core/i18n';
@@ -25,6 +25,19 @@ const SOURCE_NAMES: Record<SyncSource, string> = {
     @if (sources.error(); as error) {
       <app-alert>{{ errorText(error) }}</app-alert>
     } @else if (sources.hasValue()) {
+      @let usage = sources.value();
+      <dl class="mb-4 grid gap-3 text-sm sm:grid-cols-2">
+        <div class="rounded-lg border bg-white p-4" [class]="border(usage.database.sizeBytes, usage.database.limitBytes)">
+          <dt class="text-slate-600">Database size</dt>
+          <dd class="mt-1 font-medium">{{ megabytes(usage.database.sizeBytes) }} MB of {{ megabytes(usage.database.limitBytes) }} MB; the syncs stop at the limit</dd>
+        </div>
+        <div class="rounded-lg border bg-white p-4" [class]="border(usage.emails.sentToday, usage.emails.cap)">
+          <dt class="text-slate-600">Emails today (UTC)</dt>
+          <dd class="mt-1 font-medium">
+            {{ usage.emails.sentToday }} of {{ usage.emails.cap }}; instant alerts pause at {{ tiers.instant }}, digests at {{ tiers.digest }}
+          </dd>
+        </div>
+      </dl>
       <ul class="flex flex-col gap-3">
         @for (s of sources.value().sources; track s.source) {
           <li class="rounded-lg border border-slate-200 bg-white p-4">
@@ -100,6 +113,16 @@ export class SourceHealth {
   protected readonly names = SOURCE_NAMES;
   protected readonly sources = httpResource<AdminSourcesResponse>(() => apiUrl('/v1/admin/sources'));
   protected readonly time = adminTime;
+  protected readonly tiers = EMAIL_CAP_TIERS;
+
+  protected megabytes(bytes: number): string {
+    return (bytes / 1024 / 1024).toFixed(1);
+  }
+
+  /** At 80% of a limit the box turns amber, before the syncs or emails stop. */
+  protected border(used: number, limit: number): string {
+    return used >= limit * 0.8 ? 'border-amber-400' : 'border-slate-200';
+  }
 
   protected errorText(error: unknown): string {
     return errorMessage(this.i18n, error);
