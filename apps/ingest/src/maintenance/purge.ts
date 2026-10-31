@@ -1,4 +1,4 @@
-import { alertEmail, bulkJob, bulkJobRow, type Database, emailDelivery, emailToken, invite, paddleEvent, refreshToken } from '@rejectradar/db';
+import { alert, alertEmail, bulkJob, bulkJobRow, type Database, emailDelivery, emailToken, invite, paddleEvent, refreshToken } from '@rejectradar/db';
 import { and, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 
 const DAY_MS = 86_400_000;
@@ -11,6 +11,8 @@ export const RETENTION_DAYS = {
   logs: 90,
   /** Used or expired tokens and invites are kept this long after the later of the two moments. */
   tokens: 30,
+  /** `alert` rows, read or not, with their `alert_email` rows (P11). */
+  alerts: 365,
 } as const;
 
 /** How many rows each rule removed or cleared. */
@@ -19,6 +21,7 @@ export interface PurgeCounts {
   paddlePayloads: number;
   emailDeliveries: number;
   alertEmails: number;
+  alerts: number;
   emailTokens: number;
   refreshTokens: number;
   invites: number;
@@ -29,12 +32,13 @@ const before = (now: Date, days: number) => new Date(now.getTime() - days * DAY_
 /**
  * Applies the retention rules (P6-D11), each in its own transaction, and counts what it touched. Cutoffs are computed
  * from `now` and passed as parameters, never read from the database clock, so a run is repeatable. It is idempotent: a
- * second run with the same `now` returns zeros. `alert` rows are deliberately not purged (the owner decides at P11).
+ * second run with the same `now` returns zeros.
  */
 export async function purge(db: Database, now: Date = new Date()): Promise<PurgeCounts> {
   const bulkCutoff = before(now, RETENTION_DAYS.bulkRows);
   const logCutoff = before(now, RETENTION_DAYS.logs);
   const tokenCutoff = before(now, RETENTION_DAYS.tokens);
+  const alertCutoff = before(now, RETENTION_DAYS.alerts);
 
   const bulkRows = await db.transaction(async (tx) => {
     // A running or queued job has no finished_at, so its rows stay whatever their age.
@@ -51,6 +55,9 @@ export async function purge(db: Database, now: Date = new Date()): Promise<Purge
 
   const alertEmails = await db.transaction(async (tx) => (await tx.delete(alertEmail).where(lt(alertEmail.createdAt, logCutoff))).rowCount ?? 0);
 
+  // Their `alert_email` rows go with them (on delete cascade).
+  const alerts = await db.transaction(async (tx) => (await tx.delete(alert).where(lt(alert.createdAt, alertCutoff))).rowCount ?? 0);
+
   // `greatest` ignores nulls: for a token never used it is the expiry, otherwise the later of use and expiry.
   const emailTokens = await db.transaction(
     async (tx) => (await tx.delete(emailToken).where(sql`greatest(${emailToken.expiresAt}, ${emailToken.usedAt}) < ${tokenCutoff}`)).rowCount ?? 0,
@@ -64,5 +71,5 @@ export async function purge(db: Database, now: Date = new Date()): Promise<Purge
     async (tx) => (await tx.delete(invite).where(sql`greatest(${invite.expiresAt}, ${invite.acceptedAt}) < ${tokenCutoff}`)).rowCount ?? 0,
   );
 
-  return { bulkRows, paddlePayloads, emailDeliveries, alertEmails, emailTokens, refreshTokens, invites };
+  return { bulkRows, paddlePayloads, emailDeliveries, alertEmails, alerts, emailTokens, refreshTokens, invites };
 }

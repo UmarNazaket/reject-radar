@@ -1,0 +1,51 @@
+name: Backup
+
+on:
+  schedule:
+    # Daily at 02:17 UTC, before the 02:30 purge.
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# It only reads, from one snapshot, so it needs no shared group with the writers.
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+# The account tables (backup:app), encrypted with age to the public key in the BACKUP_AGE_RECIPIENT variable, kept 30
+# days as a workflow artifact. Only the owner's private key, kept offline, opens them (README: "Backups").
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check the backup key
+        env:
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+        run: test -n "$BACKUP_AGE_RECIPIENT" || { echo "::error::Set the BACKUP_AGE_RECIPIENT repository variable to an age public key"; exit 1; }
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npx nx build ingest
+      - run: sudo apt-get update -q && sudo apt-get install -y -q age
+      - name: backup:app, encrypted
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          INGEST_CONTACT_EMAIL: ${{ secrets.INGEST_CONTACT_EMAIL }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+        run: |
+          file="backup-$(date -u +%F).ndjson.gz"
+          node dist/apps/ingest/main.js backup:app --out "$file"
+          age -r "$BACKUP_AGE_RECIPIENT" -o "$file.age" "$file"
+          rm "$file"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: backup-${{ github.run_id }}
+          path: backup-*.ndjson.gz.age
+          if-no-files-found: error
+          retention-days: 30

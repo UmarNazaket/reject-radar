@@ -152,12 +152,19 @@ describe('maintenance:purge', () => {
     expect(await left(invite)).toEqual([i.expiredRecent, i.unexpired, i.acceptedRecent].sort());
   });
 
-  it('alerts are kept (P6-D11)', async () => {
-    await db.insert(alert).values({ id: uuidv7(), orgId, changeEventId: await event(), severity: 'high', createdAt: ago(400), readAt: ago(399) });
+  it('alerts go after 365 days, read or not, with their alert emails', async () => {
+    const old = uuidv7();
+    const recent = uuidv7();
+    await db.insert(alert).values([
+      { id: old, orgId, changeEventId: await event(), severity: 'high', createdAt: ago(366) },
+      { id: recent, orgId, changeEventId: await event(), severity: 'high', createdAt: ago(364), readAt: ago(300) },
+    ]);
+    await db.insert(alertEmail).values({ alertId: old, userId, createdAt: ago(80) });
 
-    await purge(db, NOW);
+    expect(await purge(db, NOW)).toMatchObject({ alerts: 1, alertEmails: 0 });
 
-    expect((await db.select().from(alert)).length).toBe(1);
+    expect((await db.select({ id: alert.id }).from(alert)).map((a) => a.id)).toEqual([recent]);
+    expect(await db.select().from(alertEmail)).toEqual([]);
   });
 
   it('is idempotent: a second run returns all zeros', async () => {
@@ -169,6 +176,6 @@ describe('maintenance:purge', () => {
     const first = await purge(db, NOW);
     expect(first).toMatchObject({ bulkRows: 2, paddlePayloads: 1, emailDeliveries: 1, emailTokens: 1 });
 
-    expect(await purge(db, NOW)).toEqual({ bulkRows: 0, paddlePayloads: 0, emailDeliveries: 0, alertEmails: 0, emailTokens: 0, refreshTokens: 0, invites: 0 });
+    expect(await purge(db, NOW)).toEqual({ bulkRows: 0, paddlePayloads: 0, emailDeliveries: 0, alertEmails: 0, alerts: 0, emailTokens: 0, refreshTokens: 0, invites: 0 });
   });
 });

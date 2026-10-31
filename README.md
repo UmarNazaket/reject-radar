@@ -168,9 +168,20 @@ Bulk screening is for Business and above: 5,000 rows a month on Business and 50,
 - `bulk_job_row` rows are deleted 30 days after their job finished (the `bulk_job` row stays as a record);
 - `paddle_event.payload` is cleared after 90 days;
 - `email_delivery` and `alert_email` rows are deleted after 90 days;
+- `alert` rows, read or not, are deleted after 365 days, with their `alert_email` rows;
 - `email_token`, `refresh_token` and `invite` rows are deleted 30 days after they were used, revoked or accepted, or after they expired, whichever is later.
 
-`alert` rows are kept: the spec sets no retention for them, and the owner decides at P11 with the size budget. `maintenance.yml` runs it daily at 02:30 UTC (see the schedules below).
+`maintenance.yml` runs it daily at 02:30 UTC (see the schedules below).
+
+### Backups
+
+`backup:app --out <file>` writes the account tables to a gzipped file, one JSON line per row, from one read-only snapshot: accounts, people, memberships, invites, subscriptions and Paddle events, usage, watchlists, alerts, notification settings, bulk jobs, disputes, the audit log and API keys. Sessions, one-time tokens, email logs and the reference data (records, firms, taxonomy) are left out; the syncs or a copy rebuild the reference data, and Neon's point-in-time restore covers recent damage to anything.
+
+`backup.yml` runs it daily at 02:17 UTC, encrypts the file with [age](https://age-encryption.org) to the public key in the `BACKUP_AGE_RECIPIENT` repository variable, and keeps it 30 days as a workflow artifact. It fails, writing nothing, while that variable is unset.
+
+- **Set up the key once:** run `age-keygen -o rejectradar-backup.key` on your own computer, keep that file offline (it is the only way to open the backups), and put the `public key: age1…` line's key in `BACKUP_AGE_RECIPIENT`.
+- **Restore:** download the artifact, run `age -d -i rejectradar-backup.key backup-<date>.ndjson.gz.age > backup.ndjson.gz`, then `node dist/apps/ingest/main.js backup:restore --file backup.ndjson.gz` with `DATABASE_URL` set to the target. The target must be migrated to the same version, hold the reference data, and have empty account tables; the restore refuses otherwise and writes nothing.
+- **Drill:** before launch, restore the latest staging backup into a Neon branch of staging whose account tables are emptied (`truncate org, app_user, paddle_event, audit_log restart identity cascade` empties them all), and compare the row counts the two commands print.
 
 ### Owner steps for P6
 
@@ -333,6 +344,8 @@ tools/
   sync-*.yml   scheduled syncs
   digest.yml   daily and weekly alert digests
   maintenance.yml  the daily retention purge
+  backup.yml   the daily encrypted backup of the account tables
+  promote.yml  moves release, which production deploys, forward
   backfill.yml manual full loads
 docker-compose.yml  Postgres 18 and Mailpit for local development
 ```
@@ -409,23 +422,24 @@ node tools/perf/p6.mjs --base http://localhost:3000 --email <email> --password <
 
 ### Ingestion CLI
 
-| Command                                     | What it does                                                                                                                                                                                    |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sync:fda-charge-codes`                     | FDA charge codes and their hazards                                                                                                                                                              |
-| `sync:fda-refusals [--from YYYY-MM-DD]`     | FDA refusals (default: the last 120 days)                                                                                                                                                       |
-| `sync:import-alerts [--only 99-19,…]`       | FDA Import Alert red and green lists; a full crawl only in FDA's visiting hours. `--if-due` (scheduled runs) skips instead of failing outside them or after a full crawl succeeded that UTC day |
-| `sync:rasff [--from …] [--details-limit n]` | EU RASFF notifications and their hazards                                                                                                                                                        |
-| `sync:uk-bn` / `sync:au-ifis`               | UK and Australian monthly files, loading new or changed files only                                                                                                                              |
-| `sync:eu-mrl`                               | EU pesticide MRLs, replaced in full                                                                                                                                                             |
-| `taxonomy:remap`                            | Re-applies the taxonomy rules to every stored record; with `--if-requested`, only when staff asked for it since the last remap                                                                  |
-| `entities:link`                             | Links records to firms and refreshes firm facts                                                                                                                                                 |
-| `alerts:run [--no-email]`                   | Turns new change events into alerts and sends the instant emails                                                                                                                                |
-| `digest:send`                               | Sends the daily digests, and the weekly ones on Mondays                                                                                                                                         |
-| `summaries:draft [--limit n] [--only …]`    | Drafts English Import Alert summaries with Claude, for a person to approve                                                                                                                      |
-| `summaries:translate [--limit n]`           | Translates approved English summaries into Urdu, Hindi and Bengali                                                                                                                              |
-| `db:size-check`                             | Exits 1 at or above 900 MB                                                                                                                                                                      |
-| `maintenance:purge`                         | Applies the retention rules and prints each count (see "Retention")                                                                                                                             |
-| `verify-source`, `probe-page`               | Checks a source: fields, rows, fill rates, duplicate keys, page patterns                                                                                                                        |
+| Command                                                    | What it does                                                                                                                                                                                    |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sync:fda-charge-codes`                                    | FDA charge codes and their hazards                                                                                                                                                              |
+| `sync:fda-refusals [--from YYYY-MM-DD]`                    | FDA refusals (default: the last 120 days)                                                                                                                                                       |
+| `sync:import-alerts [--only 99-19,…]`                      | FDA Import Alert red and green lists; a full crawl only in FDA's visiting hours. `--if-due` (scheduled runs) skips instead of failing outside them or after a full crawl succeeded that UTC day |
+| `sync:rasff [--from …] [--details-limit n]`                | EU RASFF notifications and their hazards                                                                                                                                                        |
+| `sync:uk-bn` / `sync:au-ifis`                              | UK and Australian monthly files, loading new or changed files only                                                                                                                              |
+| `sync:eu-mrl`                                              | EU pesticide MRLs, replaced in full                                                                                                                                                             |
+| `taxonomy:remap`                                           | Re-applies the taxonomy rules to every stored record; with `--if-requested`, only when staff asked for it since the last remap                                                                  |
+| `entities:link`                                            | Links records to firms and refreshes firm facts                                                                                                                                                 |
+| `alerts:run [--no-email]`                                  | Turns new change events into alerts and sends the instant emails                                                                                                                                |
+| `digest:send`                                              | Sends the daily digests, and the weekly ones on Mondays                                                                                                                                         |
+| `summaries:draft [--limit n] [--only …]`                   | Drafts English Import Alert summaries with Claude, for a person to approve                                                                                                                      |
+| `summaries:translate [--limit n]`                          | Translates approved English summaries into Urdu, Hindi and Bengali                                                                                                                              |
+| `db:size-check`                                            | Exits 1 at or above 900 MB                                                                                                                                                                      |
+| `maintenance:purge`                                        | Applies the retention rules and prints each count (see "Retention")                                                                                                                             |
+| `backup:app --out <file>` / `backup:restore --file <file>` | Writes the account tables to a gzipped file, or puts one back into empty account tables (see "Backups")                                                                                         |
+| `verify-source`, `probe-page`                              | Checks a source: fields, rows, fill rates, duplicate keys, page patterns                                                                                                                        |
 
 `alerts:run` and `digest:send` send email through the same daily cap as the API, so they read the mail variables above. `alerts:run --no-email` creates the alerts and needs none of them. `alerts:run` exits 3 when a firm-level record has stayed unlinked for 48 hours, because alerts stop at the first such record; GitHub Actions then emails the owner. `digest:send` exits 1 when a digest could not be sent.
 
@@ -443,6 +457,7 @@ docker run --rm -e DATABASE_URL -v "${PWD}:/app:ro" -w /app node:24.15.0-bookwor
 | `sync-weekly.yml`  | 08:00 every day for now, then weekly on FDA's refresh day | FDA charge codes and refusals, then `entities:link`                                                                                                                                                                                                                                                                                                                                                        |
 | `sync-weekly.yml`  | 06:30 on Mondays                                          | UK, then Australia, then `entities:link`                                                                                                                                                                                                                                                                                                                                                                   |
 | `sync-monthly.yml` | 03:30 on the 1st                                          | EU MRLs                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `backup.yml`       | 02:17 every day                                           | `backup:app`, encrypted, kept 30 days                                                                                                                                                                                                                                                                                                                                                                      |
 | `maintenance.yml`  | 02:30 every day                                           | `maintenance:purge`                                                                                                                                                                                                                                                                                                                                                                                        |
 | `digest.yml`       | 03:00 every day                                           | `digest:send` (weekly digests on Mondays)                                                                                                                                                                                                                                                                                                                                                                  |
 | `backfill.yml`     | On demand                                                 | One source with `--no-events`                                                                                                                                                                                                                                                                                                                                                                              |
