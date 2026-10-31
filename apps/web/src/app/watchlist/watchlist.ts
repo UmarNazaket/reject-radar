@@ -30,7 +30,7 @@ import { Alert } from '../layout/alert';
       }
     </div>
     @if (action.error(); as error) {
-      <app-alert class="mt-4 block">{{ error }}</app-alert>
+      <app-alert class="mt-4 block" [upgrade]="action.upgrade()">{{ error }}</app-alert>
     }
 
     @if (list.error(); as error) {

@@ -3,7 +3,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { NoticeItem } from '@rejectradar/contracts';
 import { apiUrl } from '../core/api';
-import { errorMessage } from '../core/errors';
+import { errorMessage, needsUpgrade } from '../core/errors';
 import { I18n } from '../core/i18n';
 import { Taxonomy } from '../core/taxonomy';
 import { Alert } from '../layout/alert';
@@ -15,7 +15,7 @@ import { Alert } from '../layout/alert';
   template: `
     <a routerLink="/notices" class="text-sm text-sky-700 underline">{{ i18n.t('web.notices.back') }}</a>
     @if (notice.error(); as error) {
-      <app-alert class="mt-4 block">{{ errorText(error) }}</app-alert>
+      <app-alert class="mt-4 block" [upgrade]="needsUpgrade(error)">{{ errorText(error) }}</app-alert>
     } @else if (notice.hasValue()) {
       @let n = notice.value();
       <h1 class="mt-3 text-2xl font-semibold">{{ n.productText ?? n.title ?? i18n.t('web.notices.notice') }}</h1>
@@ -90,6 +90,8 @@ export class NoticeDetail {
   protected hazardLabels(ids: number[]): string {
     return ids.map((id) => this.taxonomy.label('hazard', id)).join(', ') || '—';
   }
+
+  protected readonly needsUpgrade = needsUpgrade;
 
   protected errorText(error: unknown): string {
     return errorMessage(this.i18n, error);

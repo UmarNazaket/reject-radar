@@ -19,7 +19,7 @@ import { Alert } from '../layout/alert';
   template: `
     <p class="max-w-2xl text-sm text-slate-600">{{ i18n.t('web.apiKeys.intro') }}</p>
     @if (action.error(); as error) {
-      <app-alert class="mt-4 block">{{ error }}</app-alert>
+      <app-alert class="mt-4 block" [upgrade]="action.upgrade()">{{ error }}</app-alert>
     }
     @if (created(); as k) {
       <app-alert kind="success" class="mt-4 block">

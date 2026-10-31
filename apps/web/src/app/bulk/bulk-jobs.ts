@@ -40,7 +40,7 @@ interface UploadProblems {
         </button>
       </div>
       @if (upload.error(); as error) {
-        <app-alert class="mt-4 block">
+        <app-alert class="mt-4 block" [upgrade]="upload.upgrade()">
           {{ error }}
           @if (problems(); as p) {
             @if (p.missing) {
