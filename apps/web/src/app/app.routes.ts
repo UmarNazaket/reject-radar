@@ -11,6 +11,8 @@ export const appRoutes: Route[] = [
   { path: 'terms', data: { page: 'terms' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
   { path: 'privacy', data: { page: 'privacy' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
   { path: 'refunds', data: { page: 'refunds' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
+  { path: 'disclaimer', data: { page: 'disclaimer' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
+  { path: 'sources', loadComponent: () => import('./legal/sources').then((m) => m.Sources) },
   // Checkout returns and payment-failed emails sent before P9 link here.
   {
     path: 'app/settings/billing',

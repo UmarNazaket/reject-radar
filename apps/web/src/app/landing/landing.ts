@@ -53,6 +53,7 @@ const SOURCES = ['fda_refusal', 'import_alert', 'rasff', 'uk_bn', 'au_ifis'] as 
           }
           <li class="rounded-full border border-slate-200 bg-white px-3 py-1">{{ i18n.t('web.landing.euMrl') }}</li>
         </ul>
+        <a routerLink="/sources" class="mt-3 inline-block text-sm text-sky-700 underline">{{ i18n.t('web.landing.sourcesMore') }}</a>
       </section>
       <app-legal-links class="mt-12 block" />
     </main>
