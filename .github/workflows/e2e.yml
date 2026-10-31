@@ -67,6 +67,11 @@ jobs:
           for _ in $(seq 1 30); do curl -sf http://localhost:3000/v1/health > /dev/null && exit 0; sleep 2; done
           cat api.log
           exit 1
+      - name: Smoke check
+        env:
+          SMOKE_EMAIL: e2e-staff@example.com
+          SMOKE_PASSWORD: e2e-check-2026
+        run: node tools/smoke/check.mjs --base http://localhost:3000 --firm "e2e spice mills"
       - run: npx playwright install --with-deps chromium
       - name: Playwright
         run: npx nx e2e web-e2e -- --project=chromium
