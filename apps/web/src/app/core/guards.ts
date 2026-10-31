@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { type CanActivateFn, Router } from '@angular/router';
+import { type CanActivateFn, type CanMatchFn, Router } from '@angular/router';
 import { Session } from './session';
 
 /** The session, or null when the API cannot say: the sign-in page then shows why. */
@@ -16,6 +16,9 @@ export const signedOut: CanActivateFn = async () => {
   const router = inject(Router);
   return (await current(inject(Session))) ? router.createUrlTree(['/']) : true;
 };
+
+/** The landing page at `/`: it matches only for a signed-out visitor, so `/` stays the app for everyone signed in. */
+export const signedOutMatch: CanMatchFn = async () => !(await current(inject(Session)));
 
 /** Staff screens: anyone else sees the page-not-found screen, as if the area did not exist. The API checks again. */
 export const staffOnly: CanActivateFn = async () => {

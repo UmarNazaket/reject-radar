@@ -1,10 +1,11 @@
 import { inject } from '@angular/core';
 import { type Route, Router } from '@angular/router';
-import { signedIn, signedOut, staffOnly } from './core/guards';
+import { signedIn, signedOut, signedOutMatch, staffOnly } from './core/guards';
 
 // The signed-in shell comes first: an empty-path parent also matches the empty URL when none of its children do, so
 // listing the sign-in screens first would show their layout, empty, at `/`.
 export const appRoutes: Route[] = [
+  { path: '', pathMatch: 'full', canMatch: [signedOutMatch], loadComponent: () => import('./landing/landing').then((m) => m.Landing) },
   // Public, for anyone signed in or not, with its own header.
   { path: 'pricing', loadComponent: () => import('./pricing/pricing').then((m) => m.Pricing) },
   { path: 'terms', data: { page: 'terms' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
