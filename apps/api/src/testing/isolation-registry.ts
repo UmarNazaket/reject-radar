@@ -70,6 +70,7 @@ export const ACCOUNT_ROUTES: IsolationCase[] = [
   { method: 'PATCH', path: '/v1/watchlist/:id', body: () => ({ label: 'x' }), target: (b) => ({ id: b.watchlistItemId }) },
   { method: 'DELETE', path: '/v1/watchlist/:id', target: (b) => ({ id: b.watchlistItemId }) },
   { method: 'GET', path: '/v1/alerts' },
+  { method: 'GET', path: '/v1/alerts/:id', target: (b) => ({ id: b.alertId }) },
   { method: 'POST', path: '/v1/alerts/read', body: (b) => ({ ids: [b.alertId] }) },
   { method: 'GET', path: '/v1/me/notification-prefs' },
   { method: 'PUT', path: '/v1/me/notification-prefs', body: () => ({ instantHigh: false, digest: 'weekly' }) },

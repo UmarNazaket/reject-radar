@@ -1,4 +1,4 @@
-import type { AlertsResponse, MarkReadResponse, NotificationPrefs, WatchlistResponse } from '@rejectradar/contracts';
+import type { AlertItem, AlertsResponse, MarkReadResponse, NotificationPrefs, WatchlistResponse } from '@rejectradar/contracts';
 import { alert, type changeEvent, uuidv7 } from '@rejectradar/db';
 import { insertEvent } from '@rejectradar/entities';
 import { sql } from 'drizzle-orm';
@@ -77,6 +77,22 @@ describe('alerts', () => {
     );
     // An event without a firm or a notice still lists.
     expect(page.items[2]).toMatchObject({ createdAt: '2026-10-01T08:00:00.000Z', occurredOn: daysAgo(30), firm: null, notice: null });
+  });
+
+  it('opens one alert of the account, as the alert email links to it', async () => {
+    const { session, orgId } = await account();
+    const other = await account();
+    const id = await raise(orgId, { firmId: fx.firms.zarfeen, noticeId: fx.notices.recentRefusal, severity: 'high' });
+    const foreign = await raise(other.orgId);
+
+    const item = (await session.get(`/v1/alerts/${id}`).expect(200)).body as AlertItem;
+    expect(item).toEqual((await list(session)).items[0]);
+    expect(item).toMatchObject({ id, severity: 'high', readAt: null, firm: { id: fx.firms.zarfeen }, notice: { id: fx.notices.recentRefusal } });
+
+    // Another account's alert, an unknown id and a malformed one are all not found.
+    await session.get(`/v1/alerts/${foreign}`).expect(404);
+    await session.get(`/v1/alerts/${uuidv7()}`).expect(404);
+    await session.get('/v1/alerts/preview-1').expect(404);
   });
 
   it('filters', async () => {
