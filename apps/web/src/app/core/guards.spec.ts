@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { type ActivatedRouteSnapshot, provideRouter, Router, type RouterStateSnapshot, UrlTree } from '@angular/router';
-import { staffOnly } from './guards';
+import { type ActivatedRouteSnapshot, provideRouter, type Route, Router, type RouterStateSnapshot, UrlTree } from '@angular/router';
+import { signedOutMatch, staffOnly } from './guards';
 import { Session } from './session';
 
 describe('staffOnly', () => {
@@ -17,5 +17,22 @@ describe('staffOnly', () => {
     const result = await run({ user: { isPlatformAdmin: false } });
     expect(result).toBeInstanceOf(UrlTree);
     expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/not-found');
+  });
+});
+
+describe('signedOutMatch', () => {
+  const run = (me: Promise<unknown>) => {
+    TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: Session, useValue: { load: () => me } }] });
+    return TestBed.runInInjectionContext(() => signedOutMatch({} as Route, [])) as Promise<boolean>;
+  };
+
+  it('shows the landing page to a signed-out visitor, and when the API cannot say', async () => {
+    expect(await run(Promise.resolve(null))).toBe(true);
+    TestBed.resetTestingModule();
+    expect(await run(Promise.reject(new Error('down')))).toBe(true);
+  });
+
+  it('leaves `/` to the app for anyone signed in', async () => {
+    expect(await run(Promise.resolve({ user: { isPlatformAdmin: false } }))).toBe(false);
   });
 });

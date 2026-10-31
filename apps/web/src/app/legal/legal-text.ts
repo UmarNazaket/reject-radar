@@ -6,7 +6,7 @@ export interface LegalText {
   sections: { heading: string; paragraphs: string[] }[];
 }
 
-export type LegalPage = 'terms' | 'privacy' | 'refunds';
+export type LegalPage = 'terms' | 'privacy' | 'refunds' | 'disclaimer';
 
 const CONTACT = 'Contact: [contact email address].';
 
@@ -130,6 +130,41 @@ export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
       {
         heading: 'Cancelling',
         paragraphs: ['Cancelling stops the next renewal. Your plan stays active until the end of the period already paid.'],
+      },
+    ],
+  },
+  disclaimer: {
+    title: 'Disclaimer',
+    draft: true,
+    sections: [
+      {
+        heading: 'Facts as published',
+        paragraphs: [
+          "RejectRadar shows records that government agencies publish: the US FDA, the European Commission (RASFF and the EU Pesticides Database), the UK Food Standards Agency and the Australian Department of Agriculture. Each record links to the agency's own notice. RejectRadar does not add to, score or interpret them.",
+        ],
+      },
+      {
+        heading: 'Not a risk score',
+        paragraphs: [
+          "A record says that an agency took an action on a shipment or a firm on a date. It does not say that the firm's other shipments are unsafe, and it is not a rating or a prediction. A firm with no records may simply not export to the countries covered.",
+        ],
+      },
+      {
+        heading: 'Delays and errors',
+        paragraphs: [
+          "Agencies publish on their own schedules and sometimes change or withdraw records, and RejectRadar reads each source daily, weekly or monthly, so a record can appear here late. Records are linked to firms by matching names and numbers, which can be wrong. Check the agency's own record before you act on it.",
+        ],
+      },
+      {
+        heading: 'Names as published',
+        paragraphs: ['Some agencies publish sole traders under their own names. RejectRadar shows those names exactly as published and adds nothing about the person.'],
+      },
+      {
+        heading: 'Corrections',
+        paragraphs: [
+          'If a record is linked to the wrong firm, or a firm is described wrongly, report it from the firm profile. RejectRadar corrects its own links; only the agency that published a record can change the record itself.',
+          CONTACT,
+        ],
       },
     ],
   },
