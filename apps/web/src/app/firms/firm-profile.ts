@@ -11,7 +11,7 @@ import type { CreateDisputeRequest, CreateWatchlistItemRequest, FirmProfileRespo
 import { firstValueFrom } from 'rxjs';
 import { apiUrl } from '../core/api';
 import { downloadFile } from '../core/download';
-import { errorMessage } from '../core/errors';
+import { errorMessage, needsUpgrade } from '../core/errors';
 import { I18n } from '../core/i18n';
 import { Taxonomy } from '../core/taxonomy';
 import { Alert } from '../layout/alert';
@@ -52,7 +52,7 @@ function threeYearsAgo(): string {
         <button matButton="filled" type="button" class="mt-4" (click)="open()">{{ i18n.t('web.firms.confirm') }}</button>
       </section>
     } @else if (profile.error(); as error) {
-      <app-alert class="mt-4 block">{{ errorText(error) }}</app-alert>
+      <app-alert class="mt-4 block" [upgrade]="needsUpgrade(error)">{{ errorText(error) }}</app-alert>
     } @else if (profile.hasValue()) {
       @let p = profile.value();
       <h1 class="mt-3 text-2xl font-semibold" dir="auto">{{ p.displayName }}</h1>
@@ -77,7 +77,7 @@ function threeYearsAgo(): string {
       </div>
       @if (result(); as r) {
         @if (r.id === id()) {
-          <app-alert class="mt-4 block" [kind]="r.kind">{{ r.text }}</app-alert>
+          <app-alert class="mt-4 block" [kind]="r.kind" [upgrade]="!!r.upgrade">{{ r.text }}</app-alert>
         }
       }
       @if (disputeOpen()) {
@@ -223,7 +223,7 @@ export class FirmProfile {
 
   protected readonly busy = signal(false);
   /** The outcome of the last action, kept with the firm it was for. */
-  protected readonly result = signal<{ id: string; kind: 'success' | 'error'; text: string } | null>(null);
+  protected readonly result = signal<{ id: string; kind: 'success' | 'error'; text: string; upgrade?: boolean } | null>(null);
   protected readonly disputeOpen = signal(false);
   protected disputeKind = 'wrong_details';
   protected disputeMessage = '';
@@ -241,6 +241,8 @@ export class FirmProfile {
   protected hazardGroups(categories: string[]): string {
     return categories.map((c) => this.taxonomy.label('hazardCategory', c)).join(', ');
   }
+
+  protected readonly needsUpgrade = needsUpgrade;
 
   protected errorText(error: unknown): string {
     return errorMessage(this.i18n, error);
@@ -281,7 +283,7 @@ export class FirmProfile {
       const text = await action();
       if (text) this.result.set({ id, kind: 'success', text });
     } catch (error) {
-      this.result.set({ id, kind: 'error', text: errorMessage(this.i18n, error) });
+      this.result.set({ id, kind: 'error', text: errorMessage(this.i18n, error), upgrade: needsUpgrade(error) });
     } finally {
       this.busy.set(false);
     }

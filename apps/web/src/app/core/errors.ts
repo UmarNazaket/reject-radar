@@ -11,3 +11,9 @@ export function errorMessage(i18n: I18n, error: unknown): string {
   const text = message.startsWith('errors.') ? i18n.t('errors.HTTP_ERROR') : message;
   return error.status >= 500 && body?.requestId ? `${text} (${body.requestId})` : text;
 }
+
+/** True for a plan error, which the error box answers with a link to the plans. */
+export function needsUpgrade(error: unknown): boolean {
+  const code = error instanceof HttpErrorResponse ? (error.error as Partial<ApiErrorBody> | null)?.code : undefined;
+  return code === 'PLAN_LIMIT_REACHED' || code === 'PLAN_UPGRADE_REQUIRED';
+}

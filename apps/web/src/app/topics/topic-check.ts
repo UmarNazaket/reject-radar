@@ -8,7 +8,7 @@ import type { CreateWatchlistItemRequest, DashboardResponse, Destination, TopicE
 import { firstValueFrom } from 'rxjs';
 import { apiUrl } from '../core/api';
 import { downloadFile } from '../core/download';
-import { errorMessage } from '../core/errors';
+import { errorMessage, needsUpgrade } from '../core/errors';
 import { I18n } from '../core/i18n';
 import { Taxonomy } from '../core/taxonomy';
 import { Alert } from '../layout/alert';
@@ -67,7 +67,7 @@ import { TopicDashboard } from './topic-dashboard';
       </div>
       @if (result(); as r) {
         @if (r.key === topicKey()) {
-          <app-alert class="mb-4 block" [kind]="r.kind">{{ r.text }}</app-alert>
+          <app-alert class="mb-4 block" [kind]="r.kind" [upgrade]="!!r.upgrade">{{ r.text }}</app-alert>
         }
       }
       @if (dashboard.error(); as error) {
@@ -121,7 +121,7 @@ export class TopicCheck {
 
   protected readonly busy = signal(false);
   /** The outcome of the last action, kept with the topic it was for, so it is not shown once the topic changes. */
-  protected readonly result = signal<{ key: string; kind: 'success' | 'error'; text: string } | null>(null);
+  protected readonly result = signal<{ key: string; kind: 'success' | 'error'; text: string; upgrade?: boolean } | null>(null);
 
   protected navigate(params: Record<string, string | null>): void {
     void this.router.navigate([], { queryParams: params, queryParamsHandling: 'merge' });
@@ -163,7 +163,7 @@ export class TopicCheck {
       const text = await action();
       if (text) this.result.set({ key, kind: 'success', text });
     } catch (error) {
-      this.result.set({ key, kind: 'error', text: errorMessage(this.i18n, error) });
+      this.result.set({ key, kind: 'error', text: errorMessage(this.i18n, error), upgrade: needsUpgrade(error) });
     } finally {
       this.busy.set(false);
     }

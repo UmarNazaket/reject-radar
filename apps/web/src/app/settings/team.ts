@@ -24,7 +24,7 @@ const INVITE_ROLES = ['admin', 'member'];
   imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, Alert],
   template: `
     @if (action.error(); as error) {
-      <app-alert class="mb-4 block">{{ error }}</app-alert>
+      <app-alert class="mb-4 block" [upgrade]="action.upgrade()">{{ error }}</app-alert>
     }
     @if (team.error(); as error) {
       <app-alert>{{ errorText(error) }}</app-alert>
