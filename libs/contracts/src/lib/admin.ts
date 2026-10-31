@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { BillingInterval, Role, SubscriptionStatus } from './accounts';
 import type { BillingUsage, PlanSource } from './billing';
+import type { EmailDeliveryStatus, EmailKind } from './email';
 import { FIRM_RECORD_SOURCES, type FirmRecordSource, MATCH_REVIEW_STATUSES, type MatchReviewReason, type MatchReviewStatus } from './firms';
 import { DISPUTE_STATUSES, type DisputeKind, type DisputeStatus } from './product';
 import { RULE_MATCH_TYPES, RULE_SOURCES, type RuleMatchType, type RuleSource, type SyncSource, type SyncStatus } from './ingestion';
@@ -35,9 +36,13 @@ export interface AdminSourceItem {
   runs: SyncRunItem[];
 }
 
-/** `GET /v1/admin/sources`: every source, in `SYNC_SOURCES` order. */
+/** `GET /v1/admin/sources`: every source, in `SYNC_SOURCES` order, with the database size and today's emails. */
 export interface AdminSourcesResponse {
   sources: AdminSourceItem[];
+  /** The database's size against the size that stops the syncs (`DB_SIZE_LIMIT_BYTES`). */
+  database: { sizeBytes: number; limitBytes: number };
+  /** Emails sending or sent today (UTC) against the daily cap of account emails, the highest tier. */
+  emails: { sentToday: number; cap: number };
 }
 
 /** A firm as the admin screens show it beside another: enough to tell two firms apart. */
@@ -305,4 +310,28 @@ export interface AuditResponse {
   items: AuditEntry[];
   /** The cursor of the next, older page; null on the last one. */
   next: number | null;
+}
+
+export const EMAIL_LOG_PAGE_SIZE = 100;
+
+/** `GET /v1/admin/emails?to=&cursor=`: newest first; `to` matches part of the recipient's address. */
+export const emailLogQuery = z.object({
+  to: z.string().trim().min(1).max(200).optional(),
+  cursor: z.uuid().optional(),
+});
+export type EmailLogQuery = z.output<typeof emailLogQuery>;
+
+export interface EmailLogEntry {
+  id: string;
+  at: string;
+  to: string;
+  kind: EmailKind;
+  status: EmailDeliveryStatus;
+  error: string | null;
+}
+
+export interface EmailLogResponse {
+  items: EmailLogEntry[];
+  /** The cursor of the next, older page; null on the last one. */
+  next: string | null;
 }

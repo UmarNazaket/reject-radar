@@ -4,6 +4,9 @@ import type { Destination } from './destinations';
 export const SYNC_SOURCES = ['fda_charge_codes', 'fda_refusals', 'import_alerts', 'rasff', 'uk_bn', 'au_ifis', 'eu_mrl'] as const;
 export type SyncSource = (typeof SYNC_SOURCES)[number];
 
+/** Spec §6.3: every sync stops at or above this database size, so the database stays inside the hosting plan. */
+export const DB_SIZE_LIMIT_BYTES = 900 * 1024 * 1024;
+
 export const SYNC_STATUSES = ['running', 'succeeded', 'failed'] as const;
 export type SyncStatus = (typeof SYNC_STATUSES)[number];
 

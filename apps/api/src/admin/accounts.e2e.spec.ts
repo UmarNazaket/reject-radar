@@ -1,5 +1,5 @@
-import type { AdminOrgResponse, AdminOrgsResponse, AuditResponse } from '@rejectradar/contracts';
-import { appUser, auditLog } from '@rejectradar/db';
+import type { AdminOrgResponse, AdminOrgsResponse, AuditResponse, EmailLogResponse } from '@rejectradar/contracts';
+import { appUser, auditLog, emailDelivery, uuidv7 } from '@rejectradar/db';
 import { eq } from 'drizzle-orm';
 import { signUpVerified, startTestApp, type TestApp, type TestSession } from '../testing/test-app';
 
@@ -33,6 +33,7 @@ describe('admin accounts and audit log', () => {
       ['post', `/v1/admin/orgs/${customerOrg}/deactivate`],
       ['post', `/v1/admin/orgs/${customerOrg}/reactivate`],
       ['get', '/v1/admin/audit'],
+      ['get', '/v1/admin/emails'],
     ] as const;
     for (const [method, path] of routes) {
       await t.session()[method](path).expect(401);
@@ -98,6 +99,25 @@ describe('admin accounts and audit log', () => {
     expect(merges.items).toHaveLength(27);
     expect(new Set(merges.items.map((i) => i.action))).toEqual(new Set(['firm.merge']));
     await admin.get('/v1/admin/audit').query({ cursor: '-1' }).expect(400);
+  });
+
+  it('reads the email log newest first, by page and by part of the address', async () => {
+    // Sorted: ids made in the same millisecond are not in order among themselves.
+    const ids = Array.from({ length: 102 }, () => uuidv7()).sort();
+    await t.db.insert(emailDelivery).values(
+      ids.map((id, i) => ({ id, toEmail: `Buyer${i}@Paging.test`, kind: 'instant_alert', status: i === 101 ? 'failed' : 'sent', error: i === 101 ? 'Resend 422' : null })),
+    );
+    const first = (await admin.get('/v1/admin/emails').query({ to: 'paging.TEST' }).expect(200)).body as EmailLogResponse;
+    expect(first.items).toHaveLength(100);
+    expect(first.items[0]).toMatchObject({ id: ids[101], to: 'Buyer101@Paging.test', kind: 'instant_alert', status: 'failed', error: 'Resend 422' });
+    expect(first.next).toBe(ids[2]);
+    const second = (await admin.get('/v1/admin/emails').query({ to: 'paging.test', cursor: first.next }).expect(200)).body as EmailLogResponse;
+    expect(second).toEqual({ items: [expect.objectContaining({ id: ids[1] }), expect.objectContaining({ id: ids[0] })], next: null });
+
+    // `%` is a character to look for, not a wildcard; the sign-ups' own emails are in the log too.
+    expect(((await admin.get('/v1/admin/emails').query({ to: '%' }).expect(200)).body as EmailLogResponse).items).toEqual([]);
+    expect(((await admin.get('/v1/admin/emails').query({ to: 'sara@indus' }).expect(200)).body as EmailLogResponse).items[0]).toMatchObject({ kind: 'verify' });
+    await admin.get('/v1/admin/emails').query({ cursor: 'not-a-uuid' }).expect(400);
   });
 
   it('deactivates an account, which locks its members out, and reactivates it', async () => {

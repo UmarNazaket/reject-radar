@@ -177,6 +177,7 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   { method: 'POST', path: '/v1/admin/orgs/:id/deactivate', reason: 'Platform admins only; staff look across every account.' },
   { method: 'POST', path: '/v1/admin/orgs/:id/reactivate', reason: 'Platform admins only; staff look across every account.' },
   { method: 'GET', path: '/v1/admin/audit', reason: 'Platform admins only; staff look across every account.' },
+  { method: 'GET', path: '/v1/admin/emails', reason: 'Platform admins only; staff look across every account.' },
   { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl', reason: 'Reference data.' },
   ...['notices', 'notices/:id', 'dashboards/topic', 'firms/search', 'firms/:id', 'import-alerts/:number', 'taxonomy', 'usage'].map((route) => ({

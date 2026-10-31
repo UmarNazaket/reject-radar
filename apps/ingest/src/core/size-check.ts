@@ -1,8 +1,9 @@
+import { DB_SIZE_LIMIT_BYTES } from '@rejectradar/contracts';
 import type { Database } from '@rejectradar/db';
 import { sql } from 'drizzle-orm';
 
 /** Spec §6.3: every sync aborts at or above 900 MB so the database stays inside the hosting plan. */
-export const SIZE_LIMIT_BYTES = 900 * 1024 * 1024;
+export const SIZE_LIMIT_BYTES = DB_SIZE_LIMIT_BYTES;
 
 const MB = 1024 * 1024;
 

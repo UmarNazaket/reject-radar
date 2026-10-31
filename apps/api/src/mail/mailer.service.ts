@@ -44,6 +44,11 @@ export class MailerService {
     await this.translateCap(() => this.mailer.assertCapacity(kind));
   }
 
+  /** Emails that count against today's cap, for staff. */
+  sentToday(): Promise<number> {
+    return this.mailer.sentToday();
+  }
+
   send(email: OutgoingEmail): Promise<'sent' | 'paused' | 'failed'> {
     return this.translateCap(() => this.mailer.send(email));
   }

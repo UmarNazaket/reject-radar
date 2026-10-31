@@ -6,13 +6,18 @@ import {
   AUDIT_PAGE_SIZE,
   type AuditQuery,
   type AuditResponse,
+  EMAIL_LOG_PAGE_SIZE,
+  type EmailDeliveryStatus,
+  type EmailKind,
+  type EmailLogQuery,
+  type EmailLogResponse,
   type BillingInterval,
   type PlanId,
   type PlanOverrideRequest,
   type Role,
   type SubscriptionStatus,
 } from '@rejectradar/contracts';
-import { appUser, auditLog, type Database, membership, org, subscription } from '@rejectradar/db';
+import { appUser, auditLog, type Database, emailDelivery, membership, org, subscription } from '@rejectradar/db';
 import { and, asc, desc, eq, exists, ilike, like, lt, or, sql } from 'drizzle-orm';
 import type { RequestContext } from '../auth/context';
 import { AppError } from '../common/errors';
@@ -27,7 +32,7 @@ const LIST_LIMIT = 50;
 const escapeLike = (text: string): string => text.replace(/[\\%_]/g, '\\$&');
 const notFound = () => new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found.');
 
-/** Accounts for staff (P10): find one, see its plan, usage and members, grant or clear a plan override; and the audit log. */
+/** Accounts for staff (P10): find one, see its plan, usage and members, grant or clear a plan override; the audit log and the email log. */
 @Injectable()
 export class AccountsService {
   constructor(
@@ -180,6 +185,26 @@ export class AccountsService {
         details: details as Record<string, unknown>,
       })),
       next: rows.length > AUDIT_PAGE_SIZE ? page[page.length - 1].id : null,
+    };
+  }
+
+  /** The newest email deliveries, for "I never got the email". uuidv7 ids sort by time to the millisecond, so the id is the cursor. */
+  async emails(query: EmailLogQuery): Promise<EmailLogResponse> {
+    const rows = await this.db
+      .select({ id: emailDelivery.id, at: emailDelivery.createdAt, to: emailDelivery.toEmail, kind: emailDelivery.kind, status: emailDelivery.status, error: emailDelivery.error })
+      .from(emailDelivery)
+      .where(
+        and(
+          query.to === undefined ? undefined : ilike(emailDelivery.toEmail, `%${escapeLike(query.to)}%`),
+          query.cursor === undefined ? undefined : lt(emailDelivery.id, query.cursor),
+        ),
+      )
+      .orderBy(desc(emailDelivery.id))
+      .limit(EMAIL_LOG_PAGE_SIZE + 1);
+    const page = rows.slice(0, EMAIL_LOG_PAGE_SIZE);
+    return {
+      items: page.map((row) => ({ ...row, at: row.at.toISOString(), kind: row.kind as EmailKind, status: row.status as EmailDeliveryStatus })),
+      next: rows.length > EMAIL_LOG_PAGE_SIZE ? page[page.length - 1].id : null,
     };
   }
 }
