@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   type AdminOrgQuery,
   adminOrgQuery,
@@ -40,6 +40,18 @@ export class AccountsController {
     @Body(new ZodValidationPipe(planOverrideRequest)) body: PlanOverrideRequest,
   ): Promise<AdminOrgResponse> {
     return this.accounts.setPlanOverride(ctx, id, body);
+  }
+
+  @Post('orgs/:id/deactivate')
+  @HttpCode(HttpStatus.OK)
+  deactivate(@CurrentContext() ctx: RequestContext, @Param('id', new UuidParamPipe()) id: string): Promise<AdminOrgResponse> {
+    return this.accounts.setActive(ctx, id, false);
+  }
+
+  @Post('orgs/:id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  reactivate(@CurrentContext() ctx: RequestContext, @Param('id', new UuidParamPipe()) id: string): Promise<AdminOrgResponse> {
+    return this.accounts.setActive(ctx, id, true);
   }
 
   @Get('audit')

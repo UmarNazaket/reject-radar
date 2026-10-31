@@ -173,6 +173,8 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   { method: 'GET', path: '/v1/admin/orgs', reason: 'Platform admins only; staff look across every account.' },
   { method: 'GET', path: '/v1/admin/orgs/:id', reason: 'Platform admins only; staff look across every account.' },
   { method: 'PATCH', path: '/v1/admin/orgs/:id', reason: 'Platform admins only; staff look across every account.' },
+  { method: 'POST', path: '/v1/admin/orgs/:id/deactivate', reason: 'Platform admins only; staff look across every account.' },
+  { method: 'POST', path: '/v1/admin/orgs/:id/reactivate', reason: 'Platform admins only; staff look across every account.' },
   { method: 'GET', path: '/v1/admin/audit', reason: 'Platform admins only; staff look across every account.' },
   { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl', reason: 'Reference data.' },

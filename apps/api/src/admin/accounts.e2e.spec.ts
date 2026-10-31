@@ -7,6 +7,7 @@ describe('admin accounts and audit log', () => {
   let t: TestApp;
   let admin: TestSession;
   let adminId: string;
+  let adminOrg: string;
   let customer: TestSession;
   let customerOrg: string;
 
@@ -14,7 +15,7 @@ describe('admin accounts and audit log', () => {
     t = await startTestApp('api_admin_accounts');
     const staff = await signUpVerified(t, { email: 'staff@accounts.test', name: 'Hina Staff', company: 'RejectRadar' });
     await t.db.update(appUser).set({ isPlatformAdmin: true }).where(eq(appUser.id, staff.userId));
-    ({ session: admin, userId: adminId } = staff);
+    ({ session: admin, userId: adminId, orgId: adminOrg } = staff);
     ({ session: customer, orgId: customerOrg } = await signUpVerified(t, { email: 'sara@indus-agro.test', name: 'Sara Malik', company: 'Indus Agro' }));
   });
 
@@ -29,6 +30,8 @@ describe('admin accounts and audit log', () => {
       ['get', '/v1/admin/orgs'],
       ['get', `/v1/admin/orgs/${customerOrg}`],
       ['patch', `/v1/admin/orgs/${customerOrg}`],
+      ['post', `/v1/admin/orgs/${customerOrg}/deactivate`],
+      ['post', `/v1/admin/orgs/${customerOrg}/reactivate`],
       ['get', '/v1/admin/audit'],
     ] as const;
     for (const [method, path] of routes) {
@@ -95,5 +98,27 @@ describe('admin accounts and audit log', () => {
     expect(merges.items).toHaveLength(27);
     expect(new Set(merges.items.map((i) => i.action))).toEqual(new Set(['firm.merge']));
     await admin.get('/v1/admin/audit').query({ cursor: '-1' }).expect(400);
+  });
+
+  it('deactivates an account, which locks its members out, and reactivates it', async () => {
+    const off = (await admin.post(`/v1/admin/orgs/${customerOrg}/deactivate`).expect(200)).body as AdminOrgResponse;
+    expect(off.org.deactivatedAt).not.toBeNull();
+    expect((await customer.get('/v1/me').expect(403)).body).toMatchObject({ code: 'ACCOUNT_DEACTIVATED' });
+    const { items } = (await admin.get('/v1/admin/orgs').query({ q: 'indus' }).expect(200)).body as AdminOrgsResponse;
+    expect(items[0].deactivatedAt).toBe(off.org.deactivatedAt);
+    expect((await admin.post(`/v1/admin/orgs/${customerOrg}/deactivate`).expect(409)).body.message).toBe('This account is deactivated already.');
+
+    const on = (await admin.post(`/v1/admin/orgs/${customerOrg}/reactivate`).expect(200)).body as AdminOrgResponse;
+    expect(on.org.deactivatedAt).toBeNull();
+    await customer.get('/v1/me').expect(200);
+    const actions = (await t.db.select().from(auditLog).where(eq(auditLog.targetId, customerOrg))).map((a) => [a.action, a.actorUserId]);
+    expect(actions.slice(-2)).toEqual([
+      ['org.deactivate', adminId],
+      ['org.reactivate', adminId],
+    ]);
+
+    // Staff would lock themselves out.
+    expect((await admin.post(`/v1/admin/orgs/${adminOrg}/deactivate`).expect(409)).body.message).toBe('You cannot deactivate your own account.');
+    await admin.post('/v1/admin/orgs/0190f2b4-0000-7000-8000-000000000000/reactivate').expect(404);
   });
 });

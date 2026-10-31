@@ -13,6 +13,7 @@ import { loadIngestEnv } from './core/env';
 import { createDeps, utcToday } from './core/deps';
 import { createFetcher } from './core/http';
 import { assertBelowSizeLimit, databaseSizeBytes, SIZE_LIMIT_BYTES, toMegabytes } from './core/size-check';
+import { backupApp, restoreApp } from './maintenance/backup';
 import { purge } from './maintenance/purge';
 import { syncChargeCodes } from './sync/fda/charge-codes';
 import { syncAuIfis } from './sync/au-ifis/sync';
@@ -318,8 +319,34 @@ program
   });
 
 program
+  .command('backup:app')
+  .description('Write the account tables (not the reference data) to a gzipped file, one JSON line per row, from one read-only snapshot (P11)')
+  .requiredOption('--out <file>', 'the file to write, e.g. backup-2026-11-01.ndjson.gz')
+  .action(async (options: { out: string }) => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      console.log(JSON.stringify(await backupApp(db, options.out), null, 2));
+    } finally {
+      await close();
+    }
+  });
+
+program
+  .command('backup:restore')
+  .description('Put a backup:app file back into a database on the same schema version with the reference data in place and empty account tables (P11)')
+  .requiredOption('--file <file>', 'the decrypted backup:app file')
+  .action(async (options: { file: string }) => {
+    const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
+    try {
+      console.log(JSON.stringify(await restoreApp(db, options.file), null, 2));
+    } finally {
+      await close();
+    }
+  });
+
+program
   .command('maintenance:purge')
-  .description('Apply the retention rules: bulk rows 30 days after their job finished, Paddle payloads, email logs and alert emails after 90 days, used or expired tokens and invites after 30 days (spec §6.3, §7.2). Prints one count per rule, never row content')
+  .description('Apply the retention rules: bulk rows 30 days after their job finished, Paddle payloads, email logs and alert emails after 90 days, alerts after 365 days, used or expired tokens and invites after 30 days (spec §6.3, §7.2). Prints one count per rule, never row content')
   .action(async () => {
     const { db, close } = openDb(loadIngestEnv().DATABASE_URL);
     try {

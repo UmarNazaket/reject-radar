@@ -257,6 +257,7 @@ export interface AdminOrgItem {
   source: PlanSource;
   members: number;
   createdAt: string;
+  deactivatedAt: string | null;
 }
 
 export interface AdminOrgsResponse {
