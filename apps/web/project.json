@@ -49,7 +49,10 @@
               "maximumError": "8kb"
             }
           ],
-          "outputHashing": "all"
+          "outputHashing": "all",
+          "define": {
+            "API_ORIGIN": "'https://rejectradar-api.umarnazaket.com'"
+          }
         },
         "staging": {
           "budgets": [

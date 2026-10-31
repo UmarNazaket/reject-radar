@@ -1,13 +1,14 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { I18n } from '../core/i18n';
+import { LegalLinks } from '../legal/legal-links';
 import { FORM_FIELD_DEFAULTS } from './form-field-defaults';
 import { LanguageSelect } from './language-select';
 
 /** Sign-in screens: the brand, the language switch and one card. */
 @Component({
   selector: 'app-public-layout',
-  imports: [RouterOutlet, RouterLink, LanguageSelect],
+  imports: [RouterOutlet, RouterLink, LanguageSelect, LegalLinks],
   providers: [FORM_FIELD_DEFAULTS],
   template: `
     <header class="flex items-center justify-between px-4 py-3 sm:px-6">
@@ -21,6 +22,7 @@ import { LanguageSelect } from './language-select';
       <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <router-outlet />
       </div>
+      <app-legal-links class="mt-6 block" />
     </main>
   `,
 })
