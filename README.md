@@ -373,11 +373,21 @@ Locally, `npx nx serve api` sends account emails to Mailpit, whose inbox is at h
 | ------------------------------------------ | ---------------------------------------------------------------------------------- |
 | `npx nx serve web`                         | `/v1` on the same origin, proxied to `localhost:3000` (`apps/web/proxy.conf.json`) |
 | `npx nx build web --configuration=staging` | `https://rejectradar-staging-api.umarnazaket.com`                                  |
-| `npx nx build web`                         | The same origin; production gets its API address with P11                          |
+| `npx nx build web` (production)            | `https://rejectradar-api.umarnazaket.com`                                          |
 
-Cloudflare Pages deploys `main` as the staging site and every other branch as a preview. It builds with `npx -y npm@11.12.1 ci && npx nx build web --configuration=staging` on the Node version in `.nvmrc` and publishes `dist/apps/web/browser`. The project sets `SKIP_DEPENDENCY_INSTALL`, so the build command installs the dependencies itself, with npm 11, because the build image's npm 10 rejects this lockfile; keep that npm version in step with the one that writes `package-lock.json`. Unknown paths serve `index.html`, so deep links work. The API's `APP_ORIGIN` must be the web app's origin exactly, for CORS and the links in emails.
+Cloudflare Pages deploys `main` as the staging site and every other branch as a preview. A second Pages project, for production, deploys only the `release` branch with `npx -y npm@11.12.1 ci && npx nx build web`, at `rejectradar.umarnazaket.com` (see "Releases and rollback"). It builds with `npx -y npm@11.12.1 ci && npx nx build web --configuration=staging` on the Node version in `.nvmrc` and publishes `dist/apps/web/browser`. The project sets `SKIP_DEPENDENCY_INSTALL`, so the build command installs the dependencies itself, with npm 11, because the build image's npm 10 rejects this lockfile; keep that npm version in step with the one that writes `package-lock.json`. Unknown paths serve `index.html`, so deep links work. The API's `APP_ORIGIN` must be the web app's origin exactly, for CORS and the links in emails.
 
 `apps/web-e2e` holds the Playwright tests. The E2E workflow runs them nightly at 01:41 UTC (and on demand) in Chromium against the real API and Postgres, migrated and loaded with `apps/web-e2e/seed.sql`; a failed run uploads the Playwright report. To run them locally, load the seed into an empty, migrated database, start the API against it, and run `npx nx e2e web-e2e -- --project=chromium`.
+
+### Releases and rollback
+
+`main` deploys to staging on every merge; production (the Render service and the Pages project for `rejectradar.umarnazaket.com`) deploys the `release` branch. To release:
+
+1. Check the commit on staging: CI green, the nightly E2E run green, and the screens you changed by hand.
+2. Run the **Promote to production** workflow (Actions tab), optionally with the commit to release. It refuses a commit that is not on `main` or whose CI did not pass, and only moves `release` forward.
+3. Wait for both production deploys, then check `GET /v1/health/ready` and the screens you changed.
+
+To roll back, use "Rollback" on the previous deploy in Render and in Cloudflare Pages; each takes about a minute. `release` then sits ahead of what runs, so the next promotion carries the fix forward. Migrations only go forward and are written so the previous release still runs on the new schema (add a column first, remove the old one a release later); a bad migration is fixed by a new one.
 
 ### Common commands
 
