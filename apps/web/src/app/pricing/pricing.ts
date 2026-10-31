@@ -8,11 +8,12 @@ import { I18n } from '../core/i18n';
 import { Session } from '../core/session';
 import { Alert } from '../layout/alert';
 import { LanguageSelect } from '../layout/language-select';
+import { LegalLinks } from '../legal/legal-links';
 
 /** The public price list: every plan with its prices and limits (spec §10.1). */
 @Component({
   selector: 'app-pricing',
-  imports: [RouterLink, Alert, LanguageSelect],
+  imports: [RouterLink, Alert, LanguageSelect, LegalLinks],
   template: `
     <header class="flex items-center justify-between px-4 py-3 sm:px-6">
       <a routerLink="/" class="text-lg font-semibold text-slate-900">{{ i18n.t('web.app.name') }}</a>
@@ -53,6 +54,7 @@ import { LanguageSelect } from '../layout/language-select';
       } @else {
         <p class="mt-4 text-slate-600">{{ i18n.t('web.loading') }}</p>
       }
+      <app-legal-links class="mt-10 block" />
     </main>
   `,
 })

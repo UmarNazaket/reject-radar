@@ -7,6 +7,9 @@ import { signedIn, signedOut, staffOnly } from './core/guards';
 export const appRoutes: Route[] = [
   // Public, for anyone signed in or not, with its own header.
   { path: 'pricing', loadComponent: () => import('./pricing/pricing').then((m) => m.Pricing) },
+  { path: 'terms', data: { page: 'terms' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
+  { path: 'privacy', data: { page: 'privacy' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
+  { path: 'refunds', data: { page: 'refunds' }, loadComponent: () => import('./legal/legal').then((m) => m.Legal) },
   // Checkout returns and payment-failed emails sent before P9 link here.
   {
     path: 'app/settings/billing',
