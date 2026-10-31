@@ -1,0 +1,36 @@
+name: Smoke check
+
+# Read-only checks of a deployed environment (tools/smoke/check.mjs). Run it after each promotion, once both deploys
+# are live. SMOKE_EMAIL and SMOKE_PASSWORD are a verified smoke account that exists on staging and production.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to check'
+        type: choice
+        options: [production, staging]
+        default: production
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+      - name: Smoke check ${{ inputs.environment }}
+        env:
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          if [ "$ENVIRONMENT" = production ]; then
+            node tools/smoke/check.mjs --base https://rejectradar-api.umarnazaket.com --web https://rejectradar.umarnazaket.com
+          else
+            node tools/smoke/check.mjs --base https://rejectradar-staging-api.umarnazaket.com --web https://rejectradar-staging.umarnazaket.com
+          fi

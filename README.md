@@ -338,6 +338,7 @@ libs/
 tools/
   perf/       load.mjs, the p95 check for notice search, dashboards and firm search; p6.mjs, the bulk job and PDF timings
   paddle/     create-webhook.mjs and checkout.html, the owner's Paddle sandbox tools
+  smoke/      check.mjs, the read-only smoke check of a running API and web app
 .github/workflows/
   ci.yml       lint, test and build on every push and pull request
   e2e.yml      the web app's end-to-end tests, nightly
@@ -346,6 +347,7 @@ tools/
   maintenance.yml  the daily retention purge
   backup.yml   the daily encrypted backup of the account tables
   promote.yml  moves release, which production deploys, forward
+  smoke.yml    the smoke check of production or staging, on demand
   backfill.yml manual full loads
 docker-compose.yml  Postgres 18 and Mailpit for local development
 ```
@@ -403,9 +405,21 @@ The public `/terms`, `/privacy` and `/refunds` pages, linked at the foot of the 
 
 1. Check the commit on staging: CI green, the nightly E2E run green, and the screens you changed by hand.
 2. Run the **Promote to production** workflow (Actions tab), optionally with the commit to release. It refuses a commit that is not on `main` or whose CI did not pass, and only moves `release` forward.
-3. Wait for both production deploys, then check `GET /v1/health/ready` and the screens you changed.
+3. Wait for both production deploys, then run the **Smoke check** workflow for production (see "Smoke check and monitoring") and check the screens you changed.
 
 To roll back, use "Rollback" on the previous deploy in Render and in Cloudflare Pages; each takes about a minute. `release` then sits ahead of what runs, so the next promotion carries the fix forward. Migrations only go forward and are written so the previous release still runs on the new schema (add a column first, remove the old one a release later); a bad migration is fixed by a new one.
+
+### Smoke check and monitoring
+
+`tools/smoke/check.mjs` checks a running API with read-only requests: `/v1/health/ready`, the plan list with its Paddle prices, a sign-in, a notice search and a firm search that must each find something, and a sign-out. With `--web` it also checks that the web app loads and was built for that API. It reads the account from `SMOKE_EMAIL` and `SMOKE_PASSWORD` and exits 1 if any check fails.
+
+```sh
+SMOKE_EMAIL=… SMOKE_PASSWORD=… node tools/smoke/check.mjs --base https://rejectradar-api.umarnazaket.com --web https://rejectradar.umarnazaket.com
+```
+
+- The E2E workflow runs it against the seeded local API before Playwright.
+- The **Smoke check** workflow (on demand) runs it against production or staging. It needs the `SMOKE_EMAIL` and `SMOKE_PASSWORD` repository secrets: a verified, free-plan smoke account with the same email and password on both, used for nothing else.
+- Uptime: two free checks (UptimeRobot or Better Stack, every 5 minutes, alerting the owner by email) watch `https://rejectradar-api.umarnazaket.com/v1/health/ready`, which fails when the database is unreachable, and `https://rejectradar.umarnazaket.com/`. The scheduled workflows email the owner when they fail (GitHub's own notification setting).
 
 ### Common commands
 
@@ -416,6 +430,7 @@ npx nx serve web                        # the web app on http://localhost:4200, 
 npx nx build ingest && node dist/apps/ingest/main.js --help
 node tools/perf/load.mjs --base http://localhost:3000 --email <email> --password <password>   # p95 of search and dashboards
 node tools/perf/p6.mjs --base http://localhost:3000 --email <email> --password <password> --csv bulk-1000.csv --firm <id>   # bulk job and PDF times
+SMOKE_EMAIL=<email> SMOKE_PASSWORD=<password> node tools/smoke/check.mjs --base http://localhost:3000   # read-only smoke check
 ```
 
 `tools/perf/load.mjs` signs in, warms each route and checks that the 95th-percentile response time of notice search, dashboards and firm search is 800 ms or less. `tools/perf/p6.mjs` uploads a 1,000-row CSV as a bulk job and times the firm and topic PDFs. See `tools/perf/README.md`.
