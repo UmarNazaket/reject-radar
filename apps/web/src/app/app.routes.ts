@@ -29,6 +29,7 @@ export const appRoutes: Route[] = [
       { path: 'mrl', loadComponent: () => import('./mrl/mrl-check').then((m) => m.MrlCheck) },
       { path: 'watchlist', loadComponent: () => import('./watchlist/watchlist').then((m) => m.Watchlist) },
       { path: 'alerts', loadComponent: () => import('./alerts/alert-list').then((m) => m.AlertList) },
+      { path: 'alerts/:id', loadComponent: () => import('./alerts/alert-detail').then((m) => m.AlertDetail) },
       { path: 'bulk', loadComponent: () => import('./bulk/bulk-jobs').then((m) => m.BulkJobs) },
       { path: 'bulk/:id', loadComponent: () => import('./bulk/bulk-job').then((m) => m.BulkJob) },
       {

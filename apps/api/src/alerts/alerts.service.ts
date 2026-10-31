@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import type {
   AlertItem,
   AlertsQuery,
@@ -17,6 +17,7 @@ import { alert, changeEvent, type Database, firm, notice, notificationPref, topi
 import { count, desc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import { byOrg, type RequestContext } from '../auth/context';
 import { decodeTimeCursor, encodeTimeCursor } from '../common/cursor';
+import { AppError } from '../common/errors';
 import { DB } from '../database/database.module';
 
 /** What a user has before they save anything (P5-D13): instant emails for high-severity alerts, and a daily digest. */
@@ -69,29 +70,7 @@ export class AlertsService {
 
     // One row more than the page tells whether another page follows.
     const [rows, unread] = await Promise.all([
-      this.db
-        .select({
-          id: alert.id,
-          severity: alert.severity,
-          readAt: alert.readAt,
-          createdAt: CREATED_AT_TEXT,
-          kind: changeEvent.kind,
-          occurredOn: changeEvent.occurredOn,
-          firmId: firm.id,
-          firmName: firm.displayName,
-          noticeId: notice.id,
-          noticeType: notice.noticeType,
-          destination: notice.destination,
-          originCountry: notice.originCountry,
-          productText: notice.productText,
-          title: notice.title,
-          url: notice.url,
-        })
-        .from(alert)
-        .innerJoin(changeEvent, eq(changeEvent.id, alert.changeEventId))
-        .leftJoin(firm, eq(firm.id, alert.firmId))
-        .leftJoin(notice, eq(notice.id, changeEvent.noticeId))
-        .where(byOrg(alert, ctx, ...conditions))
+      this.rows(byOrg(alert, ctx, ...conditions))
         .orderBy(desc(alert.createdAt), desc(alert.id))
         .limit(pageSize + 1),
       this.unread(ctx),
@@ -99,28 +78,14 @@ export class AlertsService {
 
     const page = rows.slice(0, pageSize);
     const last = page[page.length - 1];
-    const items: AlertItem[] = page.map((row) => ({
-      id: row.id,
-      severity: row.severity as Severity,
-      kind: row.kind as EventKind,
-      createdAt: new Date(row.createdAt).toISOString(),
-      occurredOn: row.occurredOn,
-      readAt: row.readAt ? row.readAt.toISOString() : null,
-      firm: row.firmId !== null && row.firmName !== null ? { id: row.firmId, displayName: row.firmName } : null,
-      notice:
-        row.noticeId === null
-          ? null
-          : {
-              id: row.noticeId,
-              noticeType: row.noticeType as NoticeType,
-              destination: row.destination as Destination,
-              originCountry: row.originCountry,
-              productText: row.productText,
-              title: row.title,
-              url: row.url,
-            },
-    }));
-    return { items, next: rows.length > pageSize && last ? encodeTimeCursor(last.createdAt, last.id) : null, unread };
+    return { items: page.map(toItem), next: rows.length > pageSize && last ? encodeTimeCursor(last.createdAt, last.id) : null, unread };
+  }
+
+  /** One of the account's alerts, for the page an alert email links to; another account's id is not found. */
+  async get(ctx: RequestContext, id: string): Promise<AlertItem> {
+    const [row] = await this.rows(byOrg(alert, ctx, eq(alert.id, id)));
+    if (!row) throw new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found.');
+    return toItem(row);
   }
 
   /** Marks some of the account's alerts, or all its unread ones, as read. Ids of other accounts match nothing; alerts already read are left as they are. */
@@ -198,8 +163,61 @@ export class AlertsService {
     return this.getPrefs(ctx);
   }
 
+  /** The alerts with what displays them: the event, the firm and the notice. */
+  private rows(where: SQL | undefined) {
+    return this.db
+      .select({
+        id: alert.id,
+        severity: alert.severity,
+        readAt: alert.readAt,
+        createdAt: CREATED_AT_TEXT,
+        kind: changeEvent.kind,
+        occurredOn: changeEvent.occurredOn,
+        firmId: firm.id,
+        firmName: firm.displayName,
+        noticeId: notice.id,
+        noticeType: notice.noticeType,
+        destination: notice.destination,
+        originCountry: notice.originCountry,
+        productText: notice.productText,
+        title: notice.title,
+        url: notice.url,
+      })
+      .from(alert)
+      .innerJoin(changeEvent, eq(changeEvent.id, alert.changeEventId))
+      .leftJoin(firm, eq(firm.id, alert.firmId))
+      .leftJoin(notice, eq(notice.id, changeEvent.noticeId))
+      .where(where);
+  }
+
   private async unread(ctx: RequestContext): Promise<number> {
     const [row] = await this.db.select({ unread: count() }).from(alert).where(byOrg(alert, ctx, isNull(alert.readAt)));
     return row.unread;
   }
+}
+
+type AlertRow = Awaited<ReturnType<AlertsService['rows']>>[number];
+
+function toItem(row: AlertRow): AlertItem {
+  return {
+    id: row.id,
+    severity: row.severity as Severity,
+    kind: row.kind as EventKind,
+    createdAt: new Date(row.createdAt).toISOString(),
+    occurredOn: row.occurredOn,
+    readAt: row.readAt ? row.readAt.toISOString() : null,
+    firm: row.firmId !== null && row.firmName !== null ? { id: row.firmId, displayName: row.firmName } : null,
+    notice:
+      row.noticeId === null
+        ? null
+        : {
+            id: row.noticeId,
+            noticeType: row.noticeType as NoticeType,
+            destination: row.destination as Destination,
+            originCountry: row.originCountry,
+            productText: row.productText,
+            title: row.title,
+            url: row.url,
+          },
+  };
 }
