@@ -2,6 +2,7 @@ import { HttpClient, httpResource } from '@angular/common/http';
 import { Component, computed, DestroyRef, inject, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import type { CheckoutResponse, PlansResponse, PortalResponse, SubscriptionResponse } from '@rejectradar/contracts';
+import { type PlanId, PLANS } from '@rejectradar/contracts/plans';
 import { firstValueFrom } from 'rxjs';
 import { apiUrl } from '../core/api';
 import { errorMessage } from '../core/errors';
@@ -115,8 +116,9 @@ export class Billing {
     return errorMessage(this.i18n, error);
   }
 
-  protected planName(id: string): string {
-    return (this.plans.hasValue() ? this.plans.value().plans.find((p) => p.id === id)?.name : undefined) ?? id;
+  /** From the shared plan table, so the name shows before the price list loads. */
+  protected planName(id: PlanId): string {
+    return PLANS[id].name;
   }
 
   /** This month's usage next to each limit; a limit of 0 means the plan does not include it. */
