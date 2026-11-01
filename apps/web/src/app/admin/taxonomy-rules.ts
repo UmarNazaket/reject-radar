@@ -195,7 +195,7 @@ const PREVIEW_SOURCES = RULE_SOURCES.filter((s): s is Exclude<RuleSource, '*'> =
       <app-alert class="mt-4 block">{{ errorText(error) }}</app-alert>
     } @else if (rules.hasValue()) {
       @let list = rules.value();
-      <div class="mt-4 overflow-x-auto">
+      <div class="relative mt-4 overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="text-slate-600">
             <tr class="border-b border-slate-200">
@@ -244,7 +244,7 @@ const PREVIEW_SOURCES = RULE_SOURCES.filter((s): s is Exclude<RuleSource, '*'> =
       } @else if (unmapped.hasValue()) {
         @let u = unmapped.value();
         <p class="mt-1 text-slate-600">Notices without a commodity or a hazard, per source. Hazards come from each source's own fields, so only product texts are listed.</p>
-        <div class="mt-2 overflow-x-auto">
+        <div class="relative mt-2 overflow-x-auto">
           <table class="text-sm">
             <thead class="text-slate-600">
               <tr class="border-b border-slate-200">
@@ -267,7 +267,7 @@ const PREVIEW_SOURCES = RULE_SOURCES.filter((s): s is Exclude<RuleSource, '*'> =
           </table>
         </div>
         <h3 class="mt-4 font-medium">Product texts with no commodity{{ noticeSource() ? ' (' + noticeSource() + ')' : '' }}, most frequent first</h3>
-        <div class="mt-2 overflow-x-auto">
+        <div class="relative mt-2 overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="text-slate-600">
               <tr class="border-b border-slate-200">

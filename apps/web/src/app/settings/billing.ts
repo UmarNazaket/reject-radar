@@ -54,7 +54,7 @@ const POLL_TRIES = 20;
           @for (u of usage(s); track u.key) {
             <div class="rounded border border-slate-100 p-2">
               <dt class="text-slate-600">{{ i18n.t(u.key) }}</dt>
-              <dd class="font-medium">{{ u.used }} / {{ u.limit }}</dd>
+              <dd class="font-medium">{{ i18n.number(u.used) }} / {{ i18n.number(u.limit) }}</dd>
             </div>
           }
         </dl>

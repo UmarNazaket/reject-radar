@@ -25,7 +25,7 @@ import { TopicDashboard } from './topic-dashboard';
     @if (taxonomy.data.error(); as error) {
       <app-alert class="mt-4 block">{{ errorText(error) }}</app-alert>
     }
-    <div class="mt-6 grid gap-x-3 sm:grid-cols-3">
+    <div class="mt-6 grid items-start gap-3 sm:grid-cols-3">
       <mat-form-field>
         <mat-label>{{ i18n.t('web.topics.origin') }}</mat-label>
         <mat-select [value]="origin()" (selectionChange)="navigate({ origin: $event.value })">
@@ -56,7 +56,7 @@ import { TopicDashboard } from './topic-dashboard';
     @if (!origin()) {
       <p class="rounded-lg border border-slate-200 bg-white p-6 text-slate-600">{{ i18n.t('web.topics.empty') }}</p>
     } @else {
-      <div class="mb-4 flex flex-wrap items-center gap-3">
+      <div class="mt-4 mb-4 flex flex-wrap items-center gap-3">
         <button matButton="filled" type="button" [disabled]="busy() || chosenDestinations().length > 1" (click)="watch()">{{ i18n.t('web.topics.watch') }}</button>
         <button matButton="outlined" type="button" [disabled]="busy()" (click)="downloadPdf()">{{ i18n.t('web.topics.pdf') }}</button>
         @if (chosenDestinations().length > 1) {

@@ -33,7 +33,7 @@ const FILTERS = ['q', 'origin', 'commodity', 'hazardCategory', 'destination', 's
       </mat-form-field>
       <button matButton="filled" type="submit" class="mt-2">{{ i18n.t('web.notices.search') }}</button>
     </form>
-    <div class="grid gap-x-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="mt-3 mb-4 grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <mat-form-field>
         <mat-label>{{ i18n.t('web.topics.origin') }}</mat-label>
         <mat-select [value]="origin() ?? null" (selectionChange)="navigate({ origin: $event.value })">

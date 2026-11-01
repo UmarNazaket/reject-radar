@@ -23,7 +23,7 @@ const LAB_VALUE = /^(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{1,6})?$/;
     <h1 class="text-2xl font-semibold">{{ i18n.t('web.mrl.title') }}</h1>
     <p class="mt-1 text-slate-600">{{ i18n.t('web.mrl.intro') }}</p>
 
-    <div class="mt-6 grid gap-x-3 sm:grid-cols-3">
+    <div class="mt-6 grid items-start gap-3 sm:grid-cols-3">
       <mat-form-field>
         <mat-label>{{ i18n.t('web.topics.commodity') }}</mat-label>
         <mat-select [value]="commodity() ?? null" (selectionChange)="navigate({ commodity: $event.value })">

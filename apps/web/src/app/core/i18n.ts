@@ -91,6 +91,11 @@ export class I18n {
     return String(formatter.format(textDirection(locale) === 'rtl' ? isolate(params) : params));
   }
 
+  /** A number in the current language, grouped (2,000) and with Latin digits, as the messages format theirs. */
+  number(value: number): string {
+    return new Intl.NumberFormat(`${this.locale()}-u-nu-latn`).format(value);
+  }
+
   /** A `YYYY-MM-DD` day or ISO timestamp in the current language, read in UTC as the API counts days. */
   date(value: string, options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' }): string {
     return new Intl.DateTimeFormat(`${this.locale()}-u-nu-latn`, { ...options, timeZone: 'UTC' }).format(new Date(value));
