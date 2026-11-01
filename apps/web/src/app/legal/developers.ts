@@ -120,6 +120,6 @@ const ROUTES = [
 export class Developers {
   protected readonly i18n = inject(I18n);
   protected readonly routes = ROUTES;
-  /** The API's origin: the build's own, or this site's when the API is proxied on it (development). */
-  protected readonly base = apiUrl('') || location.origin;
+  /** The API's origin: the build's own, or this site's when the API is proxied on it (development; none while pre-rendering). */
+  protected readonly base = apiUrl('') || (globalThis.location?.origin ?? '');
 }
