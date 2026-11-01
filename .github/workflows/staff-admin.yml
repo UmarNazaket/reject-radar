@@ -1,0 +1,38 @@
+name: Make staff admin
+
+# Gives the person with this email, who has signed up already, the staff admin area (app_user.is_platform_admin), in
+# the database behind INGEST_DATABASE_URL (staging until launch, then production), and writes it to the audit log.
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: 'Email of the signed-up person'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Make staff admin
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          EMAIL: ${{ inputs.email }}
+        # The email is a psql variable (:'email'), quoted by psql, never pasted into the SQL text.
+        run: |
+          updated=$(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v email="$EMAIL" -At <<'SQL'
+          with made as (
+            update app_user set is_platform_admin = true where lower(email) = lower(:'email') returning id
+          ), logged as (
+            insert into audit_log (action, target_type, target_id, details)
+            select 'user.make_admin', 'user', id::text, '{"via":"staff-admin.yml"}'::jsonb from made
+          )
+          select count(*) from made;
+          SQL
+          )
+          [ "$updated" = 1 ] || { echo "::error::No signed-up person has that email"; exit 1; }
+          echo "Made $EMAIL a staff admin" >> "$GITHUB_STEP_SUMMARY"
