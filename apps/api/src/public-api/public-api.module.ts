@@ -6,11 +6,11 @@ import { MrlModule } from '../mrl/mrl.module';
 import { NoticesModule } from '../notices/notices.module';
 import { TaxonomyModule } from '../taxonomy/taxonomy.module';
 import { ApiQuotaInterceptor } from './api-quota.interceptor';
-import { PublicApiController, PublicUsageController } from './public-api.controller';
+import { OpenApiController, PublicApiController, PublicUsageController } from './public-api.controller';
 
 @Module({
   imports: [EntitlementsModule, FirmsModule, ImportAlertsModule, MrlModule, NoticesModule, TaxonomyModule],
-  controllers: [PublicApiController, PublicUsageController],
+  controllers: [PublicApiController, PublicUsageController, OpenApiController],
   providers: [ApiQuotaInterceptor],
 })
 export class PublicApiModule {}

@@ -60,7 +60,11 @@ const ROUTES = [
   "{{ base }}/v1/public/notices?origin=PK&amp;commodity=100"</code></pre>
 
         <h2 class="mt-8 text-lg font-semibold">Routes</h2>
-        <p class="mt-2 text-slate-700">All under <code>{{ base }}/v1/public</code>.</p>
+        <p class="mt-2 text-slate-700">
+          All under <code>{{ base }}/v1/public</code>. The
+          <a [href]="base + '/v1/public/openapi.json'" class="text-sky-700 underline">OpenAPI document</a> describes them for code generators and API
+          tools; it needs no key.
+        </p>
         <div class="mt-3 overflow-x-auto" tabindex="0" role="region" aria-label="Routes">
           <table class="w-full text-sm">
             <thead>

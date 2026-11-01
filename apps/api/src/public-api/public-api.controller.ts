@@ -27,7 +27,7 @@ import {
   taxonomyQuery,
 } from '@rejectradar/contracts';
 import type { ApiKeyContext } from '../auth/context';
-import { ApiKeyAuth, CurrentApiKey } from '../auth/decorators';
+import { ApiKeyAuth, CurrentApiKey, Public } from '../auth/decorators';
 import { PositiveIntParamPipe } from '../common/int-param.pipe';
 import { RateLimit } from '../common/rate-limit';
 import { ZodValidationPipe } from '../common/zod-pipe';
@@ -40,6 +40,7 @@ import { DashboardsService } from '../notices/dashboards.service';
 import { NoticesService } from '../notices/notices.service';
 import { TaxonomyService } from '../taxonomy/taxonomy.service';
 import { ApiQuotaInterceptor } from './api-quota.interceptor';
+import { buildOpenApi } from './openapi';
 
 /** Every public route shares one window per key. */
 const PUBLIC_RATE_LIMIT = { name: 'public-api', limit: 60, windowMs: 60_000, key: 'apiKey' } as const;
@@ -124,5 +125,17 @@ export class PublicUsageController {
   async usage(@CurrentApiKey() key: ApiKeyContext): Promise<PublicUsageResponse> {
     const [{ period, apiCalls }, { limits }] = await Promise.all([this.entitlements.usage(key.orgId), this.entitlements.resolvePlan(key.orgId)]);
     return { period, apiCalls: { used: apiCalls, limit: limits.apiCallsPerMonth } };
+  }
+}
+
+/** The public API's OpenAPI document: open to anyone, with no key and no charge, built once at start. */
+@Controller('public')
+@Public()
+export class OpenApiController {
+  private readonly document = buildOpenApi();
+
+  @Get('openapi.json')
+  openApi(): Record<string, unknown> {
+    return this.document;
   }
 }

@@ -185,6 +185,7 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
     path: `/v1/public/${route}`,
     reason: "Public API: an API key, not a session, names the account, and only the key's own account is read or charged (public-api.e2e.spec.ts).",
   })),
+  { method: 'GET', path: '/v1/public/openapi.json', reason: 'The public API description: the same for everyone, open without a key.' },
   { method: 'POST', path: '/v1/invites/preview', reason: 'The invite token in the body decides the account; the caller needs no session.' },
   { method: 'POST', path: '/v1/invites/accept', reason: 'The invite token in the body decides the account; the caller needs no session.' },
 ];
