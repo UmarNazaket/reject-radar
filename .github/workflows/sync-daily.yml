@@ -3,12 +3,14 @@ name: Sync daily
 on:
   schedule:
     # Import Alerts, then RASFF. A full Import Alert crawl must start inside FDA's robots.txt visiting hours, 03:00-09:00
-    # UTC, and GitHub can start a scheduled run hours late (the 03:07 one has started between 08:53 and 09:54). So Import
-    # Alerts alone is also due at 23:37: with a delay of 0 to 5.8 hours the 03:07 run starts inside the hours, with 3.4 to
-    # 9.3 hours the 23:37 one does. A scheduled crawl outside them, or after one succeeded that UTC day, skips (--if-due).
-    # One extra run only: the sync workflows share a concurrency group, which keeps one pending run.
+    # UTC, and GitHub can start a scheduled run hours late (the 03:07 one has started between 08:02 and 09:54, the 23:37
+    # one at 02:32-02:41). So Import Alerts alone is also due at 23:37, 00:37 and 01:37, an hour apart: together they
+    # start inside the hours with any delay from 1.4 to 9.3 hours. A scheduled crawl outside them, or after one succeeded
+    # that UTC day, skips (--if-due). The sync workflows share a concurrency group, which keeps one pending run.
     - cron: '7 3 * * *'
     - cron: '37 23 * * *'
+    - cron: '37 0 * * *'
+    - cron: '37 1 * * *'
   workflow_dispatch:
     inputs:
       job:
