@@ -17,8 +17,8 @@ describe('pre-rendering and _redirects', () => {
   it('sends every browser-rendered route, and the not-found page, to the app shell', () => {
     const clientRoutes = [...new Set(firstSegments(appRoutes))].filter((segment) => segment !== '**' && !PRERENDERED.includes(segment));
     for (const segment of [...clientRoutes, 'not-found']) {
-      expect(rules).toContain(`/${segment} /index.csr.html 200`);
-      expect(rules).toContain(`/${segment}/* /index.csr.html 200`);
+      expect(rules).toContain(`/${segment} /index.csr 200`);
+      expect(rules).toContain(`/${segment}/* /index.csr 200`);
     }
     expect(rules).toHaveLength((clientRoutes.length + 1) * 2);
   });
