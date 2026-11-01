@@ -349,6 +349,7 @@ tools/
   backup.yml   the daily encrypted backup of the account tables
   promote.yml  moves release, which production deploys, forward
   smoke.yml    the smoke check of production or staging, on demand
+  migrate.yml  applies pending migrations to the database the jobs use, on demand
   backfill.yml manual full loads
 docker-compose.yml  Postgres 18 and Mailpit for local development
 ```
@@ -488,7 +489,7 @@ Production copies staging's shape on the same providers: the web app at `https:/
 
 ### 1. Finish staging
 
-1. Apply the missing migrations with the direct, not pooled, connection string: `DATABASE_URL=<direct url> npx drizzle-kit migrate --config=libs/db/drizzle.config.ts` applies whatever is not applied yet, in order (`0015` to `0018` on staging today).
+1. Apply the missing migrations: run the **Migrate database** workflow, which applies whatever the database behind `INGEST_DATABASE_URL` has not run yet, in order, and fails unless every migration is then applied. By hand: `DATABASE_URL=<direct url> npx drizzle-kit migrate --config=libs/db/drizzle.config.ts`.
 2. Close the earlier owner steps: Paddle sandbox ("Owner steps for Paddle"), the `APP_ORIGIN` and `MAIL_FROM` repository variables, the staff accounts (`update app_user set is_platform_admin = true where email = '…'`), the first full Import Alert crawl and a week of green scheduled runs, the P3 precision check, the P5 and P6 measurements, and the native-speaker review of the ur, hi and bn strings.
 3. Set up the backup key and run the restore drill ("Backups").
 4. Sign up a smoke account on staging and verify its email; put its email and password in the `SMOKE_EMAIL` and `SMOKE_PASSWORD` repository secrets, and run the **Smoke check** workflow for staging.
