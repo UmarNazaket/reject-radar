@@ -62,7 +62,7 @@ const recordId = (r: Pick<AdminFirmRecord, 'source' | 'key'>): string => `${r.so
           <span class="text-slate-600">Every refusal of an FEI moves together, and at least one record stays.</span>
         </div>
       }
-      <div class="mt-2 overflow-x-auto">
+      <div class="relative mt-2 overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="text-slate-600">
             <tr class="border-b border-slate-200">

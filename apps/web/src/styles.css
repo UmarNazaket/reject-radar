@@ -56,3 +56,8 @@ body {
 :lang(ur) .mat-mdc-form-field .mdc-floating-label--float-above {
   margin-top: -8px;
 }
+/* A date field shows Latin digits only, which Nastaliq's tall line box would cut off. */
+:lang(ur) input[type='date'] {
+  font-family: system-ui, sans-serif;
+  line-height: normal;
+}

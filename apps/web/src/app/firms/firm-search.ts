@@ -27,7 +27,7 @@ const LABEL_STYLES: Record<string, string> = {
     <h1 class="text-2xl font-semibold">{{ i18n.t('web.firms.title') }}</h1>
     <p class="mt-1 text-slate-600">{{ i18n.t('web.firms.intro') }}</p>
 
-    <form #f="ngForm" class="mt-6 grid gap-x-3 sm:grid-cols-2 lg:grid-cols-4" (ngSubmit)="f.valid && submit()">
+    <form #f="ngForm" class="mt-6 grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-4" (ngSubmit)="f.valid && submit()">
       <mat-form-field>
         <mat-label>{{ i18n.t('web.firms.name') }}</mat-label>
         <input matInput name="name" minlength="2" maxlength="200" [required]="!form().fei" [(ngModel)]="form().name" />

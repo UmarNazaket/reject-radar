@@ -21,7 +21,8 @@ import { LanguageSelect } from './language-select';
     <header class="border-b border-slate-200 bg-white">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
         <a routerLink="/" class="text-lg font-semibold text-slate-900">{{ i18n.t('web.app.name') }}</a>
-        <nav class="flex max-w-full gap-1 overflow-x-auto" [attr.aria-label]="i18n.t('web.nav.label')">
+        <!-- Below xl the links wrap onto a row of their own, so none is hidden off-screen. -->
+        <nav class="order-last flex w-full flex-wrap gap-1 xl:order-none xl:w-auto" [attr.aria-label]="i18n.t('web.nav.label')">
           <a routerLink="/topics" routerLinkActive="bg-slate-100" class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-slate-700 hover:bg-slate-100">
             {{ i18n.t('web.nav.topics') }}
           </a>

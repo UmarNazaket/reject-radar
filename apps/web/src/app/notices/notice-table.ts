@@ -9,8 +9,9 @@ import { Taxonomy } from '../core/taxonomy';
   selector: 'app-notice-table',
   imports: [RouterLink],
   template: `
-    <div class="relative overflow-x-auto">
-      <table class="w-full text-sm">
+    <div class="relative overflow-x-auto" tabindex="0" role="region" [attr.aria-label]="i18n.t('web.notices.title')">
+      <!-- A minimum width: on a phone the table scrolls sideways instead of squeezing its columns. -->
+      <table class="w-full min-w-[44rem] text-sm">
         <thead class="text-slate-600">
           <tr class="border-b border-slate-200">
             <th scope="col" class="py-2 pe-4 text-start font-medium">{{ i18n.t('web.topics.date') }}</th>

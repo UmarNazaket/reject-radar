@@ -27,7 +27,7 @@ import { LanguageSelect } from '../layout/language-select';
           <input matInput name="name" required maxlength="100" [ngModel]="name()" (ngModelChange)="name.set($event)" />
           <mat-error>{{ i18n.t('web.validation.required') }}</mat-error>
         </mat-form-field>
-        <p class="text-sm text-slate-600">
+        <p class="mt-2 text-sm text-slate-600">
           {{ i18n.t('web.auth.email') }}: <span dir="ltr">{{ session.user()?.email }}</span> ·
           {{ session.user()?.emailVerified ? i18n.t('web.settings.verified') : i18n.t('web.settings.notVerified') }}
         </p>
@@ -56,11 +56,11 @@ import { LanguageSelect } from '../layout/language-select';
             <mat-error>{{ i18n.t('web.validation.required') }}</mat-error>
           </mat-form-field>
           @if (orgForm.error(); as error) {
-            <app-alert class="mb-3 block">{{ error }}</app-alert>
+            <app-alert class="mt-3 block">{{ error }}</app-alert>
           } @else if (saved() === 'org') {
-            <app-alert kind="success" class="mb-3 block">{{ i18n.t('web.alerts.saved') }}</app-alert>
+            <app-alert kind="success" class="mt-3 block">{{ i18n.t('web.alerts.saved') }}</app-alert>
           }
-          <button matButton="filled" type="submit" [disabled]="orgForm.busy()">{{ i18n.t('web.alerts.save') }}</button>
+          <button matButton="filled" type="submit" class="mt-3" [disabled]="orgForm.busy()">{{ i18n.t('web.alerts.save') }}</button>
         } @else {
           <p>{{ session.org()?.name }}</p>
         }

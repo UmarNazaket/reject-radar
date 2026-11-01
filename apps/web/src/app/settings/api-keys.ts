@@ -34,7 +34,7 @@ import { Alert } from '../layout/alert';
     @if (keys.error(); as error) {
       <app-alert class="mt-4 block">{{ errorText(error) }}</app-alert>
     } @else if (keys.hasValue()) {
-      <form #f="ngForm" class="mt-4 flex max-w-2xl flex-wrap items-start gap-3" (ngSubmit)="f.valid && create(f)">
+      <form #f="ngForm" class="mt-4 mb-4 flex max-w-2xl flex-wrap items-start gap-3" (ngSubmit)="f.valid && create(f)">
         <mat-form-field class="min-w-64 flex-1">
           <mat-label>{{ i18n.t('web.apiKeys.name') }}</mat-label>
           <input matInput name="name" required maxlength="100" [(ngModel)]="name" />

@@ -91,12 +91,12 @@ function threeYearsAgo(): string {
               }
             </mat-select>
           </mat-form-field>
-          <mat-form-field class="w-full">
+          <mat-form-field class="mt-3 w-full">
             <mat-label>{{ i18n.t('web.firms.disputeMessage') }}</mat-label>
             <textarea matInput name="message" rows="4" required minlength="10" maxlength="2000" [(ngModel)]="disputeMessage"></textarea>
             <mat-error>{{ i18n.t('web.firms.disputeTooShort') }}</mat-error>
           </mat-form-field>
-          <button matButton="filled" type="submit" [disabled]="busy()">{{ i18n.t('web.firms.disputeSend') }}</button>
+          <button matButton="filled" type="submit" class="mt-3" [disabled]="busy()">{{ i18n.t('web.firms.disputeSend') }}</button>
         </form>
       }
 

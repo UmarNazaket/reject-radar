@@ -31,7 +31,7 @@ const FILTERS = ['severity', 'unread', 'firm', 'origin', 'commodity', 'destinati
       }
     </div>
 
-    <div class="mt-4 flex flex-wrap items-center gap-x-6">
+    <div class="mt-4 mb-4 flex flex-wrap items-center gap-x-6 gap-y-2">
       <mat-form-field>
         <mat-label>{{ i18n.t('web.alerts.severity') }}</mat-label>
         <mat-select [value]="severity() ?? null" (selectionChange)="navigate({ severity: $event.value })">
