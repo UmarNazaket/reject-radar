@@ -38,6 +38,7 @@ export class AdminLayout {
     { path: '/admin/disputes', label: 'Disputes' },
     { path: '/admin/taxonomy', label: 'Taxonomy rules' },
     { path: '/admin/accounts', label: 'Accounts' },
+    { path: '/admin/users', label: 'Users' },
     { path: '/admin/audit', label: 'Audit log' },
     { path: '/admin/emails', label: 'Email log' },
   ];

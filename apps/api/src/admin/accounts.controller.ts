@@ -4,6 +4,9 @@ import {
   adminOrgQuery,
   type AdminOrgResponse,
   type AdminOrgsResponse,
+  type AdminUsersQuery,
+  adminUsersQuery,
+  type AdminUsersResponse,
   type AuditQuery,
   auditQuery,
   type AuditResponse,
@@ -55,6 +58,11 @@ export class AccountsController {
   @HttpCode(HttpStatus.OK)
   reactivate(@CurrentContext() ctx: RequestContext, @Param('id', new UuidParamPipe()) id: string): Promise<AdminOrgResponse> {
     return this.accounts.setActive(ctx, id, true);
+  }
+
+  @Get('users')
+  users(@Query(new ZodValidationPipe(adminUsersQuery)) query: AdminUsersQuery): Promise<AdminUsersResponse> {
+    return this.accounts.users(query);
   }
 
   @Get('audit')

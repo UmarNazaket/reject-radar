@@ -1,4 +1,4 @@
-import type { AdminOrgResponse, AdminOrgsResponse, AuditResponse, EmailLogResponse } from '@rejectradar/contracts';
+import type { AdminOrgResponse, AdminOrgsResponse, AdminUsersResponse, AuditResponse, EmailLogResponse } from '@rejectradar/contracts';
 import { appUser, auditLog, emailDelivery, uuidv7 } from '@rejectradar/db';
 import { eq } from 'drizzle-orm';
 import { signUpVerified, startTestApp, type TestApp, type TestSession } from '../testing/test-app';
@@ -34,6 +34,7 @@ describe('admin accounts and audit log', () => {
       ['post', `/v1/admin/orgs/${customerOrg}/reactivate`],
       ['get', '/v1/admin/audit'],
       ['get', '/v1/admin/emails'],
+      ['get', '/v1/admin/users'],
     ] as const;
     for (const [method, path] of routes) {
       await t.session()[method](path).expect(401);
@@ -118,6 +119,30 @@ describe('admin accounts and audit log', () => {
     expect(((await admin.get('/v1/admin/emails').query({ to: '%' }).expect(200)).body as EmailLogResponse).items).toEqual([]);
     expect(((await admin.get('/v1/admin/emails').query({ to: 'sara@indus' }).expect(200)).body as EmailLogResponse).items[0]).toMatchObject({ kind: 'verify' });
     await admin.get('/v1/admin/emails').query({ cursor: 'not-a-uuid' }).expect(400);
+  });
+
+  it('finds people across accounts by part of their email or name, newest first, by page', async () => {
+    const users = async (query: Record<string, string>) => (await admin.get('/v1/admin/users').query(query).expect(200)).body as AdminUsersResponse;
+    const [sara] = (await users({ q: 'SARA@indus' })).items;
+    expect(sara).toMatchObject({ email: 'sara@indus-agro.test', name: 'Sara Malik', verified: true, isPlatformAdmin: false, lockedUntil: null });
+    expect(sara.accounts).toEqual([{ id: customerOrg, name: 'Indus Agro', role: 'owner' }]);
+    expect((await users({ q: 'hina staff' })).items.map((u) => u.isPlatformAdmin)).toEqual([true]);
+
+    // Locked out only while the lock lasts.
+    await t.db.update(appUser).set({ lockedUntil: new Date(Date.now() + 600_000) }).where(eq(appUser.id, sara.id));
+    expect((await users({ q: 'sara@indus' })).items[0].lockedUntil).not.toBeNull();
+    await t.db.update(appUser).set({ lockedUntil: new Date(Date.now() - 600_000) }).where(eq(appUser.id, sara.id));
+    expect((await users({ q: 'sara@indus' })).items[0].lockedUntil).toBeNull();
+
+    // Sorted: ids made in the same millisecond are not in order among themselves.
+    const ids = Array.from({ length: 51 }, () => uuidv7()).sort();
+    await t.db.insert(appUser).values(ids.map((id, i) => ({ id, email: `person${i}@people.test`, passwordHash: 'x', name: `Person ${i}` })));
+    const first = await users({ q: 'people.test' });
+    expect(first.items).toHaveLength(50);
+    expect(first.items[0]).toMatchObject({ id: ids[50], verified: false, accounts: [] });
+    expect(first.next).toBe(ids[1]);
+    expect(await users({ q: 'people.test', cursor: first.next as string })).toEqual({ items: [expect.objectContaining({ id: ids[0] })], next: null });
+    await admin.get('/v1/admin/users').query({ cursor: 'nope' }).expect(400);
   });
 
   it('deactivates an account, which locks its members out, and reactivates it', async () => {

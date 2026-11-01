@@ -60,6 +60,7 @@ export const appRoutes: Route[] = [
           { path: 'taxonomy', loadComponent: () => import('./admin/taxonomy-rules').then((m) => m.AdminTaxonomyRules) },
           { path: 'accounts', loadComponent: () => import('./admin/accounts').then((m) => m.AdminAccounts) },
           { path: 'accounts/:id', loadComponent: () => import('./admin/account').then((m) => m.AdminAccount) },
+          { path: 'users', loadComponent: () => import('./admin/users').then((m) => m.AdminUsers) },
           { path: 'audit', loadComponent: () => import('./admin/audit-log').then((m) => m.AdminAuditLog) },
           { path: 'emails', loadComponent: () => import('./admin/email-log').then((m) => m.AdminEmailLog) },
         ],

@@ -335,3 +335,30 @@ export interface EmailLogResponse {
   /** The cursor of the next, older page; null on the last one. */
   next: string | null;
 }
+
+export const ADMIN_USERS_PAGE_SIZE = 50;
+
+/** `GET /v1/admin/users?q=&cursor=`: newest first; `q` matches part of the email or the name. */
+export const adminUsersQuery = z.object({
+  q: z.string().trim().min(1).max(200).optional(),
+  cursor: z.uuid().optional(),
+});
+export type AdminUsersQuery = z.output<typeof adminUsersQuery>;
+
+export interface AdminUserItem {
+  id: string;
+  email: string;
+  name: string;
+  verified: boolean;
+  isPlatformAdmin: boolean;
+  /** When a run of wrong passwords locks the person out until; null when they are not locked out now. */
+  lockedUntil: string | null;
+  createdAt: string;
+  accounts: { id: string; name: string; role: Role }[];
+}
+
+export interface AdminUsersResponse {
+  items: AdminUserItem[];
+  /** The cursor of the next, older page; null on the last one. */
+  next: string | null;
+}
