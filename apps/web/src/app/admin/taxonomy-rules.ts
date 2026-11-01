@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { Router } from '@angular/router';
 import {
   type AdminTaxonomyRule,
+  NOTICE_SOURCES,
   RULE_MATCH_TYPES,
   RULE_SOURCES,
   type RuleMatchType,
@@ -16,6 +17,8 @@ import {
   type TaxonomyResponse,
   type TaxonomyRuleKind,
   type TaxonomyRulesResponse,
+  type UnmappedResponse,
+  type UnmappedValue,
 } from '@rejectradar/contracts';
 import { firstValueFrom } from 'rxjs';
 import { apiUrl } from '../core/api';
@@ -42,7 +45,7 @@ interface Draft {
 
 const PREVIEW_SOURCES = RULE_SOURCES.filter((s): s is Exclude<RuleSource, '*'> => s !== '*');
 
-/** The commodity and hazard rules: filter, try a rule on a sample, add, change or delete it, and ask for a remap. */
+/** The commodity and hazard rules: filter, try a rule on a sample, add, change or delete it, ask for a remap, and see what no rule matched. */
 @Component({
   selector: 'app-admin-taxonomy-rules',
   imports: [FormsModule, MatButtonModule, Alert],
@@ -233,6 +236,71 @@ const PREVIEW_SOURCES = RULE_SOURCES.filter((s): s is Exclude<RuleSource, '*'> =
     } @else {
       <p class="mt-4 text-slate-600">Loading…</p>
     }
+
+    <section class="mt-8 text-sm" aria-labelledby="unmapped-title">
+      <h2 id="unmapped-title" class="font-medium">Unmapped values</h2>
+      @if (unmapped.error(); as error) {
+        <app-alert class="mt-2 block">{{ errorText(error) }}</app-alert>
+      } @else if (unmapped.hasValue()) {
+        @let u = unmapped.value();
+        <p class="mt-1 text-slate-600">Notices without a commodity or a hazard, per source. Hazards come from each source's own fields, so only product texts are listed.</p>
+        <div class="mt-2 overflow-x-auto">
+          <table class="text-sm">
+            <thead class="text-slate-600">
+              <tr class="border-b border-slate-200">
+                <th scope="col" class="py-2 pe-6 text-start font-medium">Source</th>
+                <th scope="col" class="py-2 pe-6 text-end font-medium">Notices</th>
+                <th scope="col" class="py-2 pe-6 text-end font-medium">No commodity</th>
+                <th scope="col" class="py-2 text-end font-medium">No hazard</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of u.sources; track s.source) {
+                <tr class="border-b border-slate-100">
+                  <td class="py-1.5 pe-6">{{ s.source }}</td>
+                  <td class="py-1.5 pe-6 text-end">{{ s.notices }}</td>
+                  <td class="py-1.5 pe-6 text-end">{{ s.noCommodity }}</td>
+                  <td class="py-1.5 text-end">{{ s.noHazard }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <h3 class="mt-4 font-medium">Product texts with no commodity{{ noticeSource() ? ' (' + noticeSource() + ')' : '' }}, most frequent first</h3>
+        <div class="mt-2 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-slate-600">
+              <tr class="border-b border-slate-200">
+                <th scope="col" class="py-2 pe-4 text-start font-medium">Source</th>
+                <th scope="col" class="py-2 pe-4 text-start font-medium">Product text</th>
+                <th scope="col" class="py-2 pe-4 text-end font-medium">Notices</th>
+                <th scope="col" class="py-2 pe-4 text-start font-medium">Last seen</th>
+                <th scope="col" class="py-2 text-start font-medium"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (v of u.values; track v.source + v.text) {
+                <tr class="border-b border-slate-100 align-top">
+                  <td class="py-2 pe-4">{{ v.source }}</td>
+                  <td class="py-2 pe-4 break-all"><bdi>{{ v.text }}</bdi></td>
+                  <td class="py-2 pe-4 text-end">{{ v.notices }}</td>
+                  <td class="py-2 pe-4 whitespace-nowrap">{{ v.lastSeen }}</td>
+                  <td class="py-1 whitespace-nowrap">
+                    <button matButton type="button" [attr.aria-label]="'Write a rule for ' + v.text" (click)="startFromUnmapped(v)">Write a rule</button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="py-4 text-slate-600">Every product text has a commodity.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="mt-2 text-slate-600">Loading…</p>
+      }
+    </section>
   `,
 })
 export class AdminTaxonomyRules {
@@ -262,6 +330,13 @@ export class AdminTaxonomyRules {
     return { url: apiUrl('/v1/admin/taxonomy-rules'), params };
   });
   protected readonly remap = httpResource<TaxonomyRemapStatus>(() => apiUrl('/v1/admin/taxonomy/remap'));
+  /** The source filter when it is a notice source; the unmapped list has no `*` or charge-code rows. */
+  protected readonly noticeSource = computed(() => NOTICE_SOURCES.find((s) => s === this.source()) ?? null);
+  protected readonly unmapped = httpResource<UnmappedResponse>(() => {
+    const source = this.noticeSource();
+    const params: Record<string, string> = source ? { source } : {};
+    return { url: apiUrl('/v1/admin/taxonomy/unmapped'), params };
+  });
   // The admin area is in English, whatever language the app is shown in.
   private readonly taxonomy = httpResource<TaxonomyResponse>(() => ({ url: apiUrl('/v1/taxonomy'), params: { locale: 'en' } }));
 
@@ -323,6 +398,22 @@ export class AdminTaxonomyRules {
       sample: '',
       previewSource: source === '*' ? 'rasff' : source,
     });
+  }
+
+  /** A commodity keyword rule for an unmapped text; staff pick the field the source keeps it in. */
+  protected startFromUnmapped(value: UnmappedValue): void {
+    this.draft.set({
+      kind: 'commodity',
+      source: value.source,
+      field: '',
+      matchType: 'keyword',
+      pattern: value.text,
+      targetId: null,
+      priority: 10,
+      sample: value.text,
+      previewSource: value.source,
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   protected startEdit(rule: AdminTaxonomyRule): void {

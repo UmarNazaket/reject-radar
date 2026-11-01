@@ -2,6 +2,8 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import {
   type AdminTaxonomyRule,
   type CreateTaxonomyRuleRequest,
+  NOTICE_SOURCES,
+  type NoticeSource,
   type RuleMatchType,
   type RuleSource,
   TAXONOMY_REMAP_RAN,
@@ -15,10 +17,13 @@ import {
   type TaxonomyRuleQuery,
   type TaxonomyRuleRequest,
   type TaxonomyRulesResponse,
+  UNMAPPED_LIMIT,
+  type UnmappedQuery,
+  type UnmappedResponse,
 } from '@rejectradar/contracts';
 import { appUser, auditLog, commodity, commodityRule, type Database, hazard, hazardRule } from '@rejectradar/db';
 import { buildRuleSet, classifyCommodity, classifyHazards, loadRuleSet, normalizeRuleText, type RuleSet, type TaxonomyRule } from '@rejectradar/taxonomy';
-import { and, asc, desc, eq, ilike, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, type SQL, sql } from 'drizzle-orm';
 import type { RequestContext } from '../auth/context';
 import { AppError } from '../common/errors';
 import { DB } from '../database/database.module';
@@ -34,7 +39,7 @@ const storedPattern = (matchType: RuleMatchType, pattern: string): string => (ma
 
 const escapeLike = (text: string): string => text.replace(/[\\%_]/g, '\\$&');
 
-/** The commodity and hazard rules (P10): list, add, change and delete them, try them on a sample, and ask for a remap. */
+/** The commodity and hazard rules (P10): list, add, change and delete them, try them on a sample, ask for a remap, and see what no rule matched. */
 @Injectable()
 export class TaxonomyRulesService {
   constructor(@Inject(DB) private readonly db: Database) {}
@@ -118,6 +123,31 @@ export class TaxonomyRulesService {
     const replace = (list: readonly TaxonomyRule[], own: boolean) => (own ? [...list.filter((rule) => rule.id !== id), unsaved] : [...list]);
     const withRule = buildRuleSet(replace(rules.commodity, kind === 'commodity'), replace(rules.hazard, kind === 'hazard'));
     return { current, withRule: this.classify(withRule, body) };
+  }
+
+  /** The product texts of notices with no commodity, most frequent first, and each source's notices without a commodity or a hazard. */
+  async unmapped(query: UnmappedQuery): Promise<UnmappedResponse> {
+    const [values, counts] = await Promise.all([
+      this.db.execute<{ source: NoticeSource; text: string; notices: number; last_seen: string }>(sql`
+        select source, mode() within group (order by product_text) as text, count(*)::int as notices, max(notice_on)::text as last_seen
+        from notice
+        where commodity_id is null and btrim(coalesce(product_text, '')) <> '' and (${query.source ?? null}::text is null or source = ${query.source ?? null})
+        group by source, lower(btrim(product_text))
+        order by notices desc, text asc
+        limit ${UNMAPPED_LIMIT}`),
+      this.db.execute<{ source: NoticeSource; notices: number; no_commodity: number; no_hazard: number }>(sql`
+        select source, count(*)::int as notices, (count(*) filter (where commodity_id is null))::int as no_commodity,
+               (count(*) filter (where cardinality(hazard_ids) = 0))::int as no_hazard
+        from notice
+        group by source`),
+    ]);
+    return {
+      values: values.rows.map((row) => ({ source: row.source, text: row.text, notices: row.notices, lastSeen: row.last_seen })),
+      sources: NOTICE_SOURCES.map((source) => {
+        const row = counts.rows.find((r) => r.source === source);
+        return { source, notices: row?.notices ?? 0, noCommodity: row?.no_commodity ?? 0, noHazard: row?.no_hazard ?? 0 };
+      }),
+    };
   }
 
   async remapStatus(): Promise<TaxonomyRemapStatus> {

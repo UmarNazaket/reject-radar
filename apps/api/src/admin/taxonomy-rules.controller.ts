@@ -14,6 +14,9 @@ import {
   type TaxonomyRuleRequest,
   taxonomyRuleRequest,
   type TaxonomyRulesResponse,
+  type UnmappedQuery,
+  unmappedQuery,
+  type UnmappedResponse,
 } from '@rejectradar/contracts';
 import { z } from 'zod';
 import type { RequestContext } from '../auth/context';
@@ -65,6 +68,11 @@ export class TaxonomyRulesController {
     @Param('id', PositiveIntParamPipe) id: number,
   ): Promise<void> {
     return this.rules.remove(ctx, kind, id);
+  }
+
+  @Get('taxonomy/unmapped')
+  unmapped(@Query(new ZodValidationPipe(unmappedQuery)) query: UnmappedQuery): Promise<UnmappedResponse> {
+    return this.rules.unmapped(query);
   }
 
   @Get('taxonomy/remap')

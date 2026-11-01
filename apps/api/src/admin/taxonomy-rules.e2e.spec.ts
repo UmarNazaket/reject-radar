@@ -1,5 +1,5 @@
-import type { AdminTaxonomyRule, TaxonomyPreviewResponse, TaxonomyRemapStatus, TaxonomyRulesResponse } from '@rejectradar/contracts';
-import { appUser, auditLog, commodity, commodityRule, hazard } from '@rejectradar/db';
+import type { AdminTaxonomyRule, TaxonomyPreviewResponse, TaxonomyRemapStatus, TaxonomyRulesResponse, UnmappedResponse } from '@rejectradar/contracts';
+import { appUser, auditLog, commodity, commodityRule, hazard, notice } from '@rejectradar/db';
 import { eq } from 'drizzle-orm';
 import { signUpVerified, startTestApp, type TestApp, type TestSession } from '../testing/test-app';
 
@@ -38,6 +38,7 @@ describe('admin taxonomy rules', () => {
       ['patch', '/v1/admin/taxonomy-rules/commodity/1'],
       ['delete', '/v1/admin/taxonomy-rules/commodity/1'],
       ['get', '/v1/admin/taxonomy/remap'],
+      ['get', '/v1/admin/taxonomy/unmapped'],
       ['post', '/v1/admin/taxonomy/remap'],
     ] as const;
     for (const [method, path] of routes) {
@@ -111,6 +112,34 @@ describe('admin taxonomy rules', () => {
     await admin.patch('/v1/admin/taxonomy-rules/colour/1').send({ ...rule, kind: undefined }).expect(400);
     const [{ id: hazardId }] = await t.db.select({ id: hazard.id }).from(hazard).limit(1);
     await admin.patch('/v1/admin/taxonomy-rules/hazard/999999').send({ ...rule, kind: undefined, targetId: hazardId }).expect(404);
+  });
+
+  it('lists the product texts no commodity rule matched, and each source\'s gaps', async () => {
+    const base = { destination: 'EU', noticeType: 'rasff_border_rejection', source: 'rasff' } as const;
+    await t.db.insert(notice).values([
+      // The same text in three spellings, counted together under the most common one.
+      { ...base, sourceKey: 'u1', noticeOn: '2026-09-01', productText: 'Dried mango slices' },
+      { ...base, sourceKey: 'u2', noticeOn: '2026-10-02', productText: 'Dried mango slices' },
+      { ...base, sourceKey: 'u3', noticeOn: '2026-08-03', productText: '  dried MANGO slices ' },
+      { ...base, sourceKey: 'u4', noticeOn: '2026-10-04', productText: 'Jackfruit chips', hazardIds: [(await t.db.select({ id: hazard.id }).from(hazard).limit(1))[0].id] },
+      // Mapped, or with no text: not listed.
+      { ...base, sourceKey: 'u5', noticeOn: '2026-10-05', productText: 'Turmeric powder', commodityId: turmeric },
+      { ...base, sourceKey: 'u6', noticeOn: '2026-10-06', productText: '   ' },
+      { ...base, source: 'uk_bn', noticeType: 'uk_border_notification', destination: 'UK', sourceKey: 'u7', noticeOn: '2026-10-07', productText: 'Okra' },
+    ]);
+    const all = (await admin.get('/v1/admin/taxonomy/unmapped').expect(200)).body as UnmappedResponse;
+    expect(all.values).toEqual([
+      { source: 'rasff', text: 'Dried mango slices', notices: 3, lastSeen: '2026-10-02' },
+      { source: 'rasff', text: 'Jackfruit chips', notices: 1, lastSeen: '2026-10-04' },
+      { source: 'uk_bn', text: 'Okra', notices: 1, lastSeen: '2026-10-07' },
+    ]);
+    expect(all.sources.map((s) => s.source)).toEqual(['fda_refusal', 'import_alert', 'rasff', 'uk_bn', 'au_ifis']);
+    expect(all.sources.find((s) => s.source === 'rasff')).toEqual({ source: 'rasff', notices: 6, noCommodity: 5, noHazard: 5 });
+    expect(all.sources.find((s) => s.source === 'fda_refusal')).toEqual({ source: 'fda_refusal', notices: 0, noCommodity: 0, noHazard: 0 });
+
+    const uk = (await admin.get('/v1/admin/taxonomy/unmapped').query({ source: 'uk_bn' }).expect(200)).body as UnmappedResponse;
+    expect(uk.values.map((v) => v.text)).toEqual(['Okra']);
+    await admin.get('/v1/admin/taxonomy/unmapped').query({ source: 'nope' }).expect(400);
   });
 
   it('records a remap request until the daily job runs it', async () => {
