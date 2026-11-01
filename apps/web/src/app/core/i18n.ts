@@ -1,4 +1,5 @@
-import { DOCUMENT, inject, Injectable, signal } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { DOCUMENT, inject, Injectable, InjectionToken, PLATFORM_ID, signal } from '@angular/core';
 // The locales module alone: the contracts barrel would pull every zod schema into the first download.
 import { isLocale, type Locale, LOCALES, pickLocale, textDirection } from '@rejectradar/contracts/locales';
 import { IntlMessageFormat } from 'intl-messageformat';
@@ -22,6 +23,15 @@ function isolate(params?: Record<string, string | number | Date>): Record<string
   return Object.fromEntries(Object.entries(params).map(([key, value]) => [key, typeof value === 'string' ? `\u2068${value}\u2069` : value]));
 }
 
+/** Loads a language's catalog: from `/i18n/` in the browser; the pre-rendering build supplies its own (app.config.server.ts). */
+export const CATALOG_LOADER = new InjectionToken<(locale: Locale) => Promise<Catalog>>('CATALOG_LOADER', {
+  factory: () => async (locale) => {
+    const res = await fetch(`/i18n/${locale}.json`);
+    if (!res.ok) throw new Error(`Could not load the ${locale} catalog (HTTP ${res.status})`);
+    return (await res.json()) as Catalog;
+  },
+});
+
 /** The language stored on this device, else the first browser language the app has, else English. */
 function initialLocale(): Locale {
   try {
@@ -40,14 +50,16 @@ function initialLocale(): Locale {
 @Injectable({ providedIn: 'root' })
 export class I18n {
   private readonly document = inject(DOCUMENT);
+  private readonly loadCatalog = inject(CATALOG_LOADER);
+  private readonly browser = isPlatformBrowser(inject(PLATFORM_ID));
   private readonly catalogs = signal<Partial<Record<Locale, Catalog>>>({});
   private readonly formatters = new Map<string, IntlMessageFormat>();
   readonly locale = signal<Locale>('en');
   readonly locales = LOCALES;
 
-  /** Loads English and the starting language; the app waits for it before the first screen. */
+  /** Loads English and the starting language; the app waits for it before the first screen. Pre-rendered pages are English. */
   init(): Promise<void> {
-    return this.use(initialLocale());
+    return this.use(this.browser ? initialLocale() : 'en');
   }
 
   /** Switches the language: loads its catalog once, then sets `lang` and `dir` on the page. */
@@ -86,9 +98,7 @@ export class I18n {
 
   private async load(locale: Locale): Promise<void> {
     if (this.catalogs()[locale]) return;
-    const res = await fetch(`/i18n/${locale}.json`);
-    if (!res.ok) throw new Error(`Could not load the ${locale} catalog (HTTP ${res.status})`);
-    const catalog = (await res.json()) as Catalog;
+    const catalog = await this.loadCatalog(locale);
     this.catalogs.update((all) => ({ ...all, [locale]: catalog }));
   }
 

@@ -1,5 +1,6 @@
+import { isPlatformBrowser } from '@angular/common';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, PLATFORM_ID, signal } from '@angular/core';
 import type { LoginRequest, MeResponse, Role } from '@rejectradar/contracts';
 import { firstValueFrom } from 'rxjs';
 import { apiUrl } from './api';
@@ -13,6 +14,7 @@ import { I18n } from './i18n';
 export class Session {
   private readonly http = inject(HttpClient);
   private readonly i18n = inject(I18n);
+  private readonly browser = isPlatformBrowser(inject(PLATFORM_ID));
   private readonly me = signal<MeResponse | null | undefined>(undefined);
   private loading: Promise<MeResponse | null> | null = null;
 
@@ -23,7 +25,8 @@ export class Session {
 
   /** Loads the session once; later calls share the first load. */
   load(): Promise<MeResponse | null> {
-    this.loading ??= this.fetchMe();
+    // Pre-rendered pages are the signed-out view, and the build never calls the API.
+    this.loading ??= this.browser ? this.fetchMe() : Promise.resolve(null);
     return this.loading;
   }
 

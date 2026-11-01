@@ -19,6 +19,7 @@
     "paths": {
       "@rejectradar/contracts": ["./libs/contracts/src/index.ts"],
       "@rejectradar/contracts/locales": ["./libs/contracts/src/lib/locales.ts"],
+      "@rejectradar/contracts/plans": ["./libs/contracts/src/lib/plans.ts"],
       "@rejectradar/matching": ["./libs/matching/src/index.ts"],
       "@rejectradar/db": ["./libs/db/src/index.ts"],
       "@rejectradar/taxonomy": ["./libs/taxonomy/src/index.ts"],
