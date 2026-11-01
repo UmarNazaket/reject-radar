@@ -261,15 +261,16 @@ Not in this phase: live Paddle (P11, after the V9 answers), and clearing `paddle
 
 Business and Enterprise accounts can read RejectRadar from their own systems. A public call is `GET /v1/public/...` with `Authorization: Bearer rr_live_...`. It answers with the same JSON as the app route of the same name, and it is read-only.
 
-| Route under `/v1/public`             | What it does                                                    |
-| ------------------------------------ | --------------------------------------------------------------- |
-| `GET /notices`, `GET /notices/:id`   | As `/v1/notices`, with the account's history window             |
-| `GET /dashboards/topic`              | As `/v1/dashboards/topic`                                       |
-| `GET /firms/search`                  | As `/v1/firms/search`                                           |
-| `GET /firms/:id`                     | As `/v1/firms/:id`; it also uses one firm lookup, as in the app |
-| `GET /import-alerts/:number?locale=` | The alert text and its approved summary                         |
-| `GET /taxonomy?locale=`              | Commodities, hazards, destinations and countries                |
-| `GET /usage`                         | This month's API calls and the plan's limit; not charged        |
+| Route under `/v1/public`             | What it does                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `GET /notices`, `GET /notices/:id`   | As `/v1/notices`, with the account's history window                                               |
+| `GET /dashboards/topic`              | As `/v1/dashboards/topic`                                                                         |
+| `GET /firms/search`                  | As `/v1/firms/search`                                                                             |
+| `GET /firms/:id`                     | As `/v1/firms/:id`; it also uses one firm lookup, as in the app                                   |
+| `GET /import-alerts/:number?locale=` | The alert text and its approved summary                                                           |
+| `GET /mrl`, `GET /mrl/residues`      | As `/v1/mrl` and `/v1/mrl/residues`: the EU limit of a residue in a commodity, and residue search |
+| `GET /taxonomy?locale=`              | Commodities, hazards, destinations and countries                                                  |
+| `GET /usage`                         | This month's API calls and the plan's limit; not charged                                          |
 
 - **Keys.** Owners and admins with a verified email create keys with `POST /v1/org/api-keys` `{ name }` and revoke them with `DELETE /v1/org/api-keys/:id`. A key is shown once, when it is created; only its SHA-256 is stored, with its first 12 characters for display. An account holds at most 5 live keys (`409 API_KEY_LIMIT`). Creating and revoking are written to the audit log.
 - **Quota.** Every call except `/usage` uses one of the plan's monthly API calls: 10,000 on Business and 100,000 by default on Enterprise. The answer carries `X-Quota-Used` and `X-Quota-Limit`. At the limit a call answers `403 PLAN_LIMIT_REACHED` with `details.action` of `api_calls`. A call with a bad query still counts; a call refused by the key check or the rate limit does not.
