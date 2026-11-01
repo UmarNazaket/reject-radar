@@ -176,6 +176,7 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   { method: 'PATCH', path: '/v1/admin/orgs/:id', reason: 'Platform admins only; staff look across every account.' },
   { method: 'POST', path: '/v1/admin/orgs/:id/deactivate', reason: 'Platform admins only; staff look across every account.' },
   { method: 'POST', path: '/v1/admin/orgs/:id/reactivate', reason: 'Platform admins only; staff look across every account.' },
+  { method: 'GET', path: '/v1/admin/taxonomy/unmapped', reason: 'Platform admins only; reference data, no account.' },
   { method: 'GET', path: '/v1/admin/users', reason: 'Platform admins only; staff look across every account.' },
   { method: 'GET', path: '/v1/admin/audit', reason: 'Platform admins only; staff look across every account.' },
   { method: 'GET', path: '/v1/admin/emails', reason: 'Platform admins only; staff look across every account.' },

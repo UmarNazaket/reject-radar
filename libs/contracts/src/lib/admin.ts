@@ -4,7 +4,7 @@ import type { BillingUsage, PlanSource } from './billing';
 import type { EmailDeliveryStatus, EmailKind } from './email';
 import { FIRM_RECORD_SOURCES, type FirmRecordSource, MATCH_REVIEW_STATUSES, type MatchReviewReason, type MatchReviewStatus } from './firms';
 import { DISPUTE_STATUSES, type DisputeKind, type DisputeStatus } from './product';
-import { RULE_MATCH_TYPES, RULE_SOURCES, type RuleMatchType, type RuleSource, type SyncSource, type SyncStatus } from './ingestion';
+import { NOTICE_SOURCES, type NoticeSource, RULE_MATCH_TYPES, RULE_SOURCES, type RuleMatchType, type RuleSource, type SyncSource, type SyncStatus } from './ingestion';
 import type { SourceFreshness } from './notices';
 import { PLAN_IDS, type PlanId, type PlanLimits } from './plans';
 
@@ -249,6 +249,28 @@ export interface TaxonomyRemapStatus {
   lastRun: { at: string; updated: Record<string, number> } | null;
   /** A request is newer than the last run; the next daily sync job runs it. */
   waiting: boolean;
+}
+
+/** Product texts listed by `GET /v1/admin/taxonomy/unmapped`. */
+export const UNMAPPED_LIMIT = 100;
+
+/** `GET /v1/admin/taxonomy/unmapped?source=`: the product texts no commodity rule matched, most frequent first. */
+export const unmappedQuery = z.object({ source: z.enum(NOTICE_SOURCES).optional() });
+export type UnmappedQuery = z.output<typeof unmappedQuery>;
+
+export interface UnmappedValue {
+  source: NoticeSource;
+  /** The most common spelling of the text; texts that differ only in case and spaces count together. */
+  text: string;
+  notices: number;
+  /** The newest of those notices (`YYYY-MM-DD`). */
+  lastSeen: string;
+}
+
+export interface UnmappedResponse {
+  values: UnmappedValue[];
+  /** Per source: its notices, those with no commodity and those with no hazard. */
+  sources: { source: NoticeSource; notices: number; noCommodity: number; noHazard: number }[];
 }
 
 /** `GET /v1/admin/orgs?q=`: the newest 50 accounts, or those whose name or a member's email contains `q`. */
