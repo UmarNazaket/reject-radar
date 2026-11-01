@@ -17,6 +17,12 @@ const ROUTES = [
   { path: 'GET /firms/search', what: 'Find firms by name or FDA FEI number, best match first.', params: 'name (2 to 200 characters) or fei, country, city' },
   { path: 'GET /firms/:id', what: 'A firm’s profile with its records. It uses one firm lookup of the plan, as in the app.', params: '' },
   { path: 'GET /import-alerts/:number', what: 'An FDA Import Alert’s text and its approved summary, for example 99-08.', params: 'locale (en, ur, hi, bn)' },
+  {
+    path: 'GET /mrl',
+    what: 'The EU maximum residue level of one pesticide in one commodity, optionally compared with a lab result.',
+    params: 'commodity (required, a commodity id), residue (required, a residue id), lab (mg/kg)',
+  },
+  { path: 'GET /mrl/residues', what: 'Find pesticide residues by name, for the residue id GET /mrl takes.', params: 'q (2 to 100 characters, required)' },
   { path: 'GET /taxonomy', what: 'The commodities, hazards, destinations and countries the other routes take, with their labels.', params: 'locale (en, ur, hi, bn)' },
   { path: 'GET /usage', what: 'This month’s API calls and the plan’s limit. It does not use a call.', params: '' },
 ] as const;

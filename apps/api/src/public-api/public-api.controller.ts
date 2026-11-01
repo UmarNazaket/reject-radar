@@ -11,11 +11,17 @@ import {
   type ImportAlertResponse,
   importAlertNumberSchema,
   importAlertQuery,
+  type MrlQuery,
+  type MrlResponse,
+  mrlQuery,
   type NoticeItem,
   type NoticeSearchQuery,
   type NoticeSearchResponse,
   noticeSearchQuery,
   type PublicUsageResponse,
+  type ResidueSearchQuery,
+  type ResidueSearchResponse,
+  residueSearchQuery,
   type TaxonomyQuery,
   type TaxonomyResponse,
   taxonomyQuery,
@@ -29,6 +35,7 @@ import { EntitlementsService } from '../entitlements/entitlements.service';
 import { FirmProfileService } from '../firms/firm-profile.service';
 import { FirmSearchService } from '../firms/firm-search.service';
 import { ImportAlertsService } from '../import-alerts/import-alerts.service';
+import { MrlService } from '../mrl/mrl.service';
 import { DashboardsService } from '../notices/dashboards.service';
 import { NoticesService } from '../notices/notices.service';
 import { TaxonomyService } from '../taxonomy/taxonomy.service';
@@ -53,6 +60,7 @@ export class PublicApiController {
     private readonly firmProfiles: FirmProfileService,
     private readonly importAlerts: ImportAlertsService,
     private readonly taxonomy: TaxonomyService,
+    private readonly mrl: MrlService,
   ) {}
 
   @Get('notices')
@@ -87,6 +95,16 @@ export class PublicApiController {
     @Query(new ZodValidationPipe(importAlertQuery)) query: ImportAlertQuery,
   ): Promise<ImportAlertResponse> {
     return this.importAlerts.get(number, query.locale);
+  }
+
+  @Get('mrl/residues')
+  residues(@Query(new ZodValidationPipe(residueSearchQuery)) query: ResidueSearchQuery): Promise<ResidueSearchResponse> {
+    return this.mrl.searchResidues(query.q);
+  }
+
+  @Get('mrl')
+  checkMrl(@Query(new ZodValidationPipe(mrlQuery)) query: MrlQuery): Promise<MrlResponse> {
+    return this.mrl.check(query);
   }
 
   @Get('taxonomy')

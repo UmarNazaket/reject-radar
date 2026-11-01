@@ -180,7 +180,7 @@ export const NOT_ACCOUNT_OWNED: { method: string; path: string; reason: string }
   { method: 'GET', path: '/v1/admin/emails', reason: 'Platform admins only; staff look across every account.' },
   { method: 'GET', path: '/v1/mrl/residues', reason: 'Reference data.' },
   { method: 'GET', path: '/v1/mrl', reason: 'Reference data.' },
-  ...['notices', 'notices/:id', 'dashboards/topic', 'firms/search', 'firms/:id', 'import-alerts/:number', 'taxonomy', 'usage'].map((route) => ({
+  ...['notices', 'notices/:id', 'dashboards/topic', 'firms/search', 'firms/:id', 'import-alerts/:number', 'mrl/residues', 'mrl', 'taxonomy', 'usage'].map((route) => ({
     method: 'GET',
     path: `/v1/public/${route}`,
     reason: "Public API: an API key, not a session, names the account, and only the key's own account is read or charged (public-api.e2e.spec.ts).",

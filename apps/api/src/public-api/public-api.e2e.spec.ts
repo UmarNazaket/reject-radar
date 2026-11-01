@@ -98,6 +98,8 @@ describe('public API', () => {
       await same('/v1/firms/search?name=Zarfeen%20Rice', '/v1/public/firms/search?name=Zarfeen%20Rice');
       await same('/v1/import-alerts/99-08?locale=ur', '/v1/public/import-alerts/99-08?locale=ur');
       await same('/v1/taxonomy?locale=hi', '/v1/public/taxonomy?locale=hi');
+      await same('/v1/mrl/residues?q=tricyc', '/v1/public/mrl/residues?q=tricyc');
+      await same('/v1/mrl?commodity=101&residue=1001&lab=0.2', '/v1/public/mrl?commodity=101&residue=1001&lab=0.2');
     });
 
     it('a firm profile also uses a lookup, as in the app', async () => {
@@ -111,6 +113,8 @@ describe('public API', () => {
       expect((await call('/v1/public/firms/search').expect(400)).body).toMatchObject({ code: 'BAD_REQUEST' });
       await call('/v1/public/notices/abc').expect(404);
       await call('/v1/public/import-alerts/xx').expect(400);
+      await call('/v1/public/mrl?commodity=101').expect(400);
+      await call('/v1/public/mrl?commodity=101&residue=9999').expect(404);
     });
   });
 
