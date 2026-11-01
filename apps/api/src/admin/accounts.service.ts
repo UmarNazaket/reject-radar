@@ -1,8 +1,11 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import {
+  ADMIN_USERS_PAGE_SIZE,
   type AdminOrgQuery,
   type AdminOrgResponse,
   type AdminOrgsResponse,
+  type AdminUsersQuery,
+  type AdminUsersResponse,
   AUDIT_PAGE_SIZE,
   type AuditQuery,
   type AuditResponse,
@@ -18,7 +21,7 @@ import {
   type SubscriptionStatus,
 } from '@rejectradar/contracts';
 import { appUser, auditLog, type Database, emailDelivery, membership, org, subscription } from '@rejectradar/db';
-import { and, asc, desc, eq, exists, ilike, like, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, exists, ilike, inArray, like, lt, or, sql } from 'drizzle-orm';
 import type { RequestContext } from '../auth/context';
 import { AppError } from '../common/errors';
 import { DB } from '../database/database.module';
@@ -32,7 +35,7 @@ const LIST_LIMIT = 50;
 const escapeLike = (text: string): string => text.replace(/[\\%_]/g, '\\$&');
 const notFound = () => new AppError(HttpStatus.NOT_FOUND, 'NOT_FOUND', 'Not found.');
 
-/** Accounts for staff (P10): find one, see its plan, usage and members, grant or clear a plan override; the audit log and the email log. */
+/** Accounts for staff (P10): find one, see its plan, usage and members, grant or clear a plan override; people; the audit log and the email log. */
 @Injectable()
 export class AccountsService {
   constructor(
@@ -205,6 +208,50 @@ export class AccountsService {
     return {
       items: page.map((row) => ({ ...row, at: row.at.toISOString(), kind: row.kind as EmailKind, status: row.status as EmailDeliveryStatus })),
       next: rows.length > EMAIL_LOG_PAGE_SIZE ? page[page.length - 1].id : null,
+    };
+  }
+
+  /** People across every account, newest first (uuidv7 ids sort by time to the millisecond), with their accounts. */
+  async users(query: AdminUsersQuery): Promise<AdminUsersResponse> {
+    const pattern = query.q === undefined ? null : `%${escapeLike(query.q)}%`;
+    const rows = await this.db
+      .select({
+        id: appUser.id,
+        email: appUser.email,
+        name: appUser.name,
+        verifiedAt: appUser.emailVerifiedAt,
+        isPlatformAdmin: appUser.isPlatformAdmin,
+        lockedUntil: sql<Date | null>`case when ${appUser.lockedUntil} > now() then ${appUser.lockedUntil} end`,
+        createdAt: appUser.createdAt,
+      })
+      .from(appUser)
+      .where(
+        and(
+          pattern === null ? undefined : or(ilike(appUser.email, pattern), ilike(appUser.name, pattern)),
+          query.cursor === undefined ? undefined : lt(appUser.id, query.cursor),
+        ),
+      )
+      .orderBy(desc(appUser.id))
+      .limit(ADMIN_USERS_PAGE_SIZE + 1);
+    const page = rows.slice(0, ADMIN_USERS_PAGE_SIZE);
+    const memberships =
+      page.length === 0
+        ? []
+        : await this.db
+            .select({ userId: membership.userId, id: org.id, name: org.name, role: membership.role })
+            .from(membership)
+            .innerJoin(org, eq(org.id, membership.orgId))
+            .where(inArray(membership.userId, page.map((row) => row.id)))
+            .orderBy(asc(org.name));
+    return {
+      items: page.map(({ verifiedAt, lockedUntil, createdAt, ...row }) => ({
+        ...row,
+        verified: verifiedAt !== null,
+        lockedUntil: lockedUntil === null ? null : new Date(lockedUntil).toISOString(),
+        createdAt: createdAt.toISOString(),
+        accounts: memberships.filter((m) => m.userId === row.id).map((m) => ({ id: m.id, name: m.name, role: m.role as Role })),
+      })),
+      next: rows.length > ADMIN_USERS_PAGE_SIZE ? page[page.length - 1].id : null,
     };
   }
 }
