@@ -95,8 +95,14 @@ describe('Import Alert summaries', () => {
         .mockResolvedValueOnce(content('second try'))
         .mockResolvedValueOnce({ summary: 'only one field' })
         .mockResolvedValueOnce(tooLong);
+      const warnings = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
       expect(await draftSummaries(deps(), { limit: 20 })).toEqual({ drafted: ['10-01'], invalid: ['10-02'], failed: [] });
       expect((await rows()).map((r) => r.alertNumber)).toEqual(['10-01']);
+      // The second try is told why the first answer was rejected.
+      expect(generateJson.mock.calls[0][0].prompt).not.toContain('rejected');
+      expect(generateJson.mock.calls[1][0].prompt).toMatch(/\n\nYour previous answer was rejected: summary must be at most 120 words\. Answer again within those limits\.$/);
+      expect(warnings).toHaveBeenCalledWith('summaries:draft: 10-01: answer rejected: summary must be at most 120 words');
+      warnings.mockRestore();
     });
 
     it('a failed call ends the run; the rest wait for the next one', async () => {
@@ -162,9 +168,12 @@ describe('Import Alert summaries', () => {
       await alert('10-01');
       await summary('10-01', 'en', 'approved');
       generateJson.mockResolvedValueOnce({ summary: '' }).mockResolvedValueOnce({ summary: '' });
+      const warnings = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
       expect(await translateSummaries(deps(), { limit: 3 })).toEqual({ translated: ['10-01 (hi)', '10-01 (ur)'], invalid: ['10-01 (bn)'], failed: [] });
       const [bn] = await db.select().from(importAlertSummary).where(and(eq(importAlertSummary.alertNumber, '10-01'), eq(importAlertSummary.locale, 'bn')));
       expect(bn).toBeUndefined();
+      expect(warnings).toHaveBeenCalledTimes(2);
+      warnings.mockRestore();
     });
   });
 });

@@ -16,7 +16,7 @@ function fakeClient(answer: { stop_reason: string; text: string } | Error) {
 }
 
 describe('createClaude', () => {
-  it('asks for JSON in the schema, at low effort, with the default refusal fallback, and returns it parsed', async () => {
+  it('asks for JSON in the schema, at medium effort, with the default refusal fallback, and returns it parsed', async () => {
     const { create, client } = fakeClient({ stop_reason: 'end_turn', text: '{"summary":"ok"}' });
     const claude = createClaude(ENV, client);
     expect(claude.model).toBe('claude-opus-5-5');
@@ -26,7 +26,7 @@ describe('createClaude', () => {
       max_tokens: 16_000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: { type: 'object' } } },
+      output_config: { effort: 'medium', format: { type: 'json_schema', schema: { type: 'object' } } },
       system: 'Be brief.',
       messages: [{ role: 'user', content: 'Summarise.' }],
     });
