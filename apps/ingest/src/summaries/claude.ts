@@ -21,8 +21,8 @@ export function createClaude(
       max_tokens: 16_000,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      // A short, fully specified task: low effort keeps it quick and cheap.
-      output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+      // Medium effort: more care with long alert texts and the word limit, at a cost the monthly budget allows.
+      output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
       system,
       messages: [{ role: 'user', content: prompt }],
     });
