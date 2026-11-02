@@ -19,7 +19,7 @@ export const SUMMARY_RESPONSE_SCHEMA: ResponseSchema = {
 export const DRAFT_SYSTEM = [
   'You summarise US FDA Import Alerts for food exporters. Use only the alert text you are given.',
   'Write plain English that a quality manager who is not a lawyer understands. Do not give advice, opinions or risk judgements, and add no facts that are not in the text.',
-  'summary: at most 120 words on what the alert is about and which products and firms it covers.',
+  'summary: at most 100 words on what the alert is about and which products and firms it covers.',
   'whatTriggersListing: what leads FDA to list a firm or product, as the text says.',
   'howFirmsGetRemoved: how a firm gets off the alert, as the text says; if the text does not say, write "The alert text does not say."',
   'testsMentioned: the laboratory tests or analyses the text names, as it names them; an empty list when it names none.',
@@ -37,11 +37,20 @@ export function draftPrompt(alert: AlertText): string {
   return [`Import Alert ${alert.number}: ${alert.title}`, ...sections.filter(([, text]) => text).map(([heading, text]) => `${heading}:\n${text}`)].join('\n\n');
 }
 
-/** Asks twice at most; returns null when neither answer passes the schema. */
-export async function generateValid<T>(generate: () => Promise<unknown>, parse: (value: unknown) => { success: true; data: T } | { success: false }): Promise<T | null> {
+type Parsed<T> = { success: true; data: T } | { success: false; error: { issues: { path: PropertyKey[]; message: string }[] } };
+
+/** The prompt again, with why the previous answer was rejected, so the second answer can correct it. */
+export const withRejection = (prompt: string, rejection?: string): string =>
+  rejection ? `${prompt}\n\nYour previous answer was rejected: ${rejection}. Answer again within those limits.` : prompt;
+
+/** Asks twice at most, the second time with the reason the first answer failed; returns null when neither passes. */
+export async function generateValid<T>(label: string, generate: (rejection?: string) => Promise<unknown>, parse: (value: unknown) => Parsed<T>): Promise<T | null> {
+  let rejection: string | undefined;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const parsed = parse(await generate());
+    const parsed = parse(await generate(rejection));
     if (parsed.success) return parsed.data;
+    rejection = parsed.error.issues.map((issue) => `${issue.path.join('.') || 'answer'} ${issue.message}`).join('; ');
+    console.warn(`${label}: answer rejected: ${rejection}`);
   }
   return null;
 }
@@ -94,7 +103,8 @@ export async function draftSummaries(
     let content: ImportAlertSummaryContent | null;
     try {
       content = await generateValid(
-        () => deps.generateJson({ system: DRAFT_SYSTEM, prompt: draftPrompt(alert), schema: SUMMARY_RESPONSE_SCHEMA }),
+        `summaries:draft: ${alert.number}`,
+        (rejection) => deps.generateJson({ system: DRAFT_SYSTEM, prompt: withRejection(draftPrompt(alert), rejection), schema: SUMMARY_RESPONSE_SCHEMA }),
         (value) => importAlertEnglishSummaryContentSchema.safeParse(value),
       );
     } catch (error) {

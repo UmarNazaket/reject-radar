@@ -1,7 +1,7 @@
 import { type ImportAlertSummaryContent, importAlertSummaryContentSchema, LOCALES } from '@rejectradar/contracts';
 import { type Database, importAlertSummary } from '@rejectradar/db';
 import { sql } from 'drizzle-orm';
-import { generateValid, SUMMARY_RESPONSE_SCHEMA } from './draft';
+import { generateValid, SUMMARY_RESPONSE_SCHEMA, withRejection } from './draft';
 import type { GenerateJson } from './claude';
 
 const LANGUAGES: Readonly<Record<string, string>> = { ur: 'Urdu', hi: 'Hindi', bn: 'Bengali' };
@@ -43,7 +43,9 @@ export async function translateSummaries(deps: { db: Database; model: string; ge
     let content: ImportAlertSummaryContent | null;
     try {
       content = await generateValid(
-        () => deps.generateJson({ system: translateSystem(LANGUAGES[row.locale]), prompt: JSON.stringify(row.content), schema: SUMMARY_RESPONSE_SCHEMA }),
+        `summaries:translate: ${label}`,
+        (rejection) =>
+          deps.generateJson({ system: translateSystem(LANGUAGES[row.locale]), prompt: withRejection(JSON.stringify(row.content), rejection), schema: SUMMARY_RESPONSE_SCHEMA }),
         (value) => importAlertSummaryContentSchema.safeParse(value),
       );
     } catch (error) {
