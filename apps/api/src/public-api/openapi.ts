@@ -59,7 +59,7 @@ const QUOTA_HEADERS = {
   'X-Quota-Limit': { description: "The plan's monthly API calls.", schema: { type: 'integer' } },
 };
 
-const ERROR = { description: 'An error; `code` says which. See https://rejectradar.umarnazaket.com/developers.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } };
+const ERROR = { description: 'An error; `code` says which. See https://rejectlens.umarnazaket.com/developers.', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } };
 
 /** The public API as OpenAPI 3.1. Parameters come from the zod schemas the API validates with; answers are described in words. */
 export function buildOpenApi(): JsonSchema {
@@ -69,7 +69,7 @@ export function buildOpenApi(): JsonSchema {
       title: 'RejectLens public API',
       version: '1',
       description:
-        'Read-only access for Business and Enterprise accounts. Every route answers with the same JSON as the web app; the reference with examples is at https://rejectradar.umarnazaket.com/developers.',
+        'Read-only access for Business and Enterprise accounts. Every route answers with the same JSON as the web app; the reference with examples is at https://rejectlens.umarnazaket.com/developers.',
     },
     servers: [{ url: '/v1/public' }],
     security: [{ apiKey: [] }],
