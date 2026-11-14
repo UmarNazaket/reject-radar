@@ -29,7 +29,7 @@ import { LegalLinks } from '../legal/legal-links';
               } @else if (p.monthlyPriceUsd === 0) {
                 {{ i18n.t('web.pricing.free') }}
               } @else {
-                {{ i18n.t('web.pricing.perMonth', { price: p.monthlyPriceUsd }) }} · {{ i18n.t('web.pricing.perYear', { price: p.yearlyPriceUsd ?? 0 }) }}
+                {{ i18n.t('web.pricing.perMonth', { price: i18n.number(p.monthlyPriceUsd) }) }} · {{ i18n.t('web.pricing.perYear', { price: i18n.number(p.yearlyPriceUsd ?? 0) }) }}
               }
             </p>
             <ul class="mt-3 flex flex-1 flex-col gap-1 text-sm">
@@ -61,13 +61,13 @@ export class Pricing {
 
   protected limits(l: PlanDefinition): string[] {
     return [
-      this.i18n.t('web.pricing.lookups', { count: l.lookupsPerMonth }),
-      this.i18n.t('web.pricing.watchlist', { count: l.watchlistSize }),
+      this.i18n.t('web.pricing.lookups', { count: this.i18n.number(l.lookupsPerMonth) }),
+      this.i18n.t('web.pricing.watchlist', { count: this.i18n.number(l.watchlistSize) }),
       this.i18n.t('web.pricing.members', { count: l.members }),
       l.noticeHistoryMonths === null ? this.i18n.t('web.pricing.allHistory') : this.i18n.t('web.pricing.history', { months: l.noticeHistoryMonths }),
       ...(l.pdf ? [this.i18n.t('web.pricing.pdf')] : []),
-      ...(l.bulk ? [this.i18n.t('web.pricing.bulk', { rows: l.bulkRowsPerMonth })] : []),
-      ...(l.apiCallsPerMonth > 0 ? [this.i18n.t('web.pricing.api', { calls: l.apiCallsPerMonth })] : []),
+      ...(l.bulk ? [this.i18n.t('web.pricing.bulk', { rows: this.i18n.number(l.bulkRowsPerMonth) })] : []),
+      ...(l.apiCallsPerMonth > 0 ? [this.i18n.t('web.pricing.api', { calls: this.i18n.number(l.apiCallsPerMonth) })] : []),
     ];
   }
 }
