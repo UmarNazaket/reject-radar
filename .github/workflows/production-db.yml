@@ -1,0 +1,66 @@
+name: Set up production database
+
+# Once, before launch: migrates the empty production database behind PRODUCTION_DATABASE_URL (its direct connection
+# string) and copies the reference data from staging (INGEST_DATABASE_URL) into it, as README "Launch runbook" step
+# 2.3 describes. No account table is copied. It refuses a production database that already holds notices.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "copy" to migrate production and copy the reference data from staging'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# The sync workflows' group: staging is not written while it is copied.
+concurrency:
+  group: ingest-db
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    if: ${{ inputs.confirm == 'copy' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      STAGING_URL: ${{ secrets.INGEST_DATABASE_URL }}
+      PRODUCTION_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      # pg_dump must be at least the server's version (Postgres 18).
+      - name: Install the Postgres 18 client
+        run: |
+          sudo apt-get install -y -q postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -q postgresql-client-18
+      - name: Check production is empty
+        run: |
+          test -n "$PRODUCTION_URL" || { echo "::error::Set the PRODUCTION_DATABASE_URL secret"; exit 1; }
+          [ "$PRODUCTION_URL" != "$STAGING_URL" ] || { echo "::error::PRODUCTION_DATABASE_URL is the staging database"; exit 1; }
+          notices=$(psql "$PRODUCTION_URL" -Atc "select count(*) from notice" 2>/dev/null || echo 0)
+          [ "$notices" = 0 ] || { echo "::error::Production already holds $notices notices"; exit 1; }
+      - name: Migrate production
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: npx drizzle-kit migrate --config=libs/db/drizzle.config.ts
+      - name: Copy the reference data from staging
+        run: |
+          tables="commodity commodity_rule hazard hazard_rule fda_charge_code fda_refusal rasff_notification uk_border_notification au_failing_food eu_pesticide_residue eu_mrl_product eu_mrl import_alert import_alert_listing import_alert_listing_product import_alert_summary firm firm_fei firm_alias match_review notice change_event job_cursor source_file source_sync_run"
+          pg_dump "$STAGING_URL" -Fc --data-only -f reference.dump $(printf -- '-t public.%s ' $tables)
+          # Staging's taxonomy replaces the one the migrations seeded.
+          psql "$PRODUCTION_URL" -v ON_ERROR_STOP=1 -c "truncate commodity, commodity_rule, hazard, hazard_rule cascade"
+          pg_restore --data-only --no-owner -d "$PRODUCTION_URL" reference.dump
+      - name: Compare row counts
+        run: |
+          for t in notice firm import_alert eu_mrl; do
+            s=$(psql "$STAGING_URL" -Atc "select count(*) from $t"); p=$(psql "$PRODUCTION_URL" -Atc "select count(*) from $t")
+            echo "$t: staging $s, production $p" | tee -a "$GITHUB_STEP_SUMMARY"
+            [ "$s" = "$p" ] || { echo "::error::$t differs"; exit 1; }
+          done
