@@ -74,7 +74,7 @@ const POLL_TRIES = 20;
           @for (p of paidPlans(); track p.id) {
             <div class="rounded-lg border border-slate-200 bg-white p-4">
               <h3 class="font-medium">{{ p.name }}</h3>
-              <p class="mt-1 text-sm text-slate-600">{{ i18n.t('web.pricing.perMonth', { price: p.monthlyPriceUsd ?? 0 }) }} · {{ i18n.t('web.pricing.perYear', { price: p.yearlyPriceUsd ?? 0 }) }}</p>
+              <p class="mt-1 text-sm text-slate-600">{{ i18n.t('web.pricing.perMonth', { price: i18n.number(p.monthlyPriceUsd ?? 0) }) }} · {{ i18n.t('web.pricing.perYear', { price: i18n.number(p.yearlyPriceUsd ?? 0) }) }}</p>
               <div class="mt-3 flex flex-wrap gap-2">
                 <button matButton="filled" type="button" [disabled]="action.busy()" (click)="buy(p.id, 'month')">{{ i18n.t('web.billing.buyMonthly') }}</button>
                 <button matButton="outlined" type="button" [disabled]="action.busy()" (click)="buy(p.id, 'year')">{{ i18n.t('web.billing.buyYearly') }}</button>
