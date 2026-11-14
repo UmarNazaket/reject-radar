@@ -233,7 +233,7 @@ The API refuses to start unless every one of these is set and well-formed, in ev
 
 - `node tools/paddle/create-webhook.mjs --url https://<api host>/v1/webhooks/paddle` creates the notification destination for the five events the API handles. It reads `PADDLE_API_KEY` from `.env`, accepts only a sandbox key unless `--production` is given, and prints the secret only with `--show-secret`.
 - `tools/paddle/checkout.html` is a static fallback for trying the sandbox overlay without the web app; the web app's billing page (`/settings/billing`) opens the same overlay. Paste the response of `POST /v1/billing/checkout` into it and it opens the Paddle sandbox overlay.
-- `PADDLE_SANDBOX_E2E=1 npx nx test api --testFile=sandbox.manual` runs the one spec that calls the Paddle sandbox (a throwaway customer and its portal session). It is skipped otherwise, and CI never reaches Paddle.
+- `PADDLE_SANDBOX_E2E=1 npx nx test api -- sandbox.manual` runs the one spec that calls the Paddle sandbox (a throwaway customer and its portal session). It is skipped otherwise, and CI never reaches Paddle.
 
 See `tools/paddle/README.md`.
 
