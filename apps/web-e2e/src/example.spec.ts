@@ -5,5 +5,5 @@ test('a signed-out visitor sees the landing page, and a signed-in page sends the
   await expect(page.locator('h1')).toContainText('See which food shipments are rejected at the border');
   await page.goto('/topics');
   await expect(page).toHaveURL(/\/login/);
-  await expect(page.locator('h1')).toContainText('Sign in to RejectRadar');
+  await expect(page.locator('h1')).toContainText('Sign in to RejectLens');
 });

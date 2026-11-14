@@ -13,7 +13,7 @@ import { UuidParamPipe } from '../common/uuid-param.pipe';
 import { ZodValidationPipe } from '../common/zod-pipe';
 import { DisputeReviewService } from './dispute-review.service';
 
-/** The disputes customers file with "Report a problem", for RejectRadar staff (P10). */
+/** The disputes customers file with "Report a problem", for RejectLens staff (P10). */
 @Controller('admin/disputes')
 @PlatformAdmin()
 @RequireVerifiedEmail()

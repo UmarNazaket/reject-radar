@@ -258,7 +258,7 @@ export class FirmProfile {
 
   protected downloadPdf(p: FirmProfileResponse): void {
     void this.act(async () => {
-      await downloadFile(this.http, apiUrl(`/v1/firms/${p.id}/report.pdf`), new HttpParams(), `rejectradar-firm-${p.id}.pdf`);
+      await downloadFile(this.http, apiUrl(`/v1/firms/${p.id}/report.pdf`), new HttpParams(), `rejectlens-firm-${p.id}.pdf`);
       return null;
     });
   }

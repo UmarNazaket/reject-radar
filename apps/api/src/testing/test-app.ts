@@ -21,7 +21,7 @@ export function testEnv(databaseUrl: string, extra: Record<string, string> = {})
     DATABASE_URL: databaseUrl,
     JWT_SECRET: SECRET,
     APP_ORIGIN: 'http://localhost:4200',
-    MAIL_FROM: 'RejectRadar <test@rejectradar.test>',
+    MAIL_FROM: 'RejectLens <test@rejectradar.test>',
     PADDLE_ENV: 'sandbox',
     PADDLE_API_KEY: `pdl_sdbx_apikey_${'t'.repeat(40)}`,
     PADDLE_CLIENT_TOKEN: `test_${'t'.repeat(27)}`,

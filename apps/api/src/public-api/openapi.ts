@@ -66,7 +66,7 @@ export function buildOpenApi(): JsonSchema {
   return {
     openapi: '3.1.0',
     info: {
-      title: 'RejectRadar public API',
+      title: 'RejectLens public API',
       version: '1',
       description:
         'Read-only access for Business and Enterprise accounts. Every route answers with the same JSON as the web app; the reference with examples is at https://rejectradar.umarnazaket.com/developers.',

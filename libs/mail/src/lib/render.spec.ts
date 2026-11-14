@@ -61,7 +61,7 @@ describe('renderEmail', () => {
     for (const locale of LOCALES) {
       expect(renderEmail('verify', locale, PARAMS).subject).toBe(translate(locale, 'email.verify.subject'));
     }
-    expect(renderEmail('invite', 'en', PARAMS).subject).toBe('Ayesha invited you to Indus Agro on RejectRadar');
+    expect(renderEmail('invite', 'en', PARAMS).subject).toBe('Ayesha invited you to Indus Agro on RejectLens');
   });
 
   it('names the invited role in the language of the email', () => {

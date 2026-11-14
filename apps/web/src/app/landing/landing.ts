@@ -7,7 +7,7 @@ import { LegalLinks } from '../legal/legal-links';
 const FEATURES = ['topics', 'firms', 'alerts', 'mrl', 'bulk', 'languages'] as const;
 const SOURCES = ['fda_refusal', 'import_alert', 'rasff', 'uk_bn', 'au_ifis'] as const;
 
-/** The public front page at `/`, for signed-out visitors: what RejectRadar checks, where the data comes from, and the way in. */
+/** The public front page at `/`, for signed-out visitors: what RejectLens checks, where the data comes from, and the way in. */
 @Component({
   selector: 'app-landing',
   imports: [RouterLink, LanguageSelect, LegalLinks],

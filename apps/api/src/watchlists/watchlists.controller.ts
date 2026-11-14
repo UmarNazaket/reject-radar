@@ -31,7 +31,7 @@ export class WatchlistsController {
 
   @Get('export.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="rejectradar-watchlist.csv"')
+  @Header('Content-Disposition', 'attachment; filename="rejectlens-watchlist.csv"')
   exportCsv(@CurrentContext() ctx: RequestContext): Promise<string> {
     return this.watchlist.exportCsv(ctx);
   }

@@ -13,7 +13,7 @@ import { CurrentContext, PlatformAdmin } from '../auth/decorators';
 import { ZodValidationPipe } from '../common/zod-pipe';
 import { SummaryReviewService } from './summary-review.service';
 
-/** The review of the English Import Alert summaries Gemini drafts, by RejectRadar staff. The screens come with the admin panel (P10). */
+/** The review of the English Import Alert summaries Gemini drafts, by RejectLens staff. The screens come with the admin panel (P10). */
 @Controller('admin/import-alert-summaries')
 @PlatformAdmin()
 export class SummaryReviewController {

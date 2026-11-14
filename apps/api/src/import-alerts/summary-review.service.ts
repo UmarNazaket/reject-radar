@@ -21,7 +21,7 @@ const LIST_LIMIT = 200;
 const current = sql<boolean>`${importAlertSummary.sourceSha256} = ${importAlert.textSha256}`;
 
 /**
- * The review of English Import Alert summaries by RejectRadar staff (spec §9.10). Only an approved summary of the alert's
+ * The review of English Import Alert summaries by RejectLens staff (spec §9.10). Only an approved summary of the alert's
  * current text is ever served; approving one drops its translations, which `summaries:translate` then makes again.
  */
 @Injectable()

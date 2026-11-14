@@ -14,7 +14,7 @@ const SOURCES = [
   { id: 'eu_mrl', url: 'https://ec.europa.eu/food/plant/pesticides/eu-pesticides-database/start/screen/mrls' },
 ] as const;
 
-/** The public data-sources page: what each agency publishes, how far back RejectRadar keeps it and how often it is read. */
+/** The public data-sources page: what each agency publishes, how far back RejectLens keeps it and how often it is read. */
 @Component({
   selector: 'app-sources',
   imports: [RouterLink, LanguageSelect, LegalLinks],

@@ -44,9 +44,9 @@ select 'import_alert', 'e2e-ia-1', 'US', 'import_alert_listing', current_date - 
   'E2E Spice Mills Pvt Ltd', id, 'E2E Spice Mills Pvt Ltd on Import Alert 99-08', 'https://example.com/importalert_99-08.html'
 from firm where name_norm = 'e2e spice mills';
 
--- RejectRadar staff (P10), with the same password: e2e-staff@example.com. A second firm like the first, and the
+-- RejectLens staff (P10), with the same password: e2e-staff@example.com. A second firm like the first, and the
 -- matcher's open review of the two.
-insert into org (id, name) values ('0192e2e0-0000-7000-8000-000000000003', 'RejectRadar');
+insert into org (id, name) values ('0192e2e0-0000-7000-8000-000000000003', 'RejectLens');
 insert into app_user (id, email, password_hash, name, email_verified_at, is_platform_admin) values (
   '0192e2e0-0000-7000-8000-000000000004', 'e2e-staff@example.com',
   '$argon2id$v=19$m=19456,p=1,t=2$m6NiChiJ+BpMn6euQvcNCw$5GgJTfNeUeIJxOZSvkJN5ECskgekXeEkkIOhipreGXY',

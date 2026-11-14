@@ -27,7 +27,7 @@ import { TaxonomyRulesService } from './taxonomy-rules.service';
 
 const kindParam = z.enum(TAXONOMY_RULE_KINDS);
 
-/** The commodity and hazard rules and the remap request, for RejectRadar staff (P10). */
+/** The commodity and hazard rules and the remap request, for RejectLens staff (P10). */
 @Controller('admin')
 @PlatformAdmin()
 @RequireVerifiedEmail()

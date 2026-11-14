@@ -13,7 +13,7 @@ import en from '../catalogs/en.json';
 import hi from '../catalogs/hi.json';
 import ur from '../catalogs/ur.json';
 
-/** Flat ICU catalog: `"email.verify.subject": "Verify your email for RejectRadar"`. */
+/** Flat ICU catalog: `"email.verify.subject": "Verify your email for RejectLens"`. */
 export type Catalog = Readonly<Record<string, string>>;
 
 export const CATALOGS: Readonly<Record<Locale, Catalog>> = { en, ur, hi, bn };

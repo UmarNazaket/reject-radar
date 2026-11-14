@@ -1,7 +1,7 @@
 import { EnvValidationError } from '@rejectradar/contracts';
 import { loadMailEnv } from './mail-env';
 
-const BASE = { APP_ORIGIN: 'https://app.test', MAIL_FROM: 'RejectRadar <alerts@app.test>' };
+const BASE = { APP_ORIGIN: 'https://app.test', MAIL_FROM: 'RejectLens <alerts@app.test>' };
 
 describe('loadMailEnv', () => {
   it('reads the mail variables and defaults the rest', () => {

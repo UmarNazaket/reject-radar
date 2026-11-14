@@ -5,7 +5,7 @@ import { I18n } from '../core/i18n';
 import { Session } from '../core/session';
 import { Login } from './login';
 
-const EN = { 'web.login.title': 'Sign in to RejectRadar', 'errors.INVALID_CREDENTIALS': 'The email or password is incorrect.' };
+const EN = { 'web.login.title': 'Sign in to RejectLens', 'errors.INVALID_CREDENTIALS': 'The email or password is incorrect.' };
 
 describe('Login', () => {
   let session: { login: jest.Mock };
@@ -37,7 +37,7 @@ describe('Login', () => {
   it('signs in and goes where the user was headed', async () => {
     const navigate = jest.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
     const { el, type, submit } = await render('/firms/12');
-    expect(el.querySelector('h1')?.textContent).toContain('Sign in to RejectRadar');
+    expect(el.querySelector('h1')?.textContent).toContain('Sign in to RejectLens');
     type('email', 'ayesha@example.com');
     type('password', 'zarfeen-rice-2026');
     await submit();

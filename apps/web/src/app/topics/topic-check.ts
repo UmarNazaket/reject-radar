@@ -146,7 +146,7 @@ export class TopicCheck {
 
   protected downloadPdf(): void {
     const query = this.query() as Record<string, string>;
-    const fileName = `rejectradar-topic-${query['origin']}-${query['commodity'] ?? 'all'}-${this.chosenDestinations().join('+') || 'all'}.pdf`;
+    const fileName = `rejectlens-topic-${query['origin']}-${query['commodity'] ?? 'all'}-${this.chosenDestinations().join('+') || 'all'}.pdf`;
     void this.act(async () => {
       await downloadFile(this.http, apiUrl('/v1/dashboards/topic/report.pdf'), new HttpParams({ fromObject: query }), fileName.toLowerCase());
       return null;

@@ -19,7 +19,7 @@ export const SkipCsrf = (): MethodDecorator & ClassDecorator => SetMetadata(SKIP
 /** Only these roles may call the route; anyone else gets `403 FORBIDDEN`. */
 export const Roles = (...roles: Role[]): MethodDecorator & ClassDecorator => SetMetadata(ROLES_METADATA, roles);
 
-/** Only RejectRadar's own staff (`app_user.is_platform_admin`) may call the route; anyone else gets `403 FORBIDDEN`. */
+/** Only RejectLens's own staff (`app_user.is_platform_admin`) may call the route; anyone else gets `403 FORBIDDEN`. */
 export const PlatformAdmin = (): MethodDecorator & ClassDecorator => SetMetadata(PLATFORM_ADMIN, true);
 
 /** The caller's email must be verified; otherwise `403 EMAIL_NOT_VERIFIED`. */

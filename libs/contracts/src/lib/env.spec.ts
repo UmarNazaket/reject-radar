@@ -9,7 +9,7 @@ const valid: Record<string, string | undefined> = {
   DATABASE_URL: 'postgres://rejectradar:rejectradar@localhost:5432/rejectradar',
   JWT_SECRET: SECRET,
   APP_ORIGIN: 'http://localhost:4200',
-  MAIL_FROM: 'RejectRadar <test@rejectradar.test>',
+  MAIL_FROM: 'RejectLens <test@rejectradar.test>',
   PADDLE_ENV: 'sandbox',
   PADDLE_API_KEY: `pdl_sdbx_apikey_${'t'.repeat(40)}`,
   PADDLE_CLIENT_TOKEN: `test_${'t'.repeat(27)}`,
@@ -118,14 +118,14 @@ describe('apiEnvSchema', () => {
     expect(errorFor({ MAIL_FROM: undefined }).message).toContain('MAIL_FROM');
   });
 
-  it.each(['RejectRadar <alerts@rejectradar.umarnazaket.com>', 'alerts@rejectradar.umarnazaket.com'])(
+  it.each(['RejectLens <alerts@rejectradar.umarnazaket.com>', 'alerts@rejectradar.umarnazaket.com'])(
     'accepts MAIL_FROM %s',
     (MAIL_FROM) => {
       expect(parseEnv(apiEnvSchema, { ...valid, MAIL_FROM }).MAIL_FROM).toBe(MAIL_FROM);
     },
   );
 
-  it.each(['RejectRadar <not-an-address>', 'just a name', 'Name <a@b.co> trailing'])('rejects MAIL_FROM %s', (MAIL_FROM) => {
+  it.each(['RejectLens <not-an-address>', 'just a name', 'Name <a@b.co> trailing'])('rejects MAIL_FROM %s', (MAIL_FROM) => {
     expect(errorFor({ MAIL_FROM }).message).toContain('MAIL_FROM');
   });
 
