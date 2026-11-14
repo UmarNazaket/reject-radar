@@ -80,7 +80,7 @@ describe('topic report PDF', () => {
     const { session, orgId } = await account();
     const res = await getPdf(session, '?origin=PK&commodity=101&destination=US').expect(200);
     expect(res.headers['content-type']).toBe('application/pdf');
-    expect(res.headers['content-disposition']).toBe('attachment; filename="rejectradar-topic-pk-101-us.pdf"');
+    expect(res.headers['content-disposition']).toBe('attachment; filename="rejectlens-topic-pk-101-us.pdf"');
     expect(res.headers['cache-control']).toBe('no-store');
     const pdf = res.body as Buffer;
     expect(pdf.subarray(0, 5).toString('latin1')).toBe('%PDF-');
@@ -92,13 +92,13 @@ describe('topic report PDF', () => {
   it('names the file after the origin alone with "all" for the missing commodity and destinations', async () => {
     const { session } = await account();
     const res = await getPdf(session, '?origin=PK').expect(200);
-    expect(res.headers['content-disposition']).toBe('attachment; filename="rejectradar-topic-pk-all-all.pdf"');
+    expect(res.headers['content-disposition']).toBe('attachment; filename="rejectlens-topic-pk-all-all.pdf"');
   });
 
   it('joins several destinations with a plus, in the order of the query', async () => {
     const { session } = await account();
     const res = await getPdf(session, '?origin=PK&commodity=100&destination=US,EU').expect(200);
-    expect(res.headers['content-disposition']).toBe('attachment; filename="rejectradar-topic-pk-100-us+eu.pdf"');
+    expect(res.headers['content-disposition']).toBe('attachment; filename="rejectlens-topic-pk-100-us+eu.pdf"');
   });
 
   it('refuses a Free account with PLAN_UPGRADE_REQUIRED, as JSON', async () => {

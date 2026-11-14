@@ -4,9 +4,9 @@ import { createMailTransport, ResendTransport, SmtpTransport } from './transport
 
 /** A valid mail environment; `extra` overrides or adds variables. */
 const testEnv = (extra: Record<string, string> = {}) =>
-  parseEnv(mailEnvSchema, { NODE_ENV: 'test', APP_ORIGIN: 'http://localhost:4200', MAIL_FROM: 'RejectRadar <test@rejectradar.test>', ...extra });
+  parseEnv(mailEnvSchema, { NODE_ENV: 'test', APP_ORIGIN: 'http://localhost:4200', MAIL_FROM: 'RejectLens <test@rejectradar.test>', ...extra });
 
-const message = { from: 'RejectRadar <a@rejectradar.test>', to: 'sara@example.com', subject: 'Hello', html: '<p>Hello</p>', text: 'Hello' };
+const message = { from: 'RejectLens <a@rejectradar.test>', to: 'sara@example.com', subject: 'Hello', html: '<p>Hello</p>', text: 'Hello' };
 
 function resendStub(result: unknown) {
   const send = jest.fn().mockResolvedValue(result);

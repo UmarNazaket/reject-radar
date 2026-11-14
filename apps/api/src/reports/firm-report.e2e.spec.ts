@@ -79,7 +79,7 @@ describe('firm report PDF', () => {
     const { session, orgId } = await account();
     const res = await getPdf(session, fx.firms.zarfeen).expect(200);
     expect(res.headers['content-type']).toBe('application/pdf');
-    expect(res.headers['content-disposition']).toBe(`attachment; filename="rejectradar-firm-${fx.firms.zarfeen}.pdf"`);
+    expect(res.headers['content-disposition']).toBe(`attachment; filename="rejectlens-firm-${fx.firms.zarfeen}.pdf"`);
     expect(res.headers['cache-control']).toBe('no-store');
     const pdf = res.body as Buffer;
     expect(pdf.subarray(0, 5).toString('latin1')).toBe('%PDF-');
@@ -117,7 +117,7 @@ describe('firm report PDF', () => {
   it("gives a merged-away id the surviving firm's report, named after the survivor", async () => {
     const { session } = await account();
     const res = await getPdf(session, fx.firms.mergedAway).expect(200);
-    expect(res.headers['content-disposition']).toBe(`attachment; filename="rejectradar-firm-${fx.firms.zarfeen}.pdf"`);
+    expect(res.headers['content-disposition']).toBe(`attachment; filename="rejectlens-firm-${fx.firms.zarfeen}.pdf"`);
   });
 
   it('404s an unknown firm and a malformed id as JSON, charging nothing', async () => {

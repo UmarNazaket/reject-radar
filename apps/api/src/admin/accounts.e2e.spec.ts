@@ -13,7 +13,7 @@ describe('admin accounts and audit log', () => {
 
   beforeAll(async () => {
     t = await startTestApp('api_admin_accounts');
-    const staff = await signUpVerified(t, { email: 'staff@accounts.test', name: 'Hina Staff', company: 'RejectRadar' });
+    const staff = await signUpVerified(t, { email: 'staff@accounts.test', name: 'Hina Staff', company: 'RejectLens' });
     await t.db.update(appUser).set({ isPlatformAdmin: true }).where(eq(appUser.id, staff.userId));
     ({ session: admin, userId: adminId, orgId: adminOrg } = staff);
     ({ session: customer, orgId: customerOrg } = await signUpVerified(t, { email: 'sara@indus-agro.test', name: 'Sara Malik', company: 'Indus Agro' }));
@@ -44,7 +44,7 @@ describe('admin accounts and audit log', () => {
 
   it('finds an account by its name or a member email', async () => {
     const all = (await admin.get('/v1/admin/orgs').expect(200)).body as AdminOrgsResponse;
-    expect(all.items.map((o) => o.name)).toEqual(['Indus Agro', 'RejectRadar']);
+    expect(all.items.map((o) => o.name)).toEqual(['Indus Agro', 'RejectLens']);
     for (const q of ['indus', 'SARA@indus']) {
       const { items } = (await admin.get('/v1/admin/orgs').query({ q }).expect(200)).body as AdminOrgsResponse;
       expect(items).toEqual([expect.objectContaining({ id: customerOrg, name: 'Indus Agro', plan: 'free', source: 'free', members: 1 })]);

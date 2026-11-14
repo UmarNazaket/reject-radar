@@ -63,7 +63,7 @@ describe('alerts:run', () => {
   beforeEach(async () => {
     await db.execute(sql`truncate org, app_user, change_event, firm, firm_alias, job_cursor, email_delivery restart identity cascade`);
     transport = new RecordingTransport();
-    mailer = new Mailer({ db, transport, from: 'RejectRadar <alerts@app.test>' });
+    mailer = new Mailer({ db, transport, from: 'RejectLens <alerts@app.test>' });
   });
 
   const run = (opts: { mailer?: Mailer | null; batchSize?: number; now?: () => Date } = {}) =>
@@ -344,7 +344,7 @@ describe('alerts:run', () => {
       expect(result).toMatchObject({ alertsCreated: 2, emails: { sent: 2, paused: 0, failed: 0 } });
       expect(transport.sent.map((m) => m.to).sort()).toEqual([a.emails[0], a.emails[1]].sort());
       for (const message of transport.sent) {
-        expect(message.from).toBe('RejectRadar <alerts@app.test>');
+        expect(message.from).toBe('RejectLens <alerts@app.test>');
         expect(message.text).toContain('Zarfeen Rice Mills');
         expect(message.text).toContain('Indus Agro Exports');
         expect(message.text).toContain(`${APP_ORIGIN}/alerts`);

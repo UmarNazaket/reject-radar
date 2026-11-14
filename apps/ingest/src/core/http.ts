@@ -81,7 +81,7 @@ export function createFetcher(deps: FetcherDeps): Fetcher {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const now = deps.now ?? Date.now;
-  const userAgent = `RejectRadar data sync (${deps.contact})`;
+  const userAgent = `RejectLens data sync (${deps.contact})`;
   /** Earliest time each host has been reserved until; set before sleeping so concurrent callers queue up. */
   const nextSlot = new Map<string, number>();
 

@@ -44,7 +44,7 @@ export function renderLayout({ locale, title, bodyHtml }: LayoutInput): string {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="${dir}" style="background-color: ${LAYOUT_COLORS.page};">
 <tr><td align="center" style="padding: 24px 12px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" dir="${dir}" style="width: 600px; max-width: 100%; background-color: ${LAYOUT_COLORS.card}; border: 1px solid ${LAYOUT_COLORS.border}; border-radius: 8px;">
-<tr><td style="padding: 20px 28px; background-color: ${LAYOUT_COLORS.header}; border-radius: 8px 8px 0 0; ${text} font-size: 16px; font-weight: 700; color: #FFFFFF;">RejectRadar</td></tr>
+<tr><td style="padding: 20px 28px; background-color: ${LAYOUT_COLORS.header}; border-radius: 8px 8px 0 0; ${text} font-size: 16px; font-weight: 700; color: #FFFFFF;">RejectLens</td></tr>
 <tr><td style="padding: 28px; ${text} font-size: 15px; color: #3F4A5C;">
 ${bodyHtml}
 </td></tr>

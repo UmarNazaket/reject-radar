@@ -70,11 +70,11 @@ describe('catalogs', () => {
     }
   });
 
-  it('keeps RejectRadar in Latin script wherever English names it', () => {
+  it('keeps RejectLens in Latin script wherever English names it', () => {
     for (const locale of LOCALES) {
       for (const key of ENGLISH_KEYS) {
-        if (CATALOGS.en[key].includes('RejectRadar'))
-          expect(CATALOGS[locale][key]).toContain('RejectRadar');
+        if (CATALOGS.en[key].includes('RejectLens'))
+          expect(CATALOGS[locale][key]).toContain('RejectLens');
       }
     }
   });

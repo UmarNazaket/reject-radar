@@ -4,7 +4,7 @@ declare const API_ORIGIN: string;
 /** The full URL of an API path such as `/v1/me`. */
 export const apiUrl = (path: string): string => `${API_ORIGIN}${path}`;
 
-/** True for a request to the RejectRadar API. */
+/** True for a request to the RejectLens API. */
 export const isApiUrl = (url: string): boolean => url.startsWith(`${API_ORIGIN}/v1/`);
 
 /** The JSON body of an API error (`code` is stable; `message` is English). */

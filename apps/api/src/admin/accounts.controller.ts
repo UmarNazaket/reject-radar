@@ -22,7 +22,7 @@ import { UuidParamPipe } from '../common/uuid-param.pipe';
 import { ZodValidationPipe } from '../common/zod-pipe';
 import { AccountsService } from './accounts.service';
 
-/** Accounts and the audit log, for RejectRadar staff (P10). */
+/** Accounts and the audit log, for RejectLens staff (P10). */
 @Controller('admin')
 @PlatformAdmin()
 @RequireVerifiedEmail()

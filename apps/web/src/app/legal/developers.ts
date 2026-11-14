@@ -43,7 +43,7 @@ const ROUTES = [
       <article lang="en" dir="ltr" class="text-start">
         <h1 class="text-2xl font-semibold">Public API</h1>
         <p class="mt-2 text-slate-700">
-          Business and Enterprise accounts can read RejectRadar from their own systems. Every route is read-only and answers with the same JSON as the
+          Business and Enterprise accounts can read RejectLens from their own systems. Every route is read-only and answers with the same JSON as the
           web app.
         </p>
 

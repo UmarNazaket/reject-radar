@@ -20,12 +20,12 @@ const countryName = (code: string): string => {
   }
 };
 
-/** The file name of a topic report: `rejectradar-topic-<origin>-<commodity id or all>-<destinations joined by + or all>.pdf`, lower-cased. */
+/** The file name of a topic report: `rejectlens-topic-<origin>-<commodity id or all>-<destinations joined by + or all>.pdf`, lower-cased. */
 export function topicFileName(query: DashboardQuery): string {
   const commodity = query.commodity === undefined ? 'all' : String(query.commodity);
   const destinations = query.destination === undefined ? 'all' : query.destination.join('+');
   // The query is validated (two capital letters, digits, the four destination codes), so nothing here needs quoting.
-  return `rejectradar-topic-${query.origin}-${commodity}-${destinations}.pdf`.toLowerCase();
+  return `rejectlens-topic-${query.origin}-${commodity}-${destinations}.pdf`.toLowerCase();
 }
 
 /** The one-page topic PDF (spec §9.9, P6-D12): the dashboard's figures, no lookup. */

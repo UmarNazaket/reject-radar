@@ -56,7 +56,7 @@ async function withDeps<T>(env: IngestEnv, run: (deps: Awaited<ReturnType<typeof
   }
 }
 
-const program = new Command().name('rejectradar-ingest').description('RejectRadar data ingestion CLI');
+const program = new Command().name('rejectradar-ingest').description('RejectLens data ingestion CLI');
 
 program
   .command('verify-source')

@@ -3,7 +3,7 @@ import type { AdminSourcesResponse } from '@rejectradar/contracts';
 import { PlatformAdmin, RequireVerifiedEmail } from '../auth/decorators';
 import { SourcesService } from './sources.service';
 
-/** Source health for RejectRadar staff (P10). */
+/** Source health for RejectLens staff (P10). */
 @Controller('admin/sources')
 @PlatformAdmin()
 @RequireVerifiedEmail()

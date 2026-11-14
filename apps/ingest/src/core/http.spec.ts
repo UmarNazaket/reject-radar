@@ -101,7 +101,7 @@ describe('createFetcher', () => {
   it('sends the contact User-Agent', async () => {
     const { fetcher, calls } = setup([ok()]);
     await fetcher('https://data.gov.au/x', { headers: { 'User-Agent': 'spoof', Accept: 'text/csv' } });
-    expect(calls[0].init.headers).toMatchObject({ 'User-Agent': 'RejectRadar data sync (ops@example.com)', Accept: 'text/csv' });
+    expect(calls[0].init.headers).toMatchObject({ 'User-Agent': 'RejectLens data sync (ops@example.com)', Accept: 'text/csv' });
     expect(calls[0].init.redirect).toBe('manual');
   });
 

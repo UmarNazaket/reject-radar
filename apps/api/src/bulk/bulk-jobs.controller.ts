@@ -86,7 +86,7 @@ export class BulkJobsController {
 
   @Get('template.csv')
   @Header('Content-Type', 'text/csv; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="rejectradar-bulk-template.csv"')
+  @Header('Content-Disposition', 'attachment; filename="rejectlens-bulk-template.csv"')
   template(): string {
     return TEMPLATE_CSV;
   }

@@ -8,7 +8,7 @@ describe('translate', () => {
         inviterName: 'Sara',
         orgName: 'Zarfeen',
       }),
-    ).toBe('Sara invited you to Zarfeen on RejectRadar');
+    ).toBe('Sara invited you to Zarfeen on RejectLens');
   });
 
   it('returns the Urdu text', () => {

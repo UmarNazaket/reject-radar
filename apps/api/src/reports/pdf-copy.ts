@@ -3,7 +3,7 @@
  * catalogs. The words "clean" and "safe" never appear (spec §8.3); charge text quoted from FDA is the agency's own.
  */
 export const PDF_COPY = {
-  product: 'RejectRadar',
+  product: 'RejectLens',
   firmReport: 'Firm report',
   preparedFor: 'Prepared for',
   generatedOn: 'Generated',
@@ -82,7 +82,7 @@ export const PDF_COPY = {
   redList: 'Red',
   greenList: 'Green',
   /** Said once on a report that quotes FDA's charge text. */
-  agencyWording: 'Text in quotation marks is the agency’s own wording, not RejectRadar’s.',
+  agencyWording: 'Text in quotation marks is the agency’s own wording, not RejectLens’s.',
   emptyRecords: 'No records on file.',
   notDated: 'Not dated',
 
@@ -135,5 +135,5 @@ export const PDF_COPY = {
   } as Readonly<Record<'US' | 'EU' | 'UK' | 'AU', string>>,
 
   disclaimer:
-    'RejectRadar reports what agencies published. It is not legal, regulatory or laboratory advice. A refusal or listing is an agency action based on how a shipment appeared, not a court finding. RejectRadar is not affiliated with the FDA or DAFF. Check each record on the agency’s site before acting on it.',
+    'RejectLens reports what agencies published. It is not legal, regulatory or laboratory advice. A refusal or listing is an agency action based on how a shipment appeared, not a court finding. RejectLens is not affiliated with the FDA or DAFF. Check each record on the agency’s site before acting on it.',
 } as const;

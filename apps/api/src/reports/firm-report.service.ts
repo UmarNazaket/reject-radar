@@ -36,6 +36,6 @@ export class FirmReportService {
   /** The PDF and its file name, which carries the surviving firm's id. */
   async build(ctx: Pick<RequestContext, 'orgId'>, firmId: number): Promise<{ fileName: string; pdf: Buffer }> {
     const { doc, profile } = await this.document(ctx, firmId);
-    return { fileName: `rejectradar-firm-${profile.id}.pdf`, pdf: await this.renderer.render('firm', doc) };
+    return { fileName: `rejectlens-firm-${profile.id}.pdf`, pdf: await this.renderer.render('firm', doc) };
   }
 }

@@ -19,7 +19,7 @@ import { PositiveIntParamPipe } from '../common/int-param.pipe';
 import { ZodValidationPipe } from '../common/zod-pipe';
 import { FirmToolsService } from './firm-tools.service';
 
-/** Match review and the firm merge and split tools, for RejectRadar staff (P10). */
+/** Match review and the firm merge and split tools, for RejectLens staff (P10). */
 @Controller('admin')
 @PlatformAdmin()
 @RequireVerifiedEmail()

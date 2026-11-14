@@ -98,7 +98,7 @@ export class BulkJobs {
   }
 
   protected downloadTemplate(): void {
-    void this.upload.run(() => downloadFile(this.http, apiUrl('/v1/bulk-jobs/template.csv'), new HttpParams(), 'rejectradar-bulk-template.csv'));
+    void this.upload.run(() => downloadFile(this.http, apiUrl('/v1/bulk-jobs/template.csv'), new HttpParams(), 'rejectlens-bulk-template.csv'));
   }
 
   /** Sends the chosen file as the request body; the API reads it as it arrives and answers with the new job. */

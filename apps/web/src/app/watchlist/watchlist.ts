@@ -165,7 +165,7 @@ export class Watchlist {
   }
 
   protected exportCsv(): void {
-    void this.action.run(() => downloadFile(this.http, apiUrl('/v1/watchlist/export.csv'), new HttpParams(), 'rejectradar-watchlist.csv'));
+    void this.action.run(() => downloadFile(this.http, apiUrl('/v1/watchlist/export.csv'), new HttpParams(), 'rejectlens-watchlist.csv'));
   }
 
 }

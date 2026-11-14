@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Read-only smoke check of a deployed RejectRadar (P11): API readiness, the plan list, a sign-in, a notice search and a
+// Read-only smoke check of a deployed RejectLens (P11): API readiness, the plan list, a sign-in, a notice search and a
 // firm search, and optionally the web app. Usage, with SMOKE_EMAIL and SMOKE_PASSWORD set to a smoke account:
 //   node tools/smoke/check.mjs --base <api origin> [--web <web origin>] [--firm <name>]
 // No dependencies: Node 20+ `fetch`. Exits 1 when any check fails.
@@ -128,7 +128,7 @@ function checks(args) {
         const main = html.match(/src="(main-[\w-]+\.js)"/)?.[1];
         assert(
           html.includes('<app-root') && main,
-          'not the RejectRadar web app',
+          'not the RejectLens web app',
         );
         assert(
           (await expectStatus(`${args.web}/${main}`, 200)).includes(args.base),

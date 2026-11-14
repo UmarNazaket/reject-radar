@@ -17,13 +17,13 @@ export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
     sections: [
       {
         heading: 'Who we are',
-        paragraphs: ['RejectRadar is operated by [legal entity name], [registered address].', CONTACT],
+        paragraphs: ['RejectLens is operated by [legal entity name], [registered address].', CONTACT],
       },
       {
         heading: 'The service',
         paragraphs: [
-          'RejectRadar shows public food-safety records published by government agencies, such as US FDA import refusals and Import Alerts, EU RASFF notifications, UK border notifications, Australian failed import tests and EU pesticide limits, and links them to the firms they name.',
-          "Records are shown as the agencies publish them, each with a link to the agency's own record. RejectRadar does not score, certify or interpret them.",
+          'RejectLens shows public food-safety records published by government agencies, such as US FDA import refusals and Import Alerts, EU RASFF notifications, UK border notifications, Australian failed import tests and EU pesticide limits, and links them to the firms they name.',
+          "Records are shown as the agencies publish them, each with a link to the agency's own record. RejectLens does not score, certify or interpret them.",
         ],
       },
       {
@@ -140,7 +140,7 @@ export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
       {
         heading: 'Facts as published',
         paragraphs: [
-          "RejectRadar shows records that government agencies publish: the US FDA, the European Commission (RASFF and the EU Pesticides Database), the UK Food Standards Agency and the Australian Department of Agriculture. Each record links to the agency's own notice. RejectRadar does not add to, score or interpret them.",
+          "RejectLens shows records that government agencies publish: the US FDA, the European Commission (RASFF and the EU Pesticides Database), the UK Food Standards Agency and the Australian Department of Agriculture. Each record links to the agency's own notice. RejectLens does not add to, score or interpret them.",
         ],
       },
       {
@@ -152,17 +152,17 @@ export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
       {
         heading: 'Delays and errors',
         paragraphs: [
-          "Agencies publish on their own schedules and sometimes change or withdraw records, and RejectRadar reads each source daily, weekly or monthly, so a record can appear here late. Records are linked to firms by matching names and numbers, which can be wrong. Check the agency's own record before you act on it.",
+          "Agencies publish on their own schedules and sometimes change or withdraw records, and RejectLens reads each source daily, weekly or monthly, so a record can appear here late. Records are linked to firms by matching names and numbers, which can be wrong. Check the agency's own record before you act on it.",
         ],
       },
       {
         heading: 'Names as published',
-        paragraphs: ['Some agencies publish sole traders under their own names. RejectRadar shows those names exactly as published and adds nothing about the person.'],
+        paragraphs: ['Some agencies publish sole traders under their own names. RejectLens shows those names exactly as published and adds nothing about the person.'],
       },
       {
         heading: 'Corrections',
         paragraphs: [
-          'If a record is linked to the wrong firm, or a firm is described wrongly, report it from the firm profile. RejectRadar corrects its own links; only the agency that published a record can change the record itself.',
+          'If a record is linked to the wrong firm, or a firm is described wrongly, report it from the firm profile. RejectLens corrects its own links; only the agency that published a record can change the record itself.',
           CONTACT,
         ],
       },

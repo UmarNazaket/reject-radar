@@ -65,7 +65,7 @@ describe('digest:send', () => {
   beforeEach(async () => {
     await db.execute(sql`truncate org, app_user, change_event, firm, email_delivery restart identity cascade`);
     transport = new RecordingTransport();
-    mailer = new Mailer({ db, transport, from: 'RejectRadar <alerts@app.test>' });
+    mailer = new Mailer({ db, transport, from: 'RejectLens <alerts@app.test>' });
   });
 
   const run = (now: Date) => sendDigests({ db, mailer, appOrigin: APP_ORIGIN, now: () => now });
@@ -163,7 +163,7 @@ describe('digest:send', () => {
     expect(result).toEqual({ users: 2, sent: 2, paused: 0, failed: 0, empty: 0 });
     const first = transport.sent.find((m) => m.to === a.emails[0]);
     const second = transport.sent.find((m) => m.to === a.emails[1]);
-    expect(first?.from).toBe('RejectRadar <alerts@app.test>');
+    expect(first?.from).toBe('RejectLens <alerts@app.test>');
     expect(countOf(first?.text ?? '', 'Zarfeen Rice Mills')).toBe(2); // group title + item
     expect(first?.text).toContain('Indus Agro Exports');
     expect(first?.text).toContain(`${APP_ORIGIN}/alerts`);
@@ -210,7 +210,7 @@ describe('digest:send', () => {
     const monday = await run(MONDAY);
     expect(monday).toEqual({ users: 1, sent: 1, paused: 0, failed: 0, empty: 0 });
     expect(transport.sent).toHaveLength(1);
-    expect(transport.sent[0].subject).toBe('Your weekly RejectRadar digest');
+    expect(transport.sent[0].subject).toBe('Your weekly RejectLens digest');
     expect(transport.sent[0].text).toContain('Weekly Foods');
     expect(transport.sent[0].text).not.toContain('Too Old Foods');
     expect((await prefOf(a.userIds[0])).lastDigestAt).toEqual(windowEnd(MONDAY));

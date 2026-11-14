@@ -35,7 +35,7 @@ describe('Mailer', () => {
   beforeAll(async () => {
     pool = createPool(await prepareTestDatabase('mail'));
     db = createDb(pool);
-    mailer = new Mailer({ db, transport, from: 'RejectRadar <test@rejectradar.test>', onError: (info) => errors.push(info) });
+    mailer = new Mailer({ db, transport, from: 'RejectLens <test@rejectradar.test>', onError: (info) => errors.push(info) });
   });
 
   afterAll(async () => {
@@ -65,7 +65,7 @@ describe('Mailer', () => {
 
   it('records a sent email', async () => {
     await expect(send('verify')).resolves.toBe('sent');
-    expect(transport.sent).toEqual([expect.objectContaining({ to: 'sara@example.com', ...CONTENT, from: 'RejectRadar <test@rejectradar.test>' })]);
+    expect(transport.sent).toEqual([expect.objectContaining({ to: 'sara@example.com', ...CONTENT, from: 'RejectLens <test@rejectradar.test>' })]);
     expect(await rows()).toEqual([
       { kind: 'verify', status: 'sent', provider_id: 'fake-1', error: null, to_email: 'sara@example.com', user_id: null },
     ]);

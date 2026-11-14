@@ -89,6 +89,12 @@ describe('Australian failing-food parsing', () => {
     expect(june[0]).toMatchObject({ failedOn: '2026-06-01', productDesc: 'Gorgonzola cheese', countryCode: 'IT', scheme: 'risk', reportMonth: '2026-06-01' });
   });
 
+  it('reads August 2026, whose results column is headed "Results\\units"', () => {
+    const august = parseAuCsv(fixture('august-2026.csv'), '2026-08-01');
+    expect(august).toHaveLength(28);
+    expect(august[0]).toMatchObject({ failedOn: '2026-08-06', productDesc: 'Cooked prawn meat', countryCode: 'VN', resultText: '0.002 mg/kg, 0.005 mg/kg', scheme: 'risk' });
+  });
+
   it('fills the producer name for every record', () => {
     for (const [file, month, expected] of [['july-2026.csv', '2026-07-01', 22], ['june-2026.csv', '2026-06-01', 31], ['may-2026.csv', '2026-05-01', 44]] as const) {
       const records = parseAuCsv(fixture(file), month);
@@ -107,6 +113,7 @@ describe('Australian failing-food parsing', () => {
     ['March 2022 (no spaces around the slash)', 'Date of fail,Product description,Country of origin,Producer name,Test applied/ reason for fail,Results/Units,Reference,Food category'],
     ['July 2024 (typo)', 'Date of Fail,Product Description,County Of Origin,Producer Name,Test applied / Reason for Fail,Results/Units,Reference Critera,Food category'],
     ['October 2024 (Standard)', 'Date of Fail,Product Description,County Of Origin,Producer Name,Reason for Fail,Results,Standard,Referral Category'],
+    ['August 2026 (backslash)', 'Date of Fail ,Product Description,County Of Origin,Producer Name,Test applied / reason for fail,Results\\units,Reference criteria,Food category'],
   ])('accepts the live header spelling of %s', (_, header) => {
     const [first] = parseAuCsv(`${header}\n5/07/2026,Chilli powder,India,Mr Agro,Salmonella detected,Detected/125g,FSC 1.6.1,Risk\n`, '2026-07-01');
     expect(first).toMatchObject({ productDesc: 'Chilli powder', testApplied: 'Salmonella detected', resultText: 'Detected/125g', scheme: 'risk' });

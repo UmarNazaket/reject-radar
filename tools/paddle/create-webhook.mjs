@@ -22,14 +22,14 @@ const USAGE = `Usage: node tools/paddle/create-webhook.mjs --url <https webhook 
 
 Creates a Paddle notification destination for the five events the API handles.
   --url           the public HTTPS URL of POST /v1/webhooks/paddle (required)
-  --description   the destination's name in the Paddle dashboard (default "RejectRadar webhook")
+  --description   the destination's name in the Paddle dashboard (default "RejectLens webhook")
   --show-secret   also print the endpoint secret (otherwise only where to find it)
   --production    allow a live API key (pdl_live_apikey_...); without it only a sandbox key is accepted
   --help          this text`;
 
 function parseArgs(argv) {
   const args = {
-    description: 'RejectRadar webhook',
+    description: 'RejectLens webhook',
     showSecret: false,
     production: false,
     help: false,
