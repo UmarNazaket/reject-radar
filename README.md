@@ -353,6 +353,7 @@ tools/
   smoke.yml    the smoke check of production or staging, on demand
   migrate.yml  applies pending migrations to the database the jobs use, on demand
   staff-admin.yml  makes a signed-up person a staff admin, on demand
+  production-db.yml  migrates the production database and copies staging's reference data into it, once before launch
   backfill.yml manual full loads
 docker-compose.yml  Postgres 18 and Mailpit for local development
 ```
@@ -500,8 +501,8 @@ Production copies staging's shape on the same providers: the web app at `https:/
 ### 2. Set up production
 
 1. **Paddle live**, which takes days, so start first: send the business details (Umar Nazaket, sole trader, Pakistan) and the V9 answers for approval (Paddle reviews the legal pages, which are final), then create the live products and four prices, a live client-side token, and the live webhook with `node tools/paddle/create-webhook.mjs --production --url https://rejectlens-api.umarnazaket.com/v1/webhooks/paddle`. Set payment recovery to cancel, as in the sandbox.
-2. **Neon:** create the production project and migrate it with its direct connection string, as in step 1.1.
-3. **Reference data:** copy it from staging instead of crawling every source again. With `pg_dump` and `pg_restore` 18:
+2. **Neon:** create the production project (`rejectlens-production`, AWS Singapore, Postgres 18) and put its direct connection string in the `PRODUCTION_DATABASE_URL` repository secret.
+3. **Migrate and copy the reference data:** run the **Set up production database** workflow and type `copy`. It migrates production, copies staging's reference data instead of crawling every source again, and compares the row counts; it refuses a production database that already holds notices. It does what these commands do by hand, with `pg_dump` and `pg_restore` 18:
 
    ```sh
    pg_dump "$STAGING_DIRECT_URL" -Fc --data-only -f reference.dump $(printf -- '-t public.%s ' commodity commodity_rule hazard hazard_rule fda_charge_code fda_refusal rasff_notification uk_border_notification au_failing_food eu_pesticide_residue eu_mrl_product eu_mrl import_alert import_alert_listing import_alert_listing_product import_alert_summary firm firm_fei firm_alias match_review notice change_event job_cursor source_file source_sync_run)
@@ -514,7 +515,7 @@ Production copies staging's shape on the same providers: the web app at `https:/
 4. **Resend:** verify the production sender domain (SPF and DKIM records) and create a sending-only key.
 5. **Render:** run **Promote to production** once first, so the `release` branch exists. Then create a new web service from this repository in Singapore, on the Starter instance, deploying `release` automatically, with the staging service's build and start commands. Set every variable afresh, never copied from staging: `NODE_ENV=production`, the pooled `DATABASE_URL`, a new `JWT_SECRET` (`npm run secret`), `APP_ORIGIN=https://rejectlens.umarnazaket.com`, `MAIL_TRANSPORT=resend`, `RESEND_API_KEY`, `MAIL_FROM` on the verified domain, `TRUST_PROXY_HOPS` as on staging, and the live Paddle values with `PADDLE_ENV=production`. Add the custom domain `rejectlens-api.umarnazaket.com`.
 6. **Cloudflare Pages:** a second project from this repository with production branch `release`, build command `npx -y npm@11.12.1 ci && npx nx build web`, output `dist/apps/web/browser` and `SKIP_DEPENDENCY_INSTALL` set, as on staging. Turn off its preview deployments (the staging project already builds every branch) and add the custom domain `rejectlens.umarnazaket.com`.
-7. **GitHub:** point the `INGEST_DATABASE_URL` secret at production's direct string, and `APP_ORIGIN`, `MAIL_FROM` and `RESEND_API_KEY` at production's values. From then on every scheduled job writes to production only; staging keeps the data it has. To refresh it, copy production's reference data into a freshly migrated staging database the same way.
+7. **GitHub:** point the `INGEST_DATABASE_URL` secret at production's direct string (the same value as `PRODUCTION_DATABASE_URL`), and `APP_ORIGIN`, `MAIL_FROM` and `RESEND_API_KEY` at production's values. From then on every scheduled job writes to production only; staging keeps the data it has. To refresh it, copy production's reference data into a freshly migrated staging database the same way.
 8. **People:** sign up the staff accounts on production and make them admins, and sign up the smoke account with the same email and password as on staging.
 
 ### 3. Launch day
