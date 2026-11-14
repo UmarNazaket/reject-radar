@@ -1,4 +1,4 @@
-/** A legal page: its English title and sections. Square brackets mark what the owner still has to fill in. */
+/** A legal page: its English title and sections. */
 export interface LegalText {
   title: string;
   /** True until the owner's final text replaces the draft; the page then says it is not yet in force. */
@@ -8,16 +8,16 @@ export interface LegalText {
 
 export type LegalPage = 'terms' | 'privacy' | 'refunds' | 'disclaimer';
 
-const CONTACT = 'Contact: [contact email address].';
+const CONTACT = 'Contact: support@umarnazaket.com.';
 
 export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
   terms: {
     title: 'Terms of service',
-    draft: true,
+    draft: false,
     sections: [
       {
         heading: 'Who we are',
-        paragraphs: ['RejectLens is operated by [legal entity name], [registered address].', CONTACT],
+        paragraphs: ['RejectLens is operated by Umar Nazaket, a sole trader based in Pakistan.', CONTACT],
       },
       {
         heading: 'The service',
@@ -55,21 +55,28 @@ export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
         heading: 'Suspension',
         paragraphs: ['We may deactivate an account that breaks these terms, after telling its owner when we can.'],
       },
-      { heading: 'Liability', paragraphs: ['[To be completed with legal advice.]'] },
+      {
+        heading: 'Liability',
+        paragraphs: [
+          'RejectLens is provided as it is. We work to keep it available and its records and links correct, but we do not promise that it is uninterrupted, complete or free of errors.',
+          'As far as the law allows, we are not liable for indirect or consequential loss arising from your use of the service, such as lost profit, lost business or a rejected shipment, and our total liability for any claim is limited to what you paid us in the 12 months before it.',
+          'Nothing in these terms limits a liability that the law does not allow to be limited.',
+        ],
+      },
       {
         heading: 'Changes',
         paragraphs: ['We email account owners before a material change to these terms takes effect.'],
       },
-      { heading: 'Governing law', paragraphs: ['[Jurisdiction.]'] },
+      { heading: 'Governing law', paragraphs: ['These terms are governed by the laws of Pakistan, and the courts of Pakistan decide any dispute about them.'] },
     ],
   },
   privacy: {
     title: 'Privacy policy',
-    draft: true,
+    draft: false,
     sections: [
       {
         heading: 'Who is responsible',
-        paragraphs: ['[Legal entity name], [registered address], is responsible for your personal data.', CONTACT],
+        paragraphs: ['Umar Nazaket, a sole trader based in Pakistan, is responsible for your personal data.', CONTACT],
       },
       {
         heading: 'What we collect',
@@ -98,7 +105,7 @@ export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
         heading: 'How long we keep it',
         paragraphs: [
           'Your account data, for as long as the account exists. Bulk screening rows are deleted 30 days after the job finishes, and email delivery records after 90 days.',
-          '[How soon an account is deleted after a request.]',
+          'When you ask us to delete your account, we delete it and its personal data within 30 days, except records we must keep for tax or legal reasons. The nightly backups that still hold it expire within a further 30 days.',
         ],
       },
       {
@@ -113,7 +120,7 @@ export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
   },
   refunds: {
     title: 'Refund policy',
-    draft: true,
+    draft: false,
     sections: [
       {
         heading: 'Payments',
@@ -121,7 +128,10 @@ export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
       },
       {
         heading: 'Refunds',
-        paragraphs: ['[The refund window and conditions, for example: a full refund within 14 days of a charge.]'],
+        paragraphs: [
+          'You can get a full refund of any charge within 14 days of it, for any reason. Paddle returns the money to the payment method you used.',
+          'After 14 days a charge is not refunded, but you can cancel at any time to stop the next renewal.',
+        ],
       },
       {
         heading: 'How to ask',
@@ -135,7 +145,7 @@ export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
   },
   disclaimer: {
     title: 'Disclaimer',
-    draft: true,
+    draft: false,
     sections: [
       {
         heading: 'Facts as published',
