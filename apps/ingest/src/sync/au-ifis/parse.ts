@@ -11,7 +11,8 @@ export const AU_PACKAGE_URL = 'https://data.gov.au/data/api/3/action/package_sho
 export type AuField = 'category' | 'failedOn' | 'product' | 'country' | 'producer' | 'test' | 'reason' | 'result' | 'units' | 'reference' | 'holdingOrder';
 
 /**
- * Every header spelling seen so far, lower-cased and trimmed, with one space each side of a slash. The department
+ * Every header spelling seen so far, lower-cased and trimmed, with one space each side of a slash (August 2026 writes
+ * "Results\units" with a backslash, read as a slash). The department
  * renames columns from month to month ("County of origin" became "Country of origin", "Food category" became "Referral
  * category", "Reference" became "Reference criteria" and, once, "Standard" or "Reference Critera"). Until February 2022
  * the test applied and the reason for fail had columns of their own, and so did the results ("Result/s") and the units.
@@ -97,7 +98,7 @@ const headerKey = (cell: string): string =>
   cell
     .trim()
     .replace(/\s+/g, ' ')
-    .replace(/ ?\/ ?/g, ' / ')
+    .replace(/ ?[/\\] ?/g, ' / ')
     .toLowerCase();
 
 /** A row naming at least two known columns is a header row; a record never does. */
