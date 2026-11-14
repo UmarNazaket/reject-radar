@@ -30,7 +30,7 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
           if [ "$ENVIRONMENT" = production ]; then
-            node tools/smoke/check.mjs --base https://rejectradar-api.umarnazaket.com --web https://rejectradar.umarnazaket.com
+            node tools/smoke/check.mjs --base https://rejectlens-api.umarnazaket.com --web https://rejectlens.umarnazaket.com
           else
             node tools/smoke/check.mjs --base https://rejectradar-staging-api.umarnazaket.com --web https://rejectradar-staging.umarnazaket.com
           fi

@@ -49,7 +49,7 @@
           ],
           "outputHashing": "all",
           "define": {
-            "API_ORIGIN": "'https://rejectradar-api.umarnazaket.com'"
+            "API_ORIGIN": "'https://rejectlens-api.umarnazaket.com'"
           }
         },
         "staging": {

@@ -4,7 +4,7 @@ RejectLens shows food exporters and importers which shipments are refused at US,
 
 The product reports what agencies published. It gives no risk score and no legal, regulatory or laboratory advice.
 
-The product was called RejectRadar until November 2026. Internal identifiers keep the old name: the `@rejectradar/*` packages, the `X-RejectRadar-CSRF` header, the database names and the `rejectradar` domains.
+The product was called RejectRadar until November 2026. Internal identifiers keep the old name: the `@rejectradar/*` packages, the `X-RejectRadar-CSRF` header, the database names, the staging hosts (`rejectradar-staging…`) and the email sending domain (`alerts@rejectradar.umarnazaket.com`). Production runs at `rejectlens.umarnazaket.com` and `rejectlens-api.umarnazaket.com`.
 
 ## Why
 
@@ -396,9 +396,9 @@ Locally, `npx nx serve api` sends account emails to Mailpit, whose inbox is at h
 | ------------------------------------------ | ---------------------------------------------------------------------------------- |
 | `npx nx serve web`                         | `/v1` on the same origin, proxied to `localhost:3000` (`apps/web/proxy.conf.json`) |
 | `npx nx build web --configuration=staging` | `https://rejectradar-staging-api.umarnazaket.com`                                  |
-| `npx nx build web` (production)            | `https://rejectradar-api.umarnazaket.com`                                          |
+| `npx nx build web` (production)            | `https://rejectlens-api.umarnazaket.com`                                           |
 
-Cloudflare Pages deploys `main` as the staging site and every other branch as a preview. A second Pages project, for production, deploys only the `release` branch with `npx -y npm@11.12.1 ci && npx nx build web`, at `rejectradar.umarnazaket.com` (see "Releases and rollback"). It builds with `npx -y npm@11.12.1 ci && npx nx build web --configuration=staging` on the Node version in `.nvmrc` and publishes `dist/apps/web/browser`. The project sets `SKIP_DEPENDENCY_INSTALL`, so the build command installs the dependencies itself, with npm 11, because the build image's npm 10 rejects this lockfile; keep that npm version in step with the one that writes `package-lock.json`. `apps/web/public/_redirects` sends each browser-rendered route to `index.csr.html`, written `/index.csr` because Pages redirects a `.html` path to its extensionless form; Pages applies such a rule even where a file exists, so the pre-rendered pages are not listed (a spec checks both against the routes). Any other path serves the root page, so deep links work. The API's `APP_ORIGIN` must be the web app's origin exactly, for CORS and the links in emails.
+Cloudflare Pages deploys `main` as the staging site and every other branch as a preview. A second Pages project, for production, deploys only the `release` branch with `npx -y npm@11.12.1 ci && npx nx build web`, at `rejectlens.umarnazaket.com` (see "Releases and rollback"). It builds with `npx -y npm@11.12.1 ci && npx nx build web --configuration=staging` on the Node version in `.nvmrc` and publishes `dist/apps/web/browser`. The project sets `SKIP_DEPENDENCY_INSTALL`, so the build command installs the dependencies itself, with npm 11, because the build image's npm 10 rejects this lockfile; keep that npm version in step with the one that writes `package-lock.json`. `apps/web/public/_redirects` sends each browser-rendered route to `index.csr.html`, written `/index.csr` because Pages redirects a `.html` path to its extensionless form; Pages applies such a rule even where a file exists, so the pre-rendered pages are not listed (a spec checks both against the routes). Any other path serves the root page, so deep links work. The API's `APP_ORIGIN` must be the web app's origin exactly, for CORS and the links in emails.
 
 The public `/terms`, `/privacy` and `/refunds` pages, linked at the foot of the sign-in screens and the pricing page, show the English text in `apps/web/src/app/legal/legal-text.ts`. The text is final (`draft: false`): RejectLens is run by Umar Nazaket as a sole trader in Pakistan, with a 14-day full refund and `support@umarnazaket.com` for contact. A page set back to `draft: true` says it is not yet in force.
 
@@ -406,7 +406,7 @@ The public `/terms`, `/privacy` and `/refunds` pages, linked at the foot of the 
 
 ### Releases and rollback
 
-`main` deploys to staging on every merge; production (the Render service and the Pages project for `rejectradar.umarnazaket.com`) deploys the `release` branch. To release:
+`main` deploys to staging on every merge; production (the Render service and the Pages project for `rejectlens.umarnazaket.com`) deploys the `release` branch. To release:
 
 1. Check the commit on staging: CI green, the nightly E2E run green, and the screens you changed by hand.
 2. Run the **Promote to production** workflow (Actions tab), optionally with the commit to release. It refuses a commit that is not on `main` or whose CI did not pass, and only moves `release` forward.
@@ -419,12 +419,12 @@ To roll back, use "Rollback" on the previous deploy in Render and in Cloudflare 
 `tools/smoke/check.mjs` checks a running API with read-only requests: `/v1/health/ready`, the plan list with its Paddle prices, a sign-in, a notice search and a firm search that must each find something, and a sign-out. With `--web` it also checks that the web app loads and was built for that API. It reads the account from `SMOKE_EMAIL` and `SMOKE_PASSWORD` and exits 1 if any check fails.
 
 ```sh
-SMOKE_EMAIL=… SMOKE_PASSWORD=… node tools/smoke/check.mjs --base https://rejectradar-api.umarnazaket.com --web https://rejectradar.umarnazaket.com
+SMOKE_EMAIL=… SMOKE_PASSWORD=… node tools/smoke/check.mjs --base https://rejectlens-api.umarnazaket.com --web https://rejectlens.umarnazaket.com
 ```
 
 - The E2E workflow runs it against the seeded local API before Playwright.
 - The **Smoke check** workflow (on demand) runs it against production or staging. It needs the `SMOKE_EMAIL` and `SMOKE_PASSWORD` repository secrets: a verified, free-plan smoke account with the same email and password on both, used for nothing else.
-- Uptime: two free checks (UptimeRobot or Better Stack, every 5 minutes, alerting the owner by email) watch `https://rejectradar-api.umarnazaket.com/v1/health/ready`, which fails when the database is unreachable, and `https://rejectradar.umarnazaket.com/`. The scheduled workflows email the owner when they fail (GitHub's own notification setting).
+- Uptime: two free checks (UptimeRobot or Better Stack, every 5 minutes, alerting the owner by email) watch `https://rejectlens-api.umarnazaket.com/v1/health/ready`, which fails when the database is unreachable, and `https://rejectlens.umarnazaket.com/`. The scheduled workflows email the owner when they fail (GitHub's own notification setting).
 
 ### Common commands
 
@@ -488,7 +488,7 @@ Alerts depend on that. `alerts:run` reads change events in order and moves its c
 
 ## Launch runbook
 
-Production copies staging's shape on the same providers: the web app at `https://rejectradar.umarnazaket.com` (Cloudflare Pages), the API at `https://rejectradar-api.umarnazaket.com` (Render, Singapore, an always-on Starter instance), its own Neon project (Singapore, Postgres 18), Resend on a verified domain and live Paddle. Both production hosts deploy the `release` branch (see "Releases and rollback"). Nothing is done on production before it has passed on staging. Do the steps in this order.
+Production copies staging's shape on the same providers: the web app at `https://rejectlens.umarnazaket.com` (Cloudflare Pages), the API at `https://rejectlens-api.umarnazaket.com` (Render, Singapore, an always-on Starter instance), its own Neon project (Singapore, Postgres 18), Resend on a verified domain and live Paddle. Both production hosts deploy the `release` branch (see "Releases and rollback"). Nothing is done on production before it has passed on staging. Do the steps in this order.
 
 ### 1. Finish staging
 
@@ -499,7 +499,7 @@ Production copies staging's shape on the same providers: the web app at `https:/
 
 ### 2. Set up production
 
-1. **Paddle live**, which takes days, so start first: send the business details (Umar Nazaket, sole trader, Pakistan) and the V9 answers for approval (Paddle reviews the legal pages, which are final), then create the live products and four prices, a live client-side token, and the live webhook with `node tools/paddle/create-webhook.mjs --production --url https://rejectradar-api.umarnazaket.com/v1/webhooks/paddle`. Set payment recovery to cancel, as in the sandbox.
+1. **Paddle live**, which takes days, so start first: send the business details (Umar Nazaket, sole trader, Pakistan) and the V9 answers for approval (Paddle reviews the legal pages, which are final), then create the live products and four prices, a live client-side token, and the live webhook with `node tools/paddle/create-webhook.mjs --production --url https://rejectlens-api.umarnazaket.com/v1/webhooks/paddle`. Set payment recovery to cancel, as in the sandbox.
 2. **Neon:** create the production project and migrate it with its direct connection string, as in step 1.1.
 3. **Reference data:** copy it from staging instead of crawling every source again. With `pg_dump` and `pg_restore` 18:
 
@@ -512,8 +512,8 @@ Production copies staging's shape on the same providers: the web app at `https:/
    The truncate clears the taxonomy the migrations seeded, so staging's rules replace it. No account table is copied. `pg_dump` warns about `commodity`'s link to itself; the restore still works.
 
 4. **Resend:** verify the production sender domain (SPF and DKIM records) and create a sending-only key.
-5. **Render:** run **Promote to production** once first, so the `release` branch exists. Then create a new web service from this repository in Singapore, on the Starter instance, deploying `release` automatically, with the staging service's build and start commands. Set every variable afresh, never copied from staging: `NODE_ENV=production`, the pooled `DATABASE_URL`, a new `JWT_SECRET` (`npm run secret`), `APP_ORIGIN=https://rejectradar.umarnazaket.com`, `MAIL_TRANSPORT=resend`, `RESEND_API_KEY`, `MAIL_FROM` on the verified domain, `TRUST_PROXY_HOPS` as on staging, and the live Paddle values with `PADDLE_ENV=production`. Add the custom domain `rejectradar-api.umarnazaket.com`.
-6. **Cloudflare Pages:** a second project from this repository with production branch `release`, build command `npx -y npm@11.12.1 ci && npx nx build web`, output `dist/apps/web/browser` and `SKIP_DEPENDENCY_INSTALL` set, as on staging. Turn off its preview deployments (the staging project already builds every branch) and add the custom domain `rejectradar.umarnazaket.com`.
+5. **Render:** run **Promote to production** once first, so the `release` branch exists. Then create a new web service from this repository in Singapore, on the Starter instance, deploying `release` automatically, with the staging service's build and start commands. Set every variable afresh, never copied from staging: `NODE_ENV=production`, the pooled `DATABASE_URL`, a new `JWT_SECRET` (`npm run secret`), `APP_ORIGIN=https://rejectlens.umarnazaket.com`, `MAIL_TRANSPORT=resend`, `RESEND_API_KEY`, `MAIL_FROM` on the verified domain, `TRUST_PROXY_HOPS` as on staging, and the live Paddle values with `PADDLE_ENV=production`. Add the custom domain `rejectlens-api.umarnazaket.com`.
+6. **Cloudflare Pages:** a second project from this repository with production branch `release`, build command `npx -y npm@11.12.1 ci && npx nx build web`, output `dist/apps/web/browser` and `SKIP_DEPENDENCY_INSTALL` set, as on staging. Turn off its preview deployments (the staging project already builds every branch) and add the custom domain `rejectlens.umarnazaket.com`.
 7. **GitHub:** point the `INGEST_DATABASE_URL` secret at production's direct string, and `APP_ORIGIN`, `MAIL_FROM` and `RESEND_API_KEY` at production's values. From then on every scheduled job writes to production only; staging keeps the data it has. To refresh it, copy production's reference data into a freshly migrated staging database the same way.
 8. **People:** sign up the staff accounts on production and make them admins, and sign up the smoke account with the same email and password as on staging.
 
