@@ -8,7 +8,10 @@ export interface LegalText {
 
 export type LegalPage = 'terms' | 'privacy' | 'refunds' | 'disclaimer';
 
-const CONTACT = 'Contact: support@umarnazaket.com.';
+/** Where customers write; the legal pages and the footer's Contact link use it. */
+export const SUPPORT_EMAIL = 'support@umarnazaket.com';
+
+const CONTACT = `Contact: ${SUPPORT_EMAIL}.`;
 
 export const LEGAL_TEXT: Record<LegalPage, LegalText> = {
   terms: {

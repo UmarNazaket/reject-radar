@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { I18n } from '../core/i18n';
+import { SUPPORT_EMAIL } from './legal-text';
 
 /** The links to the data sources and the legal pages, at the foot of the public screens. */
 @Component({
@@ -14,9 +15,11 @@ import { I18n } from '../core/i18n';
       <a routerLink="/terms" class="underline">{{ i18n.t('web.legal.terms') }}</a>
       <a routerLink="/privacy" class="underline">{{ i18n.t('web.legal.privacy') }}</a>
       <a routerLink="/refunds" class="underline">{{ i18n.t('web.legal.refunds') }}</a>
+      <a [href]="'mailto:' + supportEmail" class="underline">{{ i18n.t('web.legal.contact') }}</a>
     </nav>
   `,
 })
 export class LegalLinks {
   protected readonly i18n = inject(I18n);
+  protected readonly supportEmail = SUPPORT_EMAIL;
 }
