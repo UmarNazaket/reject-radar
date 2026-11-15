@@ -343,13 +343,14 @@ export async function remapTaxonomy(db: Database, options: { batchSize?: number 
  * run's row carries its start time, so a request made while it runs waits for the next one. Null when none is waiting.
  */
 export async function remapIfRequested(db: Database): Promise<{ updated: RemapCounts } | null> {
-  const { rows } = await db.execute<{ waiting: boolean }>(sql`
+  // The start time comes from the database clock, at full precision, like the request's created_at it is compared with.
+  const { rows } = await db.execute<{ waiting: boolean; now: string }>(sql`
     select coalesce(max(created_at) filter (where action = ${TAXONOMY_REMAP_REQUESTED})
-      > coalesce(max(created_at) filter (where action = ${TAXONOMY_REMAP_RAN}), '-infinity'), false) as waiting
+      > coalesce(max(created_at) filter (where action = ${TAXONOMY_REMAP_RAN}), '-infinity'), false) as waiting, now()::text as now
     from audit_log`);
   if (!rows[0]?.waiting) return null;
-  const startedAt = new Date();
+  const startedAt = rows[0].now;
   const result = await remapTaxonomy(db);
-  await db.insert(auditLog).values({ action: TAXONOMY_REMAP_RAN, targetType: 'taxonomy', targetId: 'rules', details: result, createdAt: startedAt });
+  await db.insert(auditLog).values({ action: TAXONOMY_REMAP_RAN, targetType: 'taxonomy', targetId: 'rules', details: result, createdAt: sql`${startedAt}::timestamptz` });
   return result;
 }
